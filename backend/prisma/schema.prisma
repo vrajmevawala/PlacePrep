@@ -47,8 +47,8 @@ model Question {
   created_at   DateTime  @default(now())
 
   author       User      @relation("UserQuestions", fields: [createdBy], references: [id])
-  testSeries   TestSeries[] 
-  freePractice freePractice[] 
+  testSeries   TestSeries[] @relation("TestSeriesQuestions")
+  freePractice freePractice[] @relation("FreePracticeQuestions")
   studentActivities StudentActivity[]
 }
 
@@ -60,8 +60,8 @@ model TestSeries {
   endTime        DateTime
 
   creator        User           @relation("UserTestSeries", fields: [createdBy], references: [id])
-  questions      Question[]     @relation("TestSeriesQuestions", references: [id])
-  participations Participation[]
+  questions      Question[]     @relation("TestSeriesQuestions")
+  participations Participation[] @relation("TestSeriesParticipation")
 }
 
 model freePractice {
@@ -72,8 +72,8 @@ model freePractice {
   endTime        DateTime
 
   creator        User           @relation("UserFreePractice", fields: [createdBy], references: [id])
-  questions      Question[]     @relation("FreePracticeQuestions", references: [id])
-  participations Participation[]
+  questions      Question[]     @relation("FreePracticeQuestions")
+  participations Participation[] @relation("FreePracticeParticipation")
 }
 
 model Participation {
@@ -81,11 +81,14 @@ model Participation {
   sid           Int       // user ID
   practiceTest  Boolean
   contest       Boolean
-  aptID         Int       // testSeries/freePractice ID
+  testSeriesId  Int?      // testSeries ID
+  freePracticeId Int?     // freePractice ID
   startTime     DateTime
   endTime       DateTime
 
   user          User      @relation(fields: [sid], references: [id])
+  testSeries    TestSeries? @relation("TestSeriesParticipation", fields: [testSeriesId], references: [id])
+  freePractice  freePractice? @relation("FreePracticeParticipation", fields: [freePracticeId], references: [id])
 }
 
 model StudentActivity {

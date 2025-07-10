@@ -5,6 +5,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import authRoutes from './routes/auth.routes.js';
+import testRoutes from './routes/test.routes.js';
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use(cors({
 }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/tests', testRoutes);
 
 app.listen(PORT, () => {
   console.log("Server is running on port " + PORT);

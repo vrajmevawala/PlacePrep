@@ -1,12 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
-// Prisma schema for PlacePrep backend
-// Generated from db.model.js
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -28,29 +19,81 @@ enum Level {
 }
 
 model User {
-  id         Int      @id @default(autoincrement())
-  role       String   @default("user")
-  fullName   String
-  email      String   @unique
-  password   String
-  created_at DateTime @default(now())
+  id           Int           @id @default(autoincrement())
+  role         String        @default("user")
+  fullName     String
+  email        String        @unique
+  password     String
+  created_at   DateTime      @default(now())
+  
+  questions    Question[]    @relation("UserQuestions")
+  testSeries   TestSeries[]  @relation("UserTestSeries")
+  freePractice freePractice[]@relation("UserFreePractice")
+  participations Participation[]
+  studentActivities StudentActivity[]
 }
 
 model Question {
-  id           Int      @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   category     Category
   subcategory  String
   level        Level
   question     String
-  options      String   
+  options      Json
   correctAns   String
   explanation  String
-  visibility   
-  createdBy    Int      // User ID who created the question
-  created_at   DateTime @default(now())
+  visibility   Boolean   @default(true)
+  createdBy    Int
+  created_at   DateTime  @default(now())
+
+  author       User      @relation("UserQuestions", fields: [createdBy], references: [id])
+  testSeries   TestSeries[] 
+  freePractice freePractice[] 
+  studentActivities StudentActivity[]
 }
 
+model TestSeries {
+  id             Int            @id @default(autoincrement())
+  createdBy      Int
+  title          String
+  startTime      DateTime
+  endTime        DateTime
 
+  creator        User           @relation("UserTestSeries", fields: [createdBy], references: [id])
+  questions      Question[]     @relation("TestSeriesQuestions", references: [id])
+  participations Participation[]
+}
 
+model freePractice {
+  id             Int            @id @default(autoincrement())
+  createdBy      Int
+  title          String
+  startTime      DateTime
+  endTime        DateTime
 
+  creator        User           @relation("UserFreePractice", fields: [createdBy], references: [id])
+  questions      Question[]     @relation("FreePracticeQuestions", references: [id])
+  participations Participation[]
+}
 
+model Participation {
+  pid           Int       @id @default(autoincrement())
+  sid           Int       // user ID
+  practiceTest  Boolean
+  contest       Boolean
+  aptID         Int       // testSeries/freePractice ID
+  startTime     DateTime
+  endTime       DateTime
+
+  user          User      @relation(fields: [sid], references: [id])
+}
+
+model StudentActivity {
+  aid           Int       @id @default(autoincrement())
+  sid           Int       // user ID
+  qid           Int       // question ID
+  time          DateTime
+
+  user          User      @relation(fields: [sid], references: [id])
+  question      Question  @relation(fields: [qid], references: [id])
+}

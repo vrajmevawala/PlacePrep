@@ -5,7 +5,12 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import authRoutes from './routes/auth.routes.js';
-import testRoutes from './routes/test.routes.js';
+import freePracticeRoutes from './routes/freePractice.routes.js';
+import testSeriesRoutes from './routes/testSeries.routes.js';
+import questionRoutes from './routes/question.routes.js';
+import cron from 'node-cron';
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 
 dotenv.config();
 
@@ -22,8 +27,31 @@ app.use(cors({
 }));
 
 app.use('/api/auth', authRoutes);
-app.use('/api/tests', testRoutes);
+app.use('/api/questions', questionRoutes);
+app.use('/api/freepractice', freePracticeRoutes);
+app.use('/api/testseries', testSeriesRoutes);
 
 app.listen(PORT, () => {
   console.log("Server is running on port " + PORT);
+});
+
+cron.schedule('*/5 * * * *', async () => { // every 5 minutes
+  const now = new Date();
+  // Find all test series that have ended but whose questions are still hidden
+  const endedSeries = await prisma.testSeries.findMany({
+    where: {
+      endTime: { lt: now }
+    },
+    include: { questions: true }
+  });
+
+  for (const series of endedSeries) {
+    const hiddenQuestionIds = series.questions.filter(q => !q.visibility).map(q => q.id);
+    if (hiddenQuestionIds.length > 0) {
+      await prisma.question.updateMany({
+        where: { id: { in: hiddenQuestionIds } },
+        data: { visibility: true }
+      });
+    }
+  }
 });

@@ -18,9 +18,15 @@ enum Level {
   hard
 }
 
+enum Role {
+  user
+  moderator
+  admin
+}
+
 model User {
   id           Int           @id @default(autoincrement())
-  role         String        @default("user")
+  role         Role          @default(user)
   fullName     String
   email        String        @unique
   password     String
@@ -54,10 +60,10 @@ model Question {
 
 model TestSeries {
   id             Int            @id @default(autoincrement())
-  createdBy      Int
   title          String
   startTime      DateTime
   endTime        DateTime
+  createdBy      Int
 
   creator        User           @relation("UserTestSeries", fields: [createdBy], references: [id])
   questions      Question[]     @relation("TestSeriesQuestions")
@@ -66,10 +72,13 @@ model TestSeries {
 
 model freePractice {
   id             Int            @id @default(autoincrement())
-  createdBy      Int
   title          String
+  category       Category
+  subcategory    String
+  level          Level
   startTime      DateTime
   endTime        DateTime
+  createdBy      Int
 
   creator        User           @relation("UserFreePractice", fields: [createdBy], references: [id])
   questions      Question[]     @relation("FreePracticeQuestions")

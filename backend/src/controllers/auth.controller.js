@@ -18,7 +18,7 @@ export const signup = async (req, res) => {
         }
 
         // Check if user already exists
-        const existingUser = await prisma.users.findUnique({ where: { email } });
+        const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
             return res.status(400).json({ message: "Email already exists" });
         }
@@ -27,7 +27,7 @@ export const signup = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
 
         // Insert new user
-        const result = await prisma.users.create({
+        const result = await prisma.user.create({
             data: {
                 role: role || 'user',
                 fullName,
@@ -63,7 +63,7 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
     const { email, password } = req.body;
     try {
-        const userResult = await prisma.users.findUnique({ where: { email } });
+        const userResult = await prisma.user.findUnique({ where: { email } });
         const user = userResult;
         if (!user) {
             return res.status(400).json({ message: "Invalid Credentials" });
@@ -95,7 +95,7 @@ export const createModerator = async (req, res) => {
         if (password.length < 6) {
             return res.status(400).json({ message: "Password must be at least 6 characters long" });
         }
-        const existingUser = await prisma.users.findUnique({ where: { email } });
+        const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
             return res.status(400).json({ message: "Email already exists" });
         }
@@ -103,7 +103,7 @@ export const createModerator = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const result = await prisma.users.create({
+        const result = await prisma.user.create({
             data: {
                 role: 'moderator',
                 fullName,
@@ -155,11 +155,11 @@ export const googleAuth = async (req, res) => {
         const payload = ticket.getPayload();
         const { email, name } = payload;
 
-        let userResult = await prisma.users.findUnique({ where: { email } });
+        let userResult = await prisma.user.findUnique({ where: { email } });
         let user = userResult;
 
         if(!user){
-            const insertResult = await prisma.users.create({
+            const insertResult = await prisma.user.create({
                 data: {
                     role: 'user',
                     fullName: name,
@@ -199,7 +199,7 @@ export const googleAuth = async (req, res) => {
 export const forgotPassword = async (req, res) => {
     const { email } = req.body;
     try {
-        const userResult = await prisma.users.findUnique({ where: { email } });
+        const userResult = await prisma.user.findUnique({ where: { email } });
         const user = userResult;
         if (!user) {
             return res.status(404).json({ message: 'User is not registered' });
@@ -275,7 +275,7 @@ export const resetPassword = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-        await prisma.users.update({
+        await prisma.user.update({
             where: { id: userId },
             data: { password: hashedPassword }
         });

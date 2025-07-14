@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
-export const protectRoute = async (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
     try {
         let token;
         // Check for token in Authorization header (Bearer) or cookies (jwt)
@@ -21,7 +21,7 @@ export const protectRoute = async (req, res, next) => {
         }
 
         // Fetch user from DB using id from token
-        const userResult = await prisma.users.findUnique({ where: { id: decoded.userID } });
+        const userResult = await prisma.user.findUnique({ where: { id: decoded.userID } });
         const user = userResult;
         if (!user) {
             return res.status(401).json({ message: "User not found" });
@@ -34,4 +34,5 @@ export const protectRoute = async (req, res, next) => {
         console.error("Error in protectRoute middleware", error.message);
         res.status(500).json({ message: "Internal Server Error" });
     }
-}; 
+};
+export default authMiddleware;

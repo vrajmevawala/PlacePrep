@@ -1,5 +1,5 @@
 import express from "express";
-import { signup, login, logout, createModerator, googleAuth, forgotPassword, resetPassword } from "../controllers/auth.controller.js";
+import { signup, login, logout, createModerator, googleAuth, forgotPassword, resetPassword, me } from "../controllers/auth.controller.js";
 import { requireAdmin } from "../middleware/role.middleware.js";
 import authMiddleware from '../middleware/auth.middleware.js';
 
@@ -14,5 +14,6 @@ router.post("/reset-password", resetPassword);
 router.post("/create-moderator", authMiddleware, requireAdmin, createModerator);
 
 router.post('/google-auth', googleAuth);
+router.get('/me', me);
 
 export default router;

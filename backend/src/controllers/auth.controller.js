@@ -181,6 +181,7 @@ export const googleAuth = async (req, res) => {
             process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
+        generateToken(user.id, user.role, res)
         res.status(200).json({  
             token,
             user: {
@@ -287,5 +288,32 @@ export const resetPassword = async (req, res) => {
             return res.status(400).json({ message: 'Reset token has expired.' });
         }
         res.status(500).json({ message: 'Internal Server Error' });
+    }
+};
+
+export const me = async (req, res) => {
+    try {
+        let token;
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+            token = req.headers.authorization.split(' ')[1];
+        } else if (req.cookies && req.cookies.jwt) {
+            token = req.cookies.jwt;
+        }
+        if (!token) {
+            return res.status(401).json({ message: 'Unauthorized - No token provided' });
+        }
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await prisma.user.findUnique({ where: { id: decoded.userID } });
+        if (!user) {
+            return res.status(401).json({ message: 'User not found' });
+        }
+        res.status(200).json({
+            _id: user.id,
+            role: user.role,
+            fullName: user.fullName,
+            email: user.email
+        });
+    } catch (error) {
+        res.status(401).json({ message: 'Unauthorized' });
     }
 };

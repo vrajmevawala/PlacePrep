@@ -17,6 +17,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { toast } from 'react-toastify';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import GoogleAuthCallback from './components/GoogleAuthCallback.jsx';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -105,40 +106,9 @@ function App() {
   };
 
   // Google Auth handler
-  const handleGoogleAuth = async () => {
-    try {
-      // Google OAuth2 popup
-      const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=645456995574-nm6p15hqubvu06irdbvvdc8r2n8d09c5.apps.googleusercontent.com&redirect_uri=${window.location.origin}/google-auth-callback&response_type=token&scope=profile email`;
-      const width = 500, height = 600;
-      const left = (window.innerWidth - width) / 2;
-      const top = (window.innerHeight - height) / 2;
-      const popup = window.open(googleAuthUrl, 'GoogleAuth', `width=${width},height=${height},left=${left},top=${top}`);
-      // Listen for message from popup
-      window.addEventListener('message', async (event) => {
-        if (event.origin !== window.location.origin) return;
-        const { id_token } = event.data;
-        if (id_token) {
-          const res = await fetch('/api/auth/google-auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id_token }),
-            credentials: 'include',
-          });
-          let data = null;
-          const contentType = res.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            data = await res.json();
-          }
-          if (!res.ok) {
-            throw new Error((data && data.message) || 'Google Auth failed');
-          }
-          setUser(data.user);
-          navigate('/dashboard');
-        }
-      }, { once: true });
-    } catch (err) {
-      toast.error(err.message || 'Google Auth failed');
-    }
+  const handleGoogleAuth = () => {
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=645456995574-nm6p15hqubvu06irdbvvdc8r2n8d09c5.apps.googleusercontent.com&redirect_uri=${window.location.origin}/google-auth-callback&response_type=id_token&scope=profile email&nonce=secureRandomNonce`;
+    window.location.href = googleAuthUrl;
   };
 
   return (
@@ -167,10 +137,11 @@ function App() {
               <Navigate to="/" />
             )
           } />
-          <Route path="/login" element={<Modal isOpen={true}><LoginForm onLogin={handleLogin} onForgotPassword={() => navigate('/forgot-password')} onGoogleAuth={handleGoogleAuth} onSignUp={() => navigate('/signup')} /></Modal>} />
-          <Route path="/signup" element={<Modal isOpen={true}><SignUpForm onSignUp={handleSignUp} onGoogleAuth={handleGoogleAuth} onSignIn={() => navigate('/login')} /></Modal>} />
-          <Route path="/forgot-password" element={<Modal isOpen={true}><ForgotPassword onBack={() => navigate('/login')} /></Modal>} />
-          <Route path="/reset-password" element={<Modal isOpen={true}><ResetPassword onBack={() => navigate('/login')} /></Modal>} />
+          <Route path="/login" element={<Modal isOpen={true} onClose={() => navigate("/")}><LoginForm onLogin={handleLogin} onForgotPassword={() => navigate('/forgot-password')} onGoogleAuth={handleGoogleAuth} onSignUp={() => navigate('/signup')} /></Modal>} />
+          <Route path="/signup" element={<Modal isOpen={true} onClose={() => navigate("/")}><SignUpForm onSignUp={handleSignUp} onGoogleAuth={handleGoogleAuth} onSignIn={() => navigate('/login')} /></Modal>} />
+          <Route path="/forgot-password" element={<Modal isOpen={true} onClose={() => navigate("/")}><ForgotPassword onBack={() => navigate('/login')} /></Modal>} />
+          <Route path="/reset-password" element={<Modal isOpen={true} onClose={() => navigate("/")}><ResetPassword onBack={() => navigate('/login')} /></Modal>} />
+          <Route path="/google-auth-callback" element={<GoogleAuthCallback onAuthSuccess={user => { setUser(user); navigate('/dashboard'); }} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
         <ToastContainer position="top-right" autoClose={3000} />

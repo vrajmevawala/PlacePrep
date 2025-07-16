@@ -34,4 +34,24 @@ export const addQuestion = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+};
+
+// Get all questions (admin/moderator only)
+export const getAllQuestions = async (req, res) => {
+  try {
+    const userRole = req.user.role;
+    if (!['admin', 'moderator'].includes(userRole)) {
+      return res.status(403).json({ message: 'Only admin or moderator can view questions.' });
+    }
+    const questions = await prisma.question.findMany({
+      include: {
+        author: {
+          select: { id: true, fullName: true, email: true }
+        }
+      }
+    });
+    res.json({ questions });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 }; 

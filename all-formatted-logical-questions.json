@@ -1,0 +1,450 @@
+[
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Tanya is older than Eric.\n\nCliff is older than Tanya.\n\nEric is older than Cliff.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "b",
+    "explanation": "Because the first two statements are true, Eric is the  youngest of the three, so the third statement must be false.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Blueberries cost more than strawberries.\n\nBlueberries cost less than raspberries.\n\nRaspberries cost more than strawberries and blueberries.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "Because the first two statements are true, raspberries are the most expensive of the three.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "All the trees in the park are flowering trees.\n\nSome of the trees in the park are dogwoods.\n\nAll dogwoods in the park are flowering trees.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "All of the trees in the park are flowering trees, So all dogwoods <u>in the park</u> are flowering trees.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Mara runs faster than Gail.\n\nLily runs faster than Mara.\n\nGail runs faster than Lily.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "b",
+    "explanation": "We know from the first two statements that Lily runs fastest. Therefore, the third statement must be false.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Apartments in the Riverdale Manor cost less than apartments in The Gaslight Commons.\n\nApartments in the Livingston Gate cost more than apartments in the The Gaslight Commons.\n\nOf the three apartment buildings, the Livingston Gate costs the most.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "Since the Gaslight Commons costs more than the Riverdale Manor and the Livingston Gate costs more than the Gaslight Commons, it is true that the Livingston Gate costs the most.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "The Kingston Mall has more stores than the Galleria.\n\nThe Four Corners Mall has fewer stores than the Galleria.\n\nThe Kingston Mall has more stores than the Four Corners Mall.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "From the first two statements, you know that the Kingston Mall has the most stores, so the Kingston Mall would have more stores than the Four Corners Mall.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "All the tulips in Zoe's garden are white.\n\nAll the pansies in Zoe's garden are yellow.\n\nAll the flowers in Zoe's garden are either white or yellow\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "c",
+    "explanation": "The first two statements give information about Zoe's  tulips and pansies. Information about any other kinds of flowers cannot be determined.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "During the past year, Josh saw more movies than Stephen.\n\nStephen saw fewer movies than Darren.\n\nDarren saw more movies than Josh.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "c",
+    "explanation": "Because the first two sentences are true, both Josh and Darren saw more movies than Stephen. However, it is uncertain as to whether \nDarren saw more movies than Josh.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Rover weighs less than Fido.\n\nRover weighs more than Boomer.\n\nOf the three dogs, Boomer weighs the least.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "According to the first two statements, Fido weighs  the most and Boomer weighs the least.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "All the offices on the 9th floor have wall-to-wall carpeting.\n\nNo wall-to-wall carpeting is pink.\n\nNone of the offices on the 9th floor has pink wall-to-wall carpeting.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "If no wall-to-wall carpeting is pink and all the offices have wall-to-wall carpeting, none of the offices has pink wall-to-wall carpeting.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Class A has a higher enrollment than Class B.\n\nClass C has a lower enrollment than Class B.\n\nClass A has a lower enrollment than Class C.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "b",
+    "explanation": "From the first two statements, we know that of the three classes, Class A has the highest enrollment, so the third statement must be false.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "A fruit basket contains more apples than lemons.\n\nThere are more lemons in the basket than there are oranges.\n\nThe basket contains more apples than oranges.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "There are fewer oranges than either apples or lemons, so the statement is true. \n\n\n\nEasy method: (Try this method to solve without any confusion) \n\n\n\n1. A fruit basket contains more apples than lemons = App &gt; Lem \n\n2. There are more lemons in the basket than there are oranges = Lem &gt; Org \n\n\n\nNow, Combine the above two results: App &gt; Lem &gt; Org \n\n\n\n3. The basket contains more apples than oranges (App &gt; ... &gt; Org) = Yes.\n\n\n\nTherefore, the given 3rd statement is true.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "The Shop and Save Grocery is south of Greenwood Pharmacy.\n\nRebecca's house is northeast of Greenwood Pharmacy.\n\nRebecca's house is west of the Shop and Save Grocery.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "b",
+    "explanation": "Because the first two statements are true, Rebecca's house is also northeast of the Shop and Save Grocery, which means that the third statement is false.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Joe is younger than Kathy.\n\nMark was born after Joe.\n\nKathy is older than Mark.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "Joe is younger than Kathy and older than Mark, so Mark must be younger than Kathy.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "On the day the Barton triplets are born,\n\nJenna weighs more than Jason.\n\nJason weighs less than Jasmine.\n\nOf the three babies, Jasmine weighs the most.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "c",
+    "explanation": "We only know that Jasmine weighs more than Jason. There is no way to tell whether Jasmine also weighs more than Jenna.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "The temperature on Monday was lower than on Tuesday.\n\nThe temperature on Wednesday was lower than on Tuesday.\n\nThe temperature on Monday was higher than on Wednesday\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "c",
+    "explanation": "We know from the first two statements that Tuesday had the highest temperature, but we cannot know whether Monday's temperature was  higher than Tuesday's",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Oat cereal has more fiber than corn cereal but less fiber than bran cereal.\n\nCorn cereal has more fiber than rice cereal but less fiber than wheat cereal.\n\nOf the three kinds of cereal, rice cereal has the least amount of fiber.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "From the first statement, we know that bran cereal has more fiber than both oat cereal and corn cereal. From the second statement, we know that rice cereal has less fiber than both corn and wheat cereals. Therefore, rice cereal has the least amount of fiber.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Martina is sitting in the desk behind Jerome.\n\nJerome is sitting in the desk behind Bryant.\n\nBryant is sitting in the desk behind Martina.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "b",
+    "explanation": "Given the information in the first two statements, Bryant is sitting in front of both Jerome and Martina, so the third statement must be false.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Battery X lasts longer than Battery Y.\n\nBattery Y doesn't last as long as Battery Z.\n\nBattery Z lasts longer than Battery X.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "c",
+    "explanation": "The first two statements indicate that Battery Y lasts the least amount of time, but it cannot be determined if Battery Z lasts longer than Battery X.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Spot is bigger than King and smaller than Sugar.\n\nRalph is smaller than Sugar and bigger than Spot.\n\nKing is bigger than Ralph.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "b",
+    "explanation": "Spot is bigger than King, and Ralph is bigger than Spot. Therefore, King must be smaller than Ralph.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Middletown is north of Centerville.\n\nCenterville is east of Penfield.\n\nPenfield is northwest of Middletown.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "b",
+    "explanation": "Because the first two statements are true, Penfield is  west of Centerville and southwest of Middletown. Therefore, the third statement is false.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "All spotted Gangles have long tails.\n\nShort-haired Gangles always have short tails.\n\nLong-tailed Gangles never have short hair.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "c",
+    "explanation": "We know only that long-tailed Gangles have spots. We cannot know for certain if long-tailed Gangles also have short hair.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "All Lamels are Signots with buttons.\n\nNo yellow Signots have buttons.\n\nNo Lamels are yellow.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "We know that there are Signots with buttons, or Lamels, and that there are yellow Signots, which have no buttons. Therefore, Lamels do not have buttons and cannot be yellow.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "The hotel is two blocks east of the drugstore.\n\nThe market is one block west of the hotel.\n\nThe drugstore is west of the market.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "The market is one block west of the hotel. The drugstore is two blocks west of the hotel, so the drugstore is west of the market.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "A toothpick is useful.\n\nUseful things are valuable.\n\nA toothpick is valuable.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "To the extent that a toothpick is useful, it has value.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Tom puts on his socks before he puts on his shoes.\n\nHe puts on his shirt before he puts on his jacket.\n\nTom puts on his shoes before he puts on his shirt.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "c",
+    "explanation": "There is not enough information to verify the third statement.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Three pencils cost the same as two erasers.\n\nFour erasers cost the same as one ruler.\n\nPencils are more expensive than rulers.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "b",
+    "explanation": "Rulers are the most expensive item.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Taking the train across town is quicker than taking the bus.\n\nTaking the bus across town is slower than driving a car.\n\nTaking the train across town is quicker than driving a car.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "c",
+    "explanation": "Both the car and the train are quicker than the bus, but there is no way to make a comparison between the train and the car.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "Cloudy days tend to be more windy than sunny days.\n\nFoggy days tend to be less windy than cloudy days.\n\nSunny days tend to be less windy than foggy days.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "c",
+    "explanation": "Cloudy days are the most windy, but there is not enough information to compare the wind on the foggy days with the wind on the sunny days.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "At a parking lot, a sedan is parked to the right of a pickup and to the left of a sport utility vehicle.\n\nA minivan is parked to the left of the pickup.\n\nThe minivan is parked between the pickup and the sedan.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "b",
+    "explanation": "This is the order of the cars from left to right: minivan, pickup, sedan, sport utility vehicle.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "The bookstore has a better selection of postcards than the newsstand does.\n\nThe selection of postcards at the drugstore is better than at the bookstore.\n\nThe drugstore has a better selection of postcards than the bookstore or the newsstand.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "a",
+    "explanation": "Of the three, the drugstore has the best selection of postcards.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Logical Reasoning",
+    "level": "medium",
+    "question": "A jar of jelly beans contains more red beans than green.\n\nThere are more yellow beans than red.\n\nThe jar contains fewer yellow jelly beans than green ones.\n\nIf the first two statements are true, the third statement is",
+    "options": {
+      "a": "true",
+      "b": "false",
+      "c": "uncertain"
+    },
+    "correctAns": "b",
+    "explanation": "The first two statements indicate there are more yellow jelly beans than red and green.",
+    "visibility": true
+  }
+]

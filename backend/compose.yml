@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:alpine
+    container_name: postgres
+    restart: always
+
+    environment:
+      POSTGRES_DB: PlacePrep
+      POSTGRES_USER: samarth
+      POSTGRES_PASSWORD: Samu@3005
+
+    ports:
+      - ${DB_PORT}:5432
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${DB_NAME} -U $${DB_USER}"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+    
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    attach: false
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080

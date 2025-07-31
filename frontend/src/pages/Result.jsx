@@ -42,7 +42,15 @@ const Result = () => {
           try {
             if (p._type === 'testSeries') {
               const res = await fetch(`/api/testseries/${p.testSeriesId}/result?pid=${p.pid}`, { credentials: 'include' });
-              resultsObj[p.pid] = res.ok ? await res.json() : { error: 'No result' };
+              
+              if (res.status === 403) {
+                // Contest hasn't ended yet
+                resultsObj[p.pid] = { error: 'Results not available yet', contestNotEnded: true };
+              } else if (res.ok) {
+                resultsObj[p.pid] = await res.json();
+              } else {
+                resultsObj[p.pid] = { error: 'No result' };
+              }
 
               if (!statsObj[p.testSeriesId]) {
                 const statRes = await fetch(`/api/testseries/${p.testSeriesId}/stats`, { credentials: 'include' });
@@ -128,24 +136,30 @@ const Result = () => {
     return true;
   });
 
-  // Calculate performance metrics
+  // Calculate performance metrics (excluding contests that haven't ended)
+  const completedParticipations = filteredParticipations.filter(p => {
+    const result = results[p.pid];
+    return !result || !result.contestNotEnded;
+  });
+
   const performanceMetrics = {
     totalAttempts: filteredParticipations.length,
-    averageScore: filteredParticipations.length > 0 
-      ? (filteredParticipations.reduce((sum, p) => sum + (results[p.pid]?.correct || 0), 0) / filteredParticipations.length).toFixed(1)
+    completedAttempts: completedParticipations.length,
+    averageScore: completedParticipations.length > 0 
+      ? (completedParticipations.reduce((sum, p) => sum + (results[p.pid]?.correct || 0), 0) / completedParticipations.length).toFixed(1)
       : '0',
-    bestScore: filteredParticipations.length > 0 
-      ? Math.max(...filteredParticipations.map(p => results[p.pid]?.correct || 0))
+    bestScore: completedParticipations.length > 0 
+      ? Math.max(...completedParticipations.map(p => results[p.pid]?.correct || 0))
       : '0',
-    averagePercentage: filteredParticipations.length > 0 
-      ? (filteredParticipations.reduce((sum, p) => {
+    averagePercentage: completedParticipations.length > 0 
+      ? (completedParticipations.reduce((sum, p) => {
           const result = results[p.pid];
           const stat = stats[p._type === 'testSeries' ? p.testSeriesId : p.freePracticeId];
           if (result && !result.error && stat?.totalQuestions && stat.totalQuestions !== '-') {
             return sum + ((result.correct / stat.totalQuestions) * 100);
           }
           return sum;
-        }, 0) / filteredParticipations.length).toFixed(1)
+        }, 0) / completedParticipations.length).toFixed(1)
       : '0'
   };
 
@@ -225,6 +239,11 @@ const Result = () => {
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
                   <div className="text-3xl font-bold text-gray-900 mb-2">{performanceMetrics.totalAttempts}</div>
                   <div className="text-sm text-gray-600 font-medium">Total Attempts</div>
+                  {performanceMetrics.totalAttempts !== performanceMetrics.completedAttempts && (
+                    <div className="text-xs text-orange-600 mt-1">
+                      {performanceMetrics.completedAttempts} completed
+                    </div>
+                  )}
                 </div>
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
                   <div className="text-3xl font-bold text-gray-900 mb-2">{performanceMetrics.averageScore}</div>
@@ -249,7 +268,7 @@ const Result = () => {
               </h3>
               <div className="bg-gray-50 rounded-lg p-6">
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={filteredParticipations.map((p, i) => ({
+                  <LineChart data={completedParticipations.map((p, i) => ({
                     date: p.startTime ? new Date(p.startTime).toLocaleDateString() : `Attempt ${i + 1}`,
                     score: results[p.pid]?.correct ?? 0
                   }))}>
@@ -359,14 +378,22 @@ const Result = () => {
                           </div>
                         </td>
                         <td className="py-4 px-6">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-semibold text-gray-900">{result?.correct ?? '-'}</span>
-                            <span className="text-gray-400">/</span>
-                            <span className="text-gray-600">{stat?.totalQuestions ?? '-'}</span>
-                          </div>
+                          {result && result.contestNotEnded ? (
+                            <span className="text-sm text-orange-600 font-medium">Coming Soon</span>
+                          ) : (
+                            <div className="flex items-center space-x-2">
+                              <span className="font-semibold text-gray-900">{result?.correct ?? '-'}</span>
+                              <span className="text-gray-400">/</span>
+                              <span className="text-gray-600">{stat?.totalQuestions ?? '-'}</span>
+                            </div>
+                          )}
                         </td>
                         <td className="py-4 px-6">
-                          {percent !== '-' ? (
+                          {result && result.contestNotEnded ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
+                              Coming Soon
+                            </span>
+                          ) : percent !== '-' ? (
                             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                               parseFloat(percent) >= 80 ? 'bg-green-100 text-green-800' :
                               parseFloat(percent) >= 60 ? 'bg-yellow-100 text-yellow-800' :
@@ -380,7 +407,9 @@ const Result = () => {
                           )}
                         </td>
                         <td className="py-4 px-6">
-                          {percentile !== '-' && p._type === 'testSeries' ? (
+                          {result && result.contestNotEnded ? (
+                            <span className="text-sm text-orange-600 font-medium">Coming Soon</span>
+                          ) : percentile !== '-' && p._type === 'testSeries' ? (
                             <span className="text-sm font-medium text-gray-900">{percentile}%</span>
                           ) : (
                             <span className="text-gray-400">-</span>
@@ -398,6 +427,8 @@ const Result = () => {
                               </svg>
                               View Details
                             </button>
+                          ) : result && result.contestNotEnded ? (
+                            <span className="text-sm text-orange-600 font-medium">Results Coming Soon</span>
                           ) : (
                             <span className="text-sm text-gray-400">No result</span>
                           )}

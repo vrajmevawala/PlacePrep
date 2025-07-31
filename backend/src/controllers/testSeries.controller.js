@@ -293,6 +293,18 @@ export const getUserContestResult = async (req, res) => {
     });
     if (!contest) return res.status(404).json({ message: 'Contest not found' });
 
+    // Check if contest has ended
+    const now = new Date();
+    const contestEndTime = new Date(contest.endTime);
+    
+    if (now < contestEndTime) {
+      return res.status(403).json({ 
+        message: 'Results not available yet',
+        contestEndTime: contest.endTime,
+        timeUntilEnd: contestEndTime.getTime() - now.getTime()
+      });
+    }
+
     // Get all StudentActivity for this user/contest in the contest window
     const activities = await prisma.studentActivity.findMany({
       where: {

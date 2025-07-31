@@ -57,12 +57,16 @@ const ModeratorDashboard = ({ user }) => {
   const [allContests, setAllContests] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
-  const [allSubcategories, setAllSubcategories] = useState([]);
+  const [allSubcategories, setAllSubcategories] = useState([]);x
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
   const [subcategoryQuestions, setSubcategoryQuestions] = useState([]);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [userResults, setUserResults] = useState([]);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   // Modal scroll lock
   useEffect(() => {
@@ -435,9 +439,109 @@ const ModeratorDashboard = ({ user }) => {
   };
 
   const handleEditQuestion = (q) => {
-    setEditForm({ ...q, options: { ...q.options } });
+    setEditForm(q);
     setEditModalOpen(true);
   };
+
+  // Pagination helper functions
+  const getCurrentPageData = (data) => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (data) => {
+    return Math.ceil(data.length / itemsPerPage);
+  };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  // Reset to first page when tab changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedTab]);
+
+  // Pagination component
+  const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+    const pages = [];
+    const maxVisiblePages = 5;
+
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <div className="flex items-center justify-center space-x-2 mt-6">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Previous
+        </button>
+
+        {startPage > 1 && (
+          <>
+            <button
+              onClick={() => onPageChange(1)}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              1
+            </button>
+            {startPage > 2 && (
+              <span className="px-2 text-gray-500">...</span>
+            )}
+          </>
+        )}
+
+        {pages.map(page => (
+          <button
+            key={page}
+            onClick={() => onPageChange(page)}
+            className={`px-3 py-2 text-sm font-medium rounded-md ${
+              currentPage === page
+                ? 'bg-black text-white'
+                : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+
+        {endPage < totalPages && (
+          <>
+            {endPage < totalPages - 1 && (
+              <span className="px-2 text-gray-500">...</span>
+            )}
+            <button
+              onClick={() => onPageChange(totalPages)}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              {totalPages}
+            </button>
+          </>
+        )}
+
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Next
+        </button>
+      </div>
+    );
+  };
+
   const handleEditFormChange = e => {
     const { name, value } = e.target;
     if (["a", "b", "c", "d"].includes(name)) {
@@ -580,35 +684,62 @@ const ModeratorDashboard = ({ user }) => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {allUsers.filter(u => u.role === 'user').map(u => (
-                    <tr key={u.id} className="border-b hover:bg-gray-50 transition">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium">{u.fullName}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium">{u.email}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium">{u.role}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {u.score !== null ? (
-                          <span className={`px-2 py-1 text-xs rounded ${
-                            u.score >= 85 ? 'bg-green-100 text-green-800' :
-                            u.score >= 70 ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {u.score}%
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {getCurrentPageData(allUsers.filter(u => u.role === 'user')).map((u, index) => {
+                    const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                    return (
+                      <tr key={u.id} className="border-b hover:bg-gray-50 transition">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                            </div>
+                            <div className="font-medium">{u.fullName}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="font-medium">{u.email}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="font-medium">{u.role}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {u.score !== null ? (
+                            <span className={`px-2 py-1 text-xs rounded ${
+                              u.score >= 85 ? 'bg-green-100 text-green-800' :
+                              u.score >= 70 ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {u.score}%
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination for Users */}
+            {getTotalPages(allUsers.filter(u => u.role === 'user')) > 1 && (
+              <div className="px-6 py-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing {getCurrentPageData(allUsers.filter(u => u.role === 'user')).length} of {allUsers.filter(u => u.role === 'user').length} users
+                    {getTotalPages(allUsers.filter(u => u.role === 'user')) > 1 && (
+                      <span> (Page {currentPage} of {getTotalPages(allUsers.filter(u => u.role === 'user'))})</span>
+                    )}
+                  </div>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={getTotalPages(allUsers.filter(u => u.role === 'user'))}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
         {selectedTab === 'resources' && (
@@ -656,13 +787,22 @@ const ModeratorDashboard = ({ user }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {allQuestions.map(q => (
-                    <tr key={q.id} className="border-b hover:bg-gray-50 transition">
-                      <td className="py-2 px-3">{q.question}</td>
-                      <td className="py-2 px-3">{q.category}</td>
-                      <td className="py-2 px-3">{q.subcategory}</td>
-                      <td className="py-2 px-3">{q.level}</td>
-                      <td className="py-2 px-3 flex gap-2">
+                  {getCurrentPageData(allQuestions).map((q, index) => {
+                    const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                    return (
+                      <tr key={q.id} className="border-b hover:bg-gray-50 transition">
+                        <td className="py-2 px-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                            </div>
+                            <div>{q.question}</div>
+                          </div>
+                        </td>
+                        <td className="py-2 px-3">{q.category}</td>
+                        <td className="py-2 px-3">{q.subcategory}</td>
+                        <td className="py-2 px-3">{q.level}</td>
+                        <td className="py-2 px-3 flex gap-2">
                         <button onClick={() => handleEditQuestion(q)} className="text-gray-600 hover:text-black mr-3">
                           <Edit className="w-4 h-4" />
                         </button>
@@ -671,10 +811,30 @@ const ModeratorDashboard = ({ user }) => {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  );
+                })}
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination for Resources */}
+            {getTotalPages(allQuestions) > 1 && (
+              <div className="px-6 py-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing {getCurrentPageData(allQuestions).length} of {allQuestions.length} questions
+                    {getTotalPages(allQuestions) > 1 && (
+                      <span> (Page {currentPage} of {getTotalPages(allQuestions)})</span>
+                    )}
+                  </div>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={getTotalPages(allQuestions)}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
         {selectedTab === 'contests' && (
@@ -700,17 +860,46 @@ const ModeratorDashboard = ({ user }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {allContests.map(contest => (
-                    <tr key={contest.id} className="border-b hover:bg-gray-50 transition">
-                      <td className="py-2 px-3 font-semibold">{contest.title}</td>
-                      <td className="py-2 px-3">{new Date(contest.startTime).toLocaleString()}</td>
-                      <td className="py-2 px-3">{new Date(contest.endTime).toLocaleString()}</td>
-                      <td className="py-2 px-3">{contest.creator?.fullName || 'Unknown'}</td>
-                    </tr>
-                  ))}
+                  {getCurrentPageData(allContests).map((contest, index) => {
+                    const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                    return (
+                      <tr key={contest.id} className="border-b hover:bg-gray-50 transition">
+                        <td className="py-2 px-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                            </div>
+                            <div className="font-semibold">{contest.title}</div>
+                          </div>
+                        </td>
+                        <td className="py-2 px-3">{new Date(contest.startTime).toLocaleString()}</td>
+                        <td className="py-2 px-3">{new Date(contest.endTime).toLocaleString()}</td>
+                        <td className="py-2 px-3">{contest.creator?.fullName || 'Unknown'}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination for Contests */}
+            {getTotalPages(allContests) > 1 && (
+              <div className="px-6 py-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing {getCurrentPageData(allContests).length} of {allContests.length} contests
+                    {getTotalPages(allContests) > 1 && (
+                      <span> (Page {currentPage} of {getTotalPages(allContests)})</span>
+                    )}
+                  </div>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={getTotalPages(allContests)}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
         {selectedTab === 'results' && (
@@ -728,18 +917,47 @@ const ModeratorDashboard = ({ user }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {userResults.map((r, idx) => (
-                    <tr key={idx} className="border-b">
-                      <td className="py-2 px-4">{r.user}</td>
-                      <td className="py-2 px-4">{r.test}</td>
-                      <td className="py-2 px-4">{r.score}</td>
-                      <td className="py-2 px-4">{r.time}</td>
-                      <td className="py-2 px-4">{r.date}</td>
-                    </tr>
-                  ))}
+                  {getCurrentPageData(userResults).map((r, idx) => {
+                    const actualIndex = (currentPage - 1) * itemsPerPage + idx + 1;
+                    return (
+                      <tr key={idx} className="border-b">
+                        <td className="py-2 px-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                            </div>
+                            <div>{r.user}</div>
+                          </div>
+                        </td>
+                        <td className="py-2 px-4">{r.test}</td>
+                        <td className="py-2 px-4">{r.score}</td>
+                        <td className="py-2 px-4">{r.time}</td>
+                        <td className="py-2 px-4">{r.date}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination for Results */}
+            {getTotalPages(userResults) > 1 && (
+              <div className="px-6 py-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing {getCurrentPageData(userResults).length} of {userResults.length} results
+                    {getTotalPages(userResults) > 1 && (
+                      <span> (Page {currentPage} of {getTotalPages(userResults)})</span>
+                    )}
+                  </div>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={getTotalPages(userResults)}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
         {/* Modals for create question/contest */}

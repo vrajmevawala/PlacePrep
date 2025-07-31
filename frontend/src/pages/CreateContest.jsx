@@ -22,7 +22,7 @@ const CreateContest = () => {
   const [expandedQuestions, setExpandedQuestions] = useState(new Set());
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmDialogData, setConfirmDialogData] = useState({ type: '', newValue: 0 });
-  const [draftNumQuestions, setDraftNumQuestions] = useState(numQuestions);
+  const [draftNumQuestions, setDraftNumQuestions] = useState(5);
   const [shakeQuestion, setShakeQuestion] = useState(null);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -56,6 +56,10 @@ const CreateContest = () => {
     explanation: ''
   });
   const [savingQuestion, setSavingQuestion] = useState(false);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   const navigate = useNavigate();
 
@@ -321,6 +325,115 @@ const CreateContest = () => {
     );
   });
 
+  // Pagination helper functions
+  const getCurrentPageData = (data) => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (data) => {
+    return Math.ceil(data.length / itemsPerPage);
+  };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    // Scroll to top of questions section
+    const questionsSection = document.querySelector('.questions-section');
+    if (questionsSection) {
+      questionsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.topic, filters.difficulty]);
+
+  // Keep draftNumQuestions synchronized with numQuestions
+  useEffect(() => {
+    setDraftNumQuestions(numQuestions);
+  }, [numQuestions]);
+
+  // Pagination component
+  const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+    const pages = [];
+    const maxVisiblePages = 5;
+
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <div className="flex items-center justify-center space-x-2 mt-6">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Previous
+        </button>
+
+        {startPage > 1 && (
+          <>
+            <button
+              onClick={() => onPageChange(1)}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              1
+            </button>
+            {startPage > 2 && (
+              <span className="px-2 text-gray-500">...</span>
+            )}
+          </>
+        )}
+
+        {pages.map(page => (
+          <button
+            key={page}
+            onClick={() => onPageChange(page)}
+            className={`px-3 py-2 text-sm font-medium rounded-md ${
+              currentPage === page
+                ? 'bg-black text-white'
+                : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+
+        {endPage < totalPages && (
+          <>
+            {endPage < totalPages - 1 && (
+              <span className="px-2 text-gray-500">...</span>
+            )}
+            <button
+              onClick={() => onPageChange(totalPages)}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              {totalPages}
+            </button>
+          </>
+        )}
+
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Next
+        </button>
+      </div>
+    );
+  };
+
   const handleSelectQuestion = (q) => {
     if (selectedQuestions.find(sq => sq.id === q.id)) {
       setSelectedQuestions(selectedQuestions.filter(sq => sq.id !== q.id));
@@ -383,34 +496,44 @@ const CreateContest = () => {
   };
 
   const handleNumberChange = (newValue) => {
-    setDraftNumQuestions(newValue);
+    // Ensure the value is within valid bounds
+    const validValue = Math.max(5, Math.min(newValue, allQuestions.length));
+    setDraftNumQuestions(validValue);
   };
 
   // Only called when user "commits" the change
   const commitNumberChange = (newValue) => {
-    if (newValue === numQuestions) return;
+    // Validate the input value
+    const validValue = Math.max(1, Math.min(newValue, allQuestions.length));
+    
+    if (validValue === numQuestions) {
+      // Reset draft to current value if no change
+      setDraftNumQuestions(numQuestions);
+      return;
+    }
+    
     const currentSelected = selectedQuestions.length;
-    if (newValue > numQuestions) {
+    if (validValue > numQuestions) {
       if (currentSelected > 0) {
         setConfirmDialogData({
           type: 'increase',
-          newValue: newValue,
+          newValue: validValue,
           message: `You have ${currentSelected} questions selected. Do you want to clear the selection or continue with the current selection?`
         });
         setShowConfirmDialog(true);
       } else {
-        setNumQuestions(newValue);
+        setNumQuestions(validValue);
       }
-    } else if (newValue < numQuestions) {
-      if (currentSelected > newValue) {
+    } else if (validValue < numQuestions) {
+      if (currentSelected > validValue) {
         setConfirmDialogData({
           type: 'decrease',
-          newValue: newValue,
-          message: `If you decrease to ${newValue} questions, your current selection of ${currentSelected} questions will be lost. Continue?`
+          newValue: validValue,
+          message: `If you decrease to ${validValue} questions, your current selection of ${currentSelected} questions will be lost. Continue?`
         });
         setShowConfirmDialog(true);
       } else {
-        setNumQuestions(newValue);
+        setNumQuestions(validValue);
       }
     }
   };
@@ -507,7 +630,7 @@ const CreateContest = () => {
         {/* Header */}
         <div className="mb-12">
           <div className="flex items-center space-x-4 mb-4">
-            <div className="w-12 h-12 bg-black rounded-sm flex items-center justify-center">
+            <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center shadow-sm">
               <Trophy className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -537,11 +660,20 @@ const CreateContest = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-black mb-3">Number of Questions</label>
+                <label className="block text-sm font-semibold text-black mb-3">
+                  Number of Questions
+                  {draftNumQuestions !== numQuestions && (
+                    <span className="ml-2 text-xs text-gray-500">(Press Enter or Tab to save)</span>
+                  )}
+                </label>
                 <input
                   type="number"
-                  className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
-                  value={numQuestions}
+                  className={`w-full px-4 py-3 border transition-colors ${
+                    draftNumQuestions !== numQuestions 
+                      ? 'border-orange-300 focus:ring-2 focus:ring-orange-400 focus:border-orange-400' 
+                      : 'border-gray-300 focus:ring-2 focus:ring-black focus:border-black'
+                  }`}
+                  value={draftNumQuestions}
                   min={1}
                   max={allQuestions.length}
                   onChange={e => handleNumberChange(Number(e.target.value))}
@@ -553,6 +685,9 @@ const CreateContest = () => {
                   }}
                   required
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Available questions: {allQuestions.length}
+                </p>
               </div>
             </div>
             
@@ -737,6 +872,11 @@ const CreateContest = () => {
               <h3 className="text-xl font-bold text-black flex items-center">
                 <Eye className="w-5 h-5 mr-3 text-black" />
                 Question Bank ({filteredQuestions.length} questions)
+                {getTotalPages(filteredQuestions) > 1 && (
+                  <span className="ml-2 text-sm font-normal text-gray-600">
+                    (Page {currentPage} of {getTotalPages(filteredQuestions)})
+                  </span>
+                )}
               </h3>
               <div className="flex items-center space-x-3">
                 <button
@@ -769,10 +909,24 @@ const CreateContest = () => {
                 <p className="text-red-600">{error}</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredQuestions.map(q => {
+              <div className="space-y-3 questions-section">
+                {/* Question Counter */}
+                <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                  <div>
+                    Showing {getCurrentPageData(filteredQuestions).length} of {filteredQuestions.length} questions
+                    {getTotalPages(filteredQuestions) > 1 && (
+                      <span> (Page {currentPage} of {getTotalPages(filteredQuestions)})</span>
+                    )}
+                  </div>
+                  <div>
+                    Selected: {selectedQuestions.length}/{numQuestions} questions
+                  </div>
+                </div>
+                {getCurrentPageData(filteredQuestions).map((q, idx) => {
                   const isSelected = !!selectedQuestions.find(sq => sq.id === q.id);
                   const isExpanded = expandedQuestions.has(q.id);
+                  // Calculate the actual question number across all pages
+                  const actualQuestionNumber = (currentPage - 1) * itemsPerPage + idx + 1;
                   return (
                     <div
                       key={q.id}
@@ -790,7 +944,10 @@ const CreateContest = () => {
                         onClick={() => handleQuestionClick(q)}
                       >
                         <div className="flex items-start space-x-4">
-                          <div className="flex-shrink-0 pt-1" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex-shrink-0 pt-1 flex items-center space-x-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-600">{actualQuestionNumber}</span>
+                            </div>
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -942,6 +1099,15 @@ const CreateContest = () => {
                     </div>
                   );
                 })}
+                
+                {/* Pagination */}
+                {getTotalPages(filteredQuestions) > 1 && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={getTotalPages(filteredQuestions)}
+                    onPageChange={handlePageChange}
+                  />
+                )}
               </div>
             )}
           </div>

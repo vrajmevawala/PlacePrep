@@ -11,6 +11,10 @@ const StudentDashboard = ({ user }) => {
   const [selectedTab, setSelectedTab] = useState('overview');
   const navigate = useNavigate();
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -38,6 +42,100 @@ const StudentDashboard = ({ user }) => {
     };
     fetchData();
   }, []);
+
+  // Pagination helper functions
+  const getCurrentPageData = (data) => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (data) => {
+    return Math.ceil(data.length / itemsPerPage);
+  };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  // Pagination component
+  const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+    const pages = [];
+    const maxVisiblePages = 5;
+
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <div className="flex items-center justify-center space-x-2 mt-6">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Previous
+        </button>
+
+        {startPage > 1 && (
+          <>
+            <button
+              onClick={() => onPageChange(1)}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              1
+            </button>
+            {startPage > 2 && (
+              <span className="px-2 text-gray-500">...</span>
+            )}
+          </>
+        )}
+
+        {pages.map(page => (
+          <button
+            key={page}
+            onClick={() => onPageChange(page)}
+            className={`px-3 py-2 text-sm font-medium rounded-md ${
+              currentPage === page
+                ? 'bg-black text-white'
+                : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+
+        {endPage < totalPages && (
+          <>
+            {endPage < totalPages - 1 && (
+              <span className="px-2 text-gray-500">...</span>
+            )}
+            <button
+              onClick={() => onPageChange(totalPages)}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              {totalPages}
+            </button>
+          </>
+        )}
+
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Next
+        </button>
+      </div>
+    );
+  };
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -87,21 +185,48 @@ const StudentDashboard = ({ user }) => {
                 <h2 className="text-xl font-semibold">Recent Tests</h2>
               </div>
               <div className="divide-y divide-gray-200">
-                {recentTests.map((test, index) => (
-                  <div key={index} className="p-6 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">{test.name}</h3>
-                        <p className="text-sm text-gray-600">{test.date}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-semibold">{test.score}%</div>
-                        <div className="text-sm text-gray-600">{test.type}</div>
+                {getCurrentPageData(recentTests).map((test, index) => {
+                  const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                  return (
+                    <div key={index} className="p-6 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                            <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                          </div>
+                          <div>
+                            <h3 className="font-medium">{test.name}</h3>
+                            <p className="text-sm text-gray-600">{test.date}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-semibold">{test.score}%</div>
+                          <div className="text-sm text-gray-600">{test.type}</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+              
+              {/* Pagination for Recent Tests */}
+              {getTotalPages(recentTests) > 1 && (
+                <div className="px-6 py-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Showing {getCurrentPageData(recentTests).length} of {recentTests.length} tests
+                      {getTotalPages(recentTests) > 1 && (
+                        <span> (Page {currentPage} of {getTotalPages(recentTests)})</span>
+                      )}
+                    </div>
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={getTotalPages(recentTests)}
+                      onPageChange={handlePageChange}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -112,19 +237,46 @@ const StudentDashboard = ({ user }) => {
                 <h2 className="text-xl font-semibold">Upcoming Contests</h2>
               </div>
               <div className="divide-y divide-gray-200">
-                {upcomingContests.map((contest, index) => (
-                  <div key={index} className="p-6">
-                    <h3 className="font-medium mb-2">{contest.name}</h3>
-                    <div className="text-sm text-gray-600 space-y-1">
-                      <p>{contest.date} at {contest.time}</p>
-                      <p>{contest.participants} participants</p>
+                {getCurrentPageData(upcomingContests).map((contest, index) => {
+                  const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                  return (
+                    <div key={index} className="p-6">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                        </div>
+                        <h3 className="font-medium">{contest.name}</h3>
+                      </div>
+                      <div className="text-sm text-gray-600 space-y-1 ml-9">
+                        <p>{contest.date} at {contest.time}</p>
+                        <p>{contest.participants} participants</p>
+                      </div>
+                      <button className="mt-3 w-full bg-black text-white py-2 px-4 rounded-sm text-sm hover:bg-gray-800 transition-colors">
+                        Register
+                      </button>
                     </div>
-                    <button className="mt-3 w-full bg-black text-white py-2 px-4 rounded-sm text-sm hover:bg-gray-800 transition-colors">
-                      Register
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+              
+              {/* Pagination for Upcoming Contests */}
+              {getTotalPages(upcomingContests) > 1 && (
+                <div className="px-6 py-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Showing {getCurrentPageData(upcomingContests).length} of {upcomingContests.length} contests
+                      {getTotalPages(upcomingContests) > 1 && (
+                        <span> (Page {currentPage} of {getTotalPages(upcomingContests)})</span>
+                      )}
+                    </div>
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={getTotalPages(upcomingContests)}
+                      onPageChange={handlePageChange}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

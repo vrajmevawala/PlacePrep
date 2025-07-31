@@ -370,6 +370,7 @@ export const getModerators = async (req, res) => {
       }
       const status = testsCreated > 0 ? 'Active' : 'Inactive';
       return {
+        id: m.id,
         name: m.fullName,
         email: m.email,
         status,
@@ -409,6 +410,34 @@ export const getActivityLogs = async (req, res) => {
     });
     res.json({ logs });
   } catch (error) {
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+export const deleteModerator = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if the user exists and is a moderator
+    const moderator = await prisma.user.findFirst({
+      where: { 
+        id: parseInt(id),
+        role: 'moderator'
+      }
+    });
+
+    if (!moderator) {
+      return res.status(404).json({ message: 'Moderator not found' });
+    }
+
+    // Delete the moderator
+    await prisma.user.delete({
+      where: { id: parseInt(id) }
+    });
+
+    res.json({ message: 'Moderator deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting moderator:', error);
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };

@@ -17,6 +17,7 @@ const Contest = ({ user }) => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
+      setJoiningContest(null);
       try {
         // Fetch contests
         const contestsRes = await fetch('/api/testseries', { credentials: 'include' });
@@ -49,6 +50,11 @@ const Contest = ({ user }) => {
     };
     fetchData();
   }, [user]);
+
+  // Clear errors when filters change
+  useEffect(() => {
+    setError(null);
+  }, [contestSort, contestStatus, contestCodeFilter]);
 
   const now = new Date().getTime();
   const getContestStatus = (contest) => {
@@ -120,17 +126,18 @@ const Contest = ({ user }) => {
     });
 
   const handleJoinContest = async (contest) => {
-    // Check if user has already participated in this contest
-    if (hasUserParticipated(contest.id)) {
-      // If already participated, navigate to results
-      navigate(`/contest-results/${contest.id}`);
-      return;
-    }
-    
-    if (contest.requiresCode) {
-      // If contest requires code, navigate to join contest page
-      navigate('/join-contest');
-    } else {
+    try {
+      // Check if user has already participated in this contest
+      if (hasUserParticipated(contest.id)) {
+        // If already participated, navigate to results
+        navigate(`/contest-results/${contest.id}`);
+        return;
+      }
+      
+      if (contest.requiresCode) {
+        // If contest requires code, navigate to join contest page
+        navigate('/join-contest');
+      } else {
       // If no code required, join directly
       setJoiningContest(contest.id);
       try {
@@ -148,14 +155,22 @@ const Contest = ({ user }) => {
           // Navigate to take contest page
           navigate(`/take-contest/${data.contest.id}`);
         } else {
-          alert(data.message || 'Failed to join contest');
+          console.error('Failed to join contest:', data.message);
+          // Use a more user-friendly error handling instead of alert
+          setError(data.message || 'Failed to join contest');
         }
       } catch (error) {
-        alert('Network error. Please try again.');
+        console.error('Network error:', error);
+        setError('Network error. Please try again.');
       } finally {
         setJoiningContest(null);
       }
     }
+  } catch (error) {
+    console.error('Error in handleJoinContest:', error);
+    setError('An unexpected error occurred. Please try again.');
+    setJoiningContest(null);
+  }
   };
 
   return (
@@ -175,7 +190,11 @@ const Contest = ({ user }) => {
             </div>
             {canCreateContest && (
               <button
-                onClick={() => navigate('/create-contest')}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate('/create-contest');
+                }}
                 className="flex items-center space-x-3 px-6 py-3 bg-black text-white font-semibold hover:bg-gray-800 transition-colors"
               >
                 <Plus className="w-5 h-5" />
@@ -214,7 +233,10 @@ const Contest = ({ user }) => {
                   <label className="block text-sm font-semibold text-black mb-2">Sort by</label>
                   <select 
                     value={contestSort.field} 
-                    onChange={e => setContestSort(s => ({ ...s, field: e.target.value }))} 
+                    onChange={(e) => {
+                      e.preventDefault();
+                      setContestSort(s => ({ ...s, field: e.target.value }));
+                    }} 
                     className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
                   >
                     <option value="startTime">Start Time</option>
@@ -225,7 +247,10 @@ const Contest = ({ user }) => {
                   <label className="block text-sm font-semibold text-black mb-2">Order</label>
                   <select 
                     value={contestSort.order} 
-                    onChange={e => setContestSort(s => ({ ...s, order: e.target.value }))} 
+                    onChange={(e) => {
+                      e.preventDefault();
+                      setContestSort(s => ({ ...s, order: e.target.value }));
+                    }} 
                     className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
                   >
                     <option value="desc">Newest First</option>
@@ -236,7 +261,10 @@ const Contest = ({ user }) => {
                   <label className="block text-sm font-semibold text-black mb-2">Status</label>
                   <select 
                     value={contestStatus} 
-                    onChange={e => setContestStatus(e.target.value)} 
+                    onChange={(e) => {
+                      e.preventDefault();
+                      setContestStatus(e.target.value);
+                    }} 
                     className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
                   >
                     <option value="all">All Contests</option>
@@ -249,7 +277,10 @@ const Contest = ({ user }) => {
                   <label className="block text-sm font-semibold text-black mb-2">Code Required</label>
                   <select 
                     value={contestCodeFilter} 
-                    onChange={e => setContestCodeFilter(e.target.value)} 
+                    onChange={(e) => {
+                      e.preventDefault();
+                      setContestCodeFilter(e.target.value);
+                    }} 
                     className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
                   >
                     <option value="all">All Contests</option>
@@ -345,14 +376,22 @@ const Contest = ({ user }) => {
                             <td className="py-4 px-6">
                               {hasUserParticipated(contest.id) ? (
                                 <button
-                                  onClick={() => navigate(`/contest-results/${contest.id}`)}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    navigate(`/contest-results/${contest.id}`);
+                                  }}
                                   className="px-4 py-2 text-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-colors"
                                 >
                                   View Results
                                 </button>
                               ) : (
                                 <button
-                                  onClick={() => handleJoinContest(contest)}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleJoinContest(contest);
+                                  }}
                                   disabled={joiningContest === contest.id}
                                   className={`px-4 py-2 text-sm font-semibold transition-colors ${
                                     joiningContest === contest.id

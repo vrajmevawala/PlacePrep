@@ -6,7 +6,7 @@ import {
   XCircle, 
   Clock, 
   BarChart3, 
-  ArrowLeft, 
+l  ArrowLeft, 
   Star, 
   Target, 
   Award 
@@ -20,6 +20,7 @@ const ContestResults = () => {
   const [contest, setContest] = useState(location.state?.contest || null);
   const [loading, setLoading] = useState(!location.state?.results);
   const [error, setError] = useState('');
+  const [timeUntilEnd, setTimeUntilEnd] = useState(0);
 
   useEffect(() => {
     // If we already have results from state, don't fetch
@@ -29,7 +30,23 @@ const ContestResults = () => {
 
     const fetchResults = async () => {
       try {
-        // Try to fetch contest info and show a message
+        // First try to fetch results
+        const resultsResponse = await fetch(`/api/testseries/${contestId}/result`, {
+          credentials: 'include'
+        });
+        
+        if (resultsResponse.ok) {
+          const resultsData = await resultsResponse.json();
+          setResults(resultsData);
+          setLoading(false);
+          return;
+        } else if (resultsResponse.status === 403) {
+          // Contest hasn't ended yet
+          const errorData = await resultsResponse.json();
+          console.log('Contest not ended yet:', errorData);
+        }
+        
+        // If no results or contest hasn't ended, fetch contest info
         const contestResponse = await fetch(`/api/testseries/${contestId}`, {
           credentials: 'include'
         });
@@ -51,6 +68,30 @@ const ContestResults = () => {
 
     fetchResults();
   }, [contestId, location.state]);
+
+  // Countdown timer for contest end
+  useEffect(() => {
+    if (!contest) return;
+
+    const updateCountdown = () => {
+      const now = new Date().getTime();
+      const endTime = new Date(contest.endTime).getTime();
+      const timeLeft = Math.max(0, endTime - now);
+      setTimeUntilEnd(timeLeft);
+      
+      // Auto-refresh when contest ends
+      if (timeLeft === 0 && !results) {
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000); // Wait 2 seconds after contest ends before refreshing
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [contest, results]);
 
   if (loading) {
     return (
@@ -80,15 +121,57 @@ const ContestResults = () => {
     );
   }
 
-  if (!results) {
+  // Helper function to format countdown time
+  const formatCountdown = (ms) => {
+    if (ms <= 0) return '00:00:00';
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Check if contest has ended
+  const isContestEnded = contest && new Date() > new Date(contest.endTime);
+  
+  if (!results || !isContestEnded) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <Trophy className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600">Results not available yet</p>
+          <Trophy className="w-16 h-16 text-gray-400 mx-auto mb-6" />
+          <h2 className="text-2xl font-bold text-black mb-4">Results Coming Soon!</h2>
+          <p className="text-gray-600 mb-6">
+            {contest ? (
+              <>
+                Contest: <span className="font-semibold">{contest.title}</span><br />
+                Ends: <span className="font-semibold">{new Date(contest.endTime).toLocaleString()}</span>
+              </>
+            ) : (
+              "Results will be available after the contest ends."
+            )}
+          </p>
+          <div className="flex items-center justify-center space-x-4 mb-6">
+            <Clock className="w-5 h-5 text-gray-500" />
+            <span className="text-sm text-gray-500">
+              {contest && isContestEnded 
+                ? "Processing results..." 
+                : "Waiting for contest to end..."
+              }
+            </span>
+          </div>
+          
+          {contest && !isContestEnded && timeUntilEnd > 0 && (
+            <div className="bg-gray-100 border border-gray-300 p-4 mb-6 rounded-lg">
+              <div className="text-center">
+                <div className="text-sm text-gray-600 mb-2">Time until results are available:</div>
+                <div className="text-2xl font-mono font-bold text-black">
+                  {formatCountdown(timeUntilEnd)}
+                </div>
+              </div>
+            </div>
+          )}
           <button
             onClick={() => navigate('/contests')}
-            className="mt-4 px-4 py-2 bg-black text-white hover:bg-gray-800 transition-colors"
+            className="px-6 py-3 bg-black text-white hover:bg-gray-800 transition-colors"
           >
             Back to Contests
           </button>

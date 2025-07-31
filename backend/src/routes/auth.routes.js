@@ -12,7 +12,8 @@ import {
     getAdminStats,
     getModerators,
     getUserAnalytics,
-    getActivityLogs
+    getActivityLogs,
+    deleteModerator
 } from "../controllers/auth.controller.js";
 import { requireAdmin, requireAdminOrModerator } from "../middleware/role.middleware.js";
 import authMiddleware from '../middleware/auth.middleware.js';
@@ -26,6 +27,7 @@ router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 
 router.post("/create-moderator", authMiddleware, requireAdmin, createModerator);
+router.delete("/moderators/:id", authMiddleware, requireAdmin, deleteModerator);
 
 router.post('/google-auth', googleAuth);
 router.get('/me', authMiddleware, me);

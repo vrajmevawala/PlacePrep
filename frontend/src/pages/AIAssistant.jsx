@@ -170,8 +170,8 @@ const AIAssistant = ({ user }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50 pt-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-4">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center space-x-3 mb-4">
@@ -191,7 +191,7 @@ const AIAssistant = ({ user }) => {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
               <div className="p-6">
-                <div className="bg-gray-50 rounded-xl p-4 h-96 flex flex-col">
+                <div className="bg-gray-50 rounded-xl p-4 h-[70vh] flex flex-col">
                   {/* Chat Messages */}
                   <div 
                     ref={chatContainerRef}

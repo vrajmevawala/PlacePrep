@@ -43,13 +43,19 @@ const TakeContest = () => {
   // Security violation handling - immediate auto-submit
   const handleViolation = (violationType) => {
     console.log(`Security violation detected: ${violationType} - Auto-submitting contest`);
+    console.log('Violation details:', {
+      violationType,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      fullscreen: !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement)
+    });
     setShowSecurityWarning(true);
     
-    // Auto-submit immediately after 2 seconds, even with no answers
+    // Auto-submit immediately after 3 seconds, even with no answers
     setTimeout(() => {
       console.log('Auto-submitting contest due to security violation');
       handleSubmitContest();
-    }, 2000);
+    }, 3000);
   };
 
   // Fullscreen management
@@ -184,7 +190,14 @@ const TakeContest = () => {
     // Security event handlers for specific actions only
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        handleViolation('Tab switching');
+        // Add a small delay to avoid false positives
+        setTimeout(() => {
+          if (!document.hidden) {
+            // Page became visible again quickly, might be a false positive
+            return;
+          }
+          handleViolation('Tab switching');
+        }, 200);
       }
     };
 
@@ -198,7 +211,7 @@ const TakeContest = () => {
     };
 
     const handleKeyDown = (e) => {
-      // Only block specific keys
+      // Block specific keys and combinations
       if (e.altKey && e.key === 'Tab') {
         e.preventDefault();
         handleViolation('Alt+Tab (window switching)');
@@ -213,6 +226,40 @@ const TakeContest = () => {
         e.preventDefault();
         handleViolation('Escape key');
       }
+
+      // Block other common window switching shortcuts
+      if (e.altKey && e.key === 'F4') {
+        e.preventDefault();
+        handleViolation('Alt+F4 (window closing)');
+      }
+
+      if (e.ctrlKey && e.key === 'Tab') {
+        e.preventDefault();
+        handleViolation('Ctrl+Tab (tab switching)');
+      }
+
+      if (e.ctrlKey && e.key === 'W') {
+        e.preventDefault();
+        handleViolation('Ctrl+W (tab closing)');
+      }
+
+      if (e.ctrlKey && e.key === 'N') {
+        e.preventDefault();
+        handleViolation('Ctrl+N (new window)');
+      }
+
+      if (e.ctrlKey && e.key === 'T') {
+        e.preventDefault();
+        handleViolation('Ctrl+T (new tab)');
+      }
+
+      // Block function keys that might be used for cheating
+      if (e.key === 'F1' || e.key === 'F2' || e.key === 'F3' || e.key === 'F4' || 
+          e.key === 'F5' || e.key === 'F6' || e.key === 'F7' || e.key === 'F8' || 
+          e.key === 'F9' || e.key === 'F10' || e.key === 'F12') {
+        e.preventDefault();
+        handleViolation(`Function key ${e.key} pressed`);
+      }
     };
 
     const handleContextMenu = (e) => {
@@ -220,8 +267,18 @@ const TakeContest = () => {
       handleViolation('Right-click context menu');
     };
 
-    const handleBlur = () => {
-      handleViolation('Window minimizing');
+    const handleBlur = (e) => {
+      // Only trigger on window blur, not element blur
+      if (e.target === window || e.target === document) {
+        // Add a small delay to avoid false positives from legitimate UI interactions
+        setTimeout(() => {
+          if (document.activeElement && document.activeElement.closest('.contest-container')) {
+            // User is still within the contest container, don't trigger violation
+            return;
+          }
+          handleViolation('Window minimizing');
+        }, 100);
+      }
     };
 
     const handlePopState = (e) => {
@@ -229,25 +286,58 @@ const TakeContest = () => {
       handleViolation('Browser back button');
     };
 
-    // Set up event listeners for specific actions only
-    document.addEventListener('visibilitychange', handleVisibilityChange, { capture: true });
-    document.addEventListener('fullscreenchange', handleFullscreenChange, { capture: true });
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange, { capture: true });
-    document.addEventListener('msfullscreenchange', handleFullscreenChange, { capture: true });
-    document.addEventListener('keydown', handleKeyDown, { capture: true });
-    document.addEventListener('contextmenu', handleContextMenu, { capture: true });
-    document.addEventListener('blur', handleBlur, { capture: true });
-    window.addEventListener('popstate', handlePopState, { capture: true });
+    // Additional security handlers
+    const handleClick = (e) => {
+      // Detect external link clicks - only on actual links, not UI elements
+      const target = e.target.closest('a');
+      if (target && target.href && (target.href.startsWith('http') || target.target === '_blank')) {
+        e.preventDefault();
+        handleViolation('External link clicks');
+      }
+    };
+
+    const handleBeforeUnload = (e) => {
+      // Detect tab/window closing - only if user is actually trying to leave
+      if (hasSubmitted || submissionAttemptedRef.current) {
+        return; // Don't trigger violation if already submitted
+      }
+      handleViolation('Tab switching');
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    const handleResize = () => {
+      // Detect window resizing (potential minimization) - only on extreme changes
+      if (window.innerHeight < 50 || window.innerWidth < 50) {
+        handleViolation('Window minimizing');
+      }
+    };
+
+    // Set up event listeners for specific actions only - without capture to avoid interfering with UI
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('blur', handleBlur);
+    window.addEventListener('popstate', handlePopState);
+    document.addEventListener('click', handleClick);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('resize', handleResize);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange, { capture: true });
-      document.removeEventListener('fullscreenchange', handleFullscreenChange, { capture: true });
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange, { capture: true });
-      document.removeEventListener('msfullscreenchange', handleFullscreenChange, { capture: true });
-      document.removeEventListener('keydown', handleKeyDown, { capture: true });
-      document.removeEventListener('contextmenu', handleContextMenu, { capture: true });
-      document.removeEventListener('blur', handleBlur, { capture: true });
-      window.removeEventListener('popstate', handlePopState, { capture: true });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('blur', handleBlur);
+      window.removeEventListener('popstate', handlePopState);
+      document.removeEventListener('click', handleClick);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('resize', handleResize);
     };
   }, [started, hasSubmitted, isFullscreen]);
 

@@ -104,6 +104,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const [selectedContestStats, setSelectedContestStats] = useState(null);
   const [showContestStatsModal, setShowContestStatsModal] = useState(false);
   const [loadingContestStats, setLoadingContestStats] = useState(false);
+  const [filteredQuestionStats, setFilteredQuestionStats] = useState(null);
 
   // Add filter/sort state
   const [contestSort, setContestSort] = useState({ field: 'startTime', order: 'desc' });
@@ -513,11 +514,16 @@ const AdminDashboard = ({ user, onNavigate }) => {
 
   const [modForm, setModForm] = useState({ fullName: '', email: '', password: '' });
   const [modError, setModError] = useState('');
+  const [modSuccess, setModSuccess] = useState('');
+  const [isCreatingModerator, setIsCreatingModerator] = useState(false);
 
   const handleModFormChange = (e) => {
+    e.stopPropagation();
     const { name, value } = e.target;
+    
     setModForm(prev => ({ ...prev, [name]: value }));
     setModError('');
+    setModSuccess('');
   };
 
   const handleModFormSubmit = async (e) => {
@@ -526,8 +532,16 @@ const AdminDashboard = ({ user, onNavigate }) => {
       setModError('Please fill all fields.');
       return;
     }
+    if (modForm.password.length < 6) {
+      setModError('Password must be at least 6 characters long.');
+      return;
+    }
+    
+    setIsCreatingModerator(true);
+    setModError('');
+    
     try {
-      const res = await fetch('/api/auth/moderators', {
+      const res = await fetch('/api/auth/create-moderator', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -539,74 +553,210 @@ const AdminDashboard = ({ user, onNavigate }) => {
         fetch('/api/auth/moderators', { credentials: 'include' })
           .then(res => res.json())
           .then(data => setModerators(data.moderators || []));
-      setShowCreateModerator(false);
-      setModForm({ fullName: '', email: '', password: '' });
+        setModSuccess('Moderator created successfully!');
+        setTimeout(() => {
+          setShowCreateModerator(false);
+          setModForm({ fullName: '', email: '', password: '' });
+          setModError('');
+          setModSuccess('');
+        }, 1500);
       } else {
         setModError(data.message || 'Failed to create moderator.');
       }
     } catch (err) {
-      setModError('Failed to create moderator.');
+      setModError('Failed to create moderator. Please try again.');
+    } finally {
+      setIsCreatingModerator(false);
     }
   };
 
-  const CreateModeratorForm = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-      <div className="bg-white rounded-sm border border-gray-200 p-6 w-full max-w-md relative animate-fadeIn" style={{maxHeight:'95vh',overflow:'auto'}}>
-        <button
-          onClick={() => setShowCreateModerator(false)}
-          className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold"
-          aria-label="Close"
-        >
-          ×
-        </button>
-        <h2 className="text-xl font-bold mb-6 text-black-800 text-center">Create New Moderator</h2>
-        <form className="space-y-5" onSubmit={handleModFormSubmit}>
+  const CreateModeratorForm = () => {
+    // Local state for the form to prevent interference
+    const [localModForm, setLocalModForm] = useState({ fullName: '', email: '', password: '' });
+    const [localModError, setLocalModError] = useState('');
+    const [localModSuccess, setLocalModSuccess] = useState('');
+    const [localIsCreating, setLocalIsCreating] = useState(false);
+
+    const handleLocalModFormChange = (e) => {
+      e.stopPropagation();
+      const { name, value } = e.target;
+      setLocalModForm(prev => ({ ...prev, [name]: value }));
+      setLocalModError('');
+      setLocalModSuccess('');
+    };
+
+    const handleLocalModFormSubmit = async (e) => {
+      e.preventDefault();
+      if (!localModForm.fullName || !localModForm.email || !localModForm.password) {
+        setLocalModError('Please fill all fields.');
+        return;
+    }
+      if (localModForm.password.length < 6) {
+        setLocalModError('Password must be at least 6 characters long.');
+        return;
+      }
+      
+      setLocalIsCreating(true);
+      setLocalModError('');
+      
+      try {
+        const res = await fetch('/api/auth/create-moderator', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(localModForm)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          // Refresh moderators list
+          fetch('/api/auth/moderators', { credentials: 'include' })
+            .then(res => res.json())
+            .then(data => setModerators(data.moderators || []));
+          setLocalModSuccess('Moderator created successfully!');
+          setTimeout(() => {
+            setShowCreateModerator(false);
+            setLocalModForm({ fullName: '', email: '', password: '' });
+            setLocalModError('');
+            setLocalModSuccess('');
+          }, 1500);
+        } else {
+          setLocalModError(data.message || 'Failed to create moderator.');
+        }
+      } catch (err) {
+        setLocalModError('Failed to create moderator. Please try again.');
+      } finally {
+        setLocalIsCreating(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+        <div className="bg-white rounded-lg border border-gray-200 p-8 w-full max-w-md relative animate-fadeIn shadow-xl" style={{maxHeight:'95vh',overflow:'auto'}}>
+          <button
+            onClick={() => setShowCreateModerator(false)}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold transition-colors"
+            aria-label="Close"
+          >
+            ×
+          </button>
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Create New Moderator</h2>
+            <p className="text-sm text-gray-600">Add a new moderator to help manage the platform</p>
+          </div>
+          <form className="space-y-6" onSubmit={handleLocalModFormSubmit} key="moderator-form">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Full Name <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               name="fullName"
-              value={modForm.fullName}
-              onChange={handleModFormChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
-              placeholder="Enter moderator name"
+              id="moderator-fullName"
+              value={localModForm.fullName || ''}
+              onChange={handleLocalModFormChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black transition-colors"
+              placeholder="Enter moderator's full name"
               required
+              autoComplete="off"
             />
+            <p className="text-xs text-gray-500 mt-1">Minimum 2 characters, maximum 50 characters</p>
           </div>
+          
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Email Address <span className="text-red-500">*</span>
+            </label>
             <input
               type="email"
               name="email"
-              value={modForm.email}
-              onChange={handleModFormChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
-              placeholder="Enter email address"
+              id="moderator-email"
+              value={localModForm.email || ''}
+              onChange={handleLocalModFormChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black transition-colors"
+              placeholder="moderator@example.com"
               required
+              autoComplete="off"
             />
+            <p className="text-xs text-gray-500 mt-1">Enter a valid email address</p>
           </div>
+          
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Password <span className="text-red-500">*</span>
+            </label>
             <input
               type="password"
               name="password"
-              value={modForm.password}
-              onChange={handleModFormChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
-              placeholder="Enter password"
+              id="moderator-password"
+              value={localModForm.password || ''}
+              onChange={handleLocalModFormChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black transition-colors"
+              placeholder="Enter secure password"
               required
-              minLength={6}
+              autoComplete="new-password"
             />
+            <div className="mt-1">
+              <p className="text-xs text-gray-500">Minimum 6 characters</p>
+              <div className="flex items-center mt-1">
+                <div className={`w-2 h-2 rounded-full mr-2 ${(localModForm.password || '').length >= 6 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                <span className="text-xs text-gray-500">Password strength</span>
+              </div>
+            </div>
           </div>
-          {modError && <div className="text-red-600">{modError}</div>}
+          
+          {localModError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-center">
+                <svg className="w-4 h-4 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm text-red-700">{localModError}</span>
+              </div>
+            </div>
+          )}
+          
+          {localModSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex items-center">
+                <svg className="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm text-green-700">{localModSuccess}</span>
+              </div>
+            </div>
+          )}
+          
           <div className="flex gap-3 pt-4">
-            <button type="button" onClick={() => setShowCreateModerator(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-sm font-bold">Cancel</button>
-            <button type="submit" className="flex-1 px-4 py-2 bg-black text-white rounded-sm font-bold hover:bg-gray-800">Create</button>
+            <button 
+              type="button" 
+              onClick={() => setShowCreateModerator(false)} 
+              className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="flex-1 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              disabled={!localModForm.fullName || !localModForm.email || !localModForm.password || localIsCreating}
+            >
+              {localIsCreating ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Creating...
+                </>
+              ) : (
+                'Create Moderator'
+              )}
+            </button>
           </div>
         </form>
       </div>
     </div>
   );
+  };
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -654,7 +804,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
   }, [selectedTab]);
 
   const handleCreateModerator = async (formData) => {
-    const res = await fetch('/api/auth/moderators', {
+    const res = await fetch('/api/auth/create-moderator', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -671,12 +821,22 @@ const AdminDashboard = ({ user, onNavigate }) => {
 
   const handleDeleteModerator = async (id) => {
     if (!window.confirm('Are you sure you want to delete this moderator?')) return;
-    const res = await fetch(`/api/auth/moderators/${id}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    });
-    if (res.ok) {
-      setModerators(moderators.filter(m => m.id !== id));
+    try {
+      const res = await fetch(`/api/auth/moderators/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (res.ok) {
+        // Refresh moderators list after deletion
+        fetch('/api/auth/moderators', { credentials: 'include' })
+          .then(res => res.json())
+          .then(data => setModerators(data.moderators || []));
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to delete moderator');
+      }
+    } catch (err) {
+      alert('Failed to delete moderator');
     }
   };
 
@@ -697,6 +857,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const handleViewContestStats = async (contest) => {
     setShowContestStatsModal(true);
     setLoadingContestStats(true);
+    setFilteredQuestionStats(null); // Reset filter when opening new contest
     try {
       const res = await fetch(`/api/testseries/${contest.id}/stats`, { credentials: 'include' });
       const data = await res.json();
@@ -911,10 +1072,16 @@ const AdminDashboard = ({ user, onNavigate }) => {
                         <div>{moderator.testsCreated}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-gray-600">{moderator.lastActive}</div>
+                        <div className="text-gray-600">
+                          {moderator.lastActive ? new Date(moderator.lastActive).toLocaleDateString() : 'Never'}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <button onClick={() => handleDeleteModerator(moderator.id)} className="text-gray-600 hover:text-red-600">
+                        <button 
+                          onClick={() => handleDeleteModerator(moderator.id)} 
+                          className="text-gray-600 hover:text-red-600 transition-colors"
+                          title="Delete moderator"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
@@ -1766,7 +1933,28 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 {/* Question-wise Statistics Table */}
                 {selectedContestStats.questionStats && selectedContestStats.questionStats.length > 0 && (
                   <div>
-                    <h3 className="font-semibold text-black mb-4">Question-wise Performance</h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-black">Question-wise Performance</h3>
+                      <div className="flex items-center space-x-4">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="showNotAttemptedOnly"
+                            className="rounded border-gray-300 text-black focus:ring-black"
+                            onChange={(e) => {
+                              const filtered = e.target.checked 
+                                ? selectedContestStats.questionStats.filter(q => q.notAttempted > 0)
+                                : selectedContestStats.questionStats;
+                              setFilteredQuestionStats(filtered);
+                            }}
+                          />
+                          <span className="text-sm text-gray-700">Show Not Attempted Only</span>
+                        </label>
+                        <span className="text-sm text-gray-500">
+                          Showing {filteredQuestionStats?.length || selectedContestStats.questionStats.length} of {selectedContestStats.questionStats.length} questions
+                        </span>
+                      </div>
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border border-gray-200 rounded-lg">
                         <thead className="bg-gray-50">
@@ -1776,10 +1964,11 @@ const AdminDashboard = ({ user, onNavigate }) => {
                             <th className="py-3 px-4 font-medium text-black">Incorrect</th>
                             <th className="py-3 px-4 font-medium text-black">Not Attempted</th>
                             <th className="py-3 px-4 font-medium text-black">Success Rate</th>
+                            <th className="py-3 px-4 font-medium text-black">Real-time Status</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedContestStats.questionStats.map((q, idx) => (
+                          {(filteredQuestionStats || selectedContestStats.questionStats).map((q, idx) => (
                             <tr key={q.questionId} className="border-t border-gray-200">
                               <td className="py-3 px-4 max-w-xs truncate" title={q.question}>
                                 <span className="font-medium text-black">{q.question}</span>
@@ -1789,6 +1978,15 @@ const AdminDashboard = ({ user, onNavigate }) => {
                               <td className="py-3 px-4 text-black font-medium">{q.notAttempted}</td>
                               <td className="py-3 px-4 font-medium text-black">
                                 {q.totalAttempts > 0 ? `${((q.correctAttempts / q.totalAttempts) * 100).toFixed(1)}%` : '0%'}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  q.notAttempted > 0 
+                                    ? 'bg-orange-100 text-orange-800' 
+                                    : 'bg-green-100 text-green-800'
+                                }`}>
+                                  {q.notAttempted > 0 ? 'Not Attempted' : 'All Attempted'}
+                                </span>
                               </td>
                             </tr>
                           ))}

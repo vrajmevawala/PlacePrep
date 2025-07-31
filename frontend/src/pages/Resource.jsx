@@ -10,12 +10,9 @@ import {
   Play, 
   Bookmark, 
   BookmarkCheck,
-  Send,
   X,
   ChevronDown,
   ChevronUp,
-  Brain,
-  Lightbulb,
   Target,
   Clock,
   Plus,
@@ -75,29 +72,15 @@ const Resource = ({ user }) => {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   
-  // Chatbot state
-  const [isChatbotOpen, setIsChatbotOpen] = useState(true);
-  const [chatMessages, setChatMessages] = useState([
-    {
-      id: 1,
-      type: 'bot',
-      message: "Hi! I'm your AI study assistant powered by Gemini. I can help you with:\n• Solving MCQs and explaining concepts\n• Aptitude and DSA problem-solving\n• Technical interview preparation\n• Analyzing PDFs and images\n• Study tips and strategies\n\nWhat would you like help with today?",
-      timestamp: new Date()
-    }
-  ]);
-  const [newMessage, setNewMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   
-  // File analysis state
-  const [showFileAnalysis, setShowFileAnalysis] = useState(false);
-  const [selectedAnalysisFile, setSelectedAnalysisFile] = useState(null);
-  const [analysisType, setAnalysisType] = useState('summary');
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState(null);
+
   const navigate = useNavigate();
   const canAddResource = user && (user.role === 'admin' || user.role === 'moderator');
 
-  const chatContainerRef = useRef(null);
+
 
   // Fetch resources from backend
   useEffect(() => {
@@ -225,6 +208,124 @@ const Resource = ({ user }) => {
 
   // Get filtered MCQs based on current filters
   const filteredMCQs = getFilteredMCQs();
+  
+  // Pagination functions
+  const getFilteredResources = () => {
+    const filteredPdfs = pdfs.filter(item => {
+      const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+    
+    const filteredVideos = videos.filter(item => {
+      const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+    
+    return { filteredPdfs, filteredVideos };
+  };
+  
+  const { filteredPdfs, filteredVideos } = getFilteredResources();
+  
+  // Calculate pagination
+  const getCurrentPageData = (data) => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return data.slice(startIndex, endIndex);
+  };
+  
+  const getTotalPages = (data) => {
+    return Math.ceil(data.length / itemsPerPage);
+  };
+  
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+  
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, activeTab]);
+  
+  // Pagination component
+  const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    
+    return (
+      <div className="flex items-center justify-center space-x-2 mt-6">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Previous
+        </button>
+        
+        {startPage > 1 && (
+          <>
+            <button
+              onClick={() => onPageChange(1)}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              1
+            </button>
+            {startPage > 2 && (
+              <span className="px-3 py-2 text-sm text-gray-500">...</span>
+            )}
+          </>
+        )}
+        
+        {pages.map(page => (
+          <button
+            key={page}
+            onClick={() => onPageChange(page)}
+            className={`px-3 py-2 text-sm font-medium rounded-lg border ${
+              currentPage === page
+                ? 'bg-black text-white border-black'
+                : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+        
+        {endPage < totalPages && (
+          <>
+            {endPage < totalPages - 1 && (
+              <span className="px-3 py-2 text-sm text-gray-500">...</span>
+            )}
+            <button
+              onClick={() => onPageChange(totalPages)}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              {totalPages}
+            </button>
+          </>
+        )}
+        
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Next
+        </button>
+      </div>
+    );
+  };
 
   // Handle MCQ search
   const handleMCQSearch = async () => {
@@ -302,10 +403,7 @@ const Resource = ({ user }) => {
   // Handle resource bookmark
   const handleResourceBookmark = async (resourceId, isBookmarked) => {
     try {
-      const endpoint = isBookmarked 
-        ? `/api/resources/bookmark/${resourceId}`
-        : `/api/resources/bookmark/${resourceId}`;
-      
+      const endpoint = `/api/resources/bookmark/${resourceId}`;
       const method = isBookmarked ? 'DELETE' : 'POST';
       
       const response = await fetch(endpoint, {
@@ -316,12 +414,12 @@ const Resource = ({ user }) => {
       if (response.ok) {
         // Update local state
         if (isBookmarked) {
-          setBookmarkedResources(prev => prev.filter(bm => bm.questionId !== resourceId));
+          setBookmarkedResources(prev => prev.filter(bm => bm.resourceId !== resourceId));
         } else {
-          // Add to bookmarks (you might need to fetch the resource details)
+          // Add to bookmarks
           const resource = [...pdfs, ...videos].find(r => r.id === resourceId);
           if (resource) {
-            setBookmarkedResources(prev => [...prev, { questionId: resourceId, resource }]);
+            setBookmarkedResources(prev => [...prev, { resourceId: resourceId, resource }]);
           }
         }
       }
@@ -404,9 +502,6 @@ const Resource = ({ user }) => {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        alert(result.message);
-        
         // Reset form and close modal
         setResourceForm({
           title: '',
@@ -414,29 +509,38 @@ const Resource = ({ user }) => {
           category: 'Aptitude',
           subcategory: '',
           level: 'easy',
-          videoUrl: '',
           question: '',
           options: ['', '', '', ''],
           correctAnswer: 0,
-          explanation: ''
+          explanation: '',
+          videoUrl: ''
         });
         setSelectedFile(null);
+        setResourceType('pdf');
         setShowAddModal(false);
         
         // Refresh resources
         const fetchResources = async () => {
           try {
-            const pdfResponse = await fetch('/api/resources?type=PDF', { credentials: 'include' });
-            const pdfData = await pdfResponse.json();
-            setPdfs(pdfData);
-
-            const videoResponse = await fetch('/api/resources?type=VIDEO', { credentials: 'include' });
-            const videoData = await videoResponse.json();
-            setVideos(videoData);
+            const [pdfsRes, videosRes] = await Promise.all([
+              fetch('/api/resources?type=pdf', { credentials: 'include' }),
+              fetch('/api/resources?type=video', { credentials: 'include' })
+            ]);
+            
+            if (pdfsRes.ok) {
+              const pdfsData = await pdfsRes.json();
+              setPdfs(pdfsData.resources || []);
+            }
+            
+            if (videosRes.ok) {
+              const videosData = await videosRes.json();
+              setVideos(videosData.resources || []);
+            }
           } catch (error) {
             console.error('Error refreshing resources:', error);
           }
         };
+        
         fetchResources();
       } else {
         const errorData = await response.json();
@@ -444,7 +548,7 @@ const Resource = ({ user }) => {
       }
     } catch (error) {
       console.error('Error adding resource:', error);
-      alert('Failed to add resource. Please try again.');
+      alert('Failed to add resource');
     } finally {
       setUploading(false);
     }
@@ -468,24 +572,21 @@ const Resource = ({ user }) => {
     setShowAddModal(true);
   };
 
-  // Handle delete confirmation
+  // Handle delete click
   const handleDeleteClick = (item, type) => {
     setItemToDelete({ ...item, type });
     setShowDeleteModal(true);
   };
 
-  // Handle actual deletion
+  // Handle confirm delete
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
     
     setDeleting(true);
     try {
-      let endpoint;
-      if (itemToDelete.type === 'mcq') {
-        endpoint = `/api/resources/mcq/${itemToDelete.id}`;
-      } else {
-        endpoint = `/api/resources/${itemToDelete.id}`;
-      }
+      const endpoint = itemToDelete.type === 'mcq' 
+        ? `/api/questions/${itemToDelete.id}`
+        : `/api/resources/${itemToDelete.id}`;
       
       const response = await fetch(endpoint, {
         method: 'DELETE',
@@ -494,26 +595,25 @@ const Resource = ({ user }) => {
       
       if (response.ok) {
         // Remove from local state
-        if (itemToDelete.type === 'pdf') {
-          setPdfs(prev => prev.filter(pdf => pdf.id !== itemToDelete.id));
+        if (itemToDelete.type === 'mcq') {
+          setMcqs(prev => prev.filter(q => q.id !== itemToDelete.id));
+        } else if (itemToDelete.type === 'pdf') {
+          setPdfs(prev => prev.filter(p => p.id !== itemToDelete.id));
         } else if (itemToDelete.type === 'video') {
-          setVideos(prev => prev.filter(video => video.id !== itemToDelete.id));
-        } else if (itemToDelete.type === 'mcq') {
-          setMcqs(prev => prev.filter(mcq => mcq.id !== itemToDelete.id));
+          setVideos(prev => prev.filter(v => v.id !== itemToDelete.id));
         }
         
-        alert('Resource deleted successfully');
+        setShowDeleteModal(false);
+        setItemToDelete(null);
       } else {
         const errorData = await response.json();
-        alert(errorData.message || 'Failed to delete resource');
+        alert(errorData.message || 'Failed to delete item');
       }
     } catch (error) {
-      console.error('Error deleting resource:', error);
-      alert('Failed to delete resource. Please try again.');
+      console.error('Error deleting item:', error);
+      alert('Failed to delete item');
     } finally {
       setDeleting(false);
-      setShowDeleteModal(false);
-      setItemToDelete(null);
     }
   };
 
@@ -523,170 +623,32 @@ const Resource = ({ user }) => {
     setItemToDelete(null);
   };
 
-  // Handle file selection for analysis
-  const handleAnalysisFileSelect = (event) => {
-    const file = event.target.files[0];
-    if (file && (file.type === 'application/pdf' || file.type.startsWith('image/'))) {
-      setSelectedAnalysisFile(file);
-    } else {
-      alert('Please select a valid PDF or image file.');
-    }
-  };
-
-  // Handle file analysis
-  const handleAnalyzeFile = async () => {
-    if (!selectedAnalysisFile) {
-      alert('Please select a file to analyze.');
-      return;
-    }
-
-    setAnalyzing(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', selectedAnalysisFile);
-      formData.append('analysisType', analysisType);
-
-      const response = await fetch('/api/resources/ai/analyze', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAnalysisResult(data);
-        
-        // Add analysis result to chat
-        const analysisMessage = {
-          id: Date.now(),
-          type: 'bot',
-          message: `📄 **File Analysis Result**\n\n**File:** ${selectedAnalysisFile.name}\n**Type:** ${data.type}\n**Analysis:**\n\n${data.analysis}`,
-          timestamp: new Date(data.timestamp)
-        };
-        setChatMessages(prev => [...prev, analysisMessage]);
-        
-        // Reset file selection
-        setSelectedAnalysisFile(null);
-        setShowFileAnalysis(false);
-      } else {
-        const errorData = await response.json();
-        const errorMessage = {
-          id: Date.now(),
-          type: 'bot',
-          message: `❌ **File Analysis Error**\n\n**File:** ${selectedAnalysisFile.name}\n**Error:** ${errorData.message}\n\n${errorData.suggestion || 'Please try again with a different file.'}`,
-          timestamp: new Date()
-        };
-        setChatMessages(prev => [...prev, errorMessage]);
-      }
-    } catch (error) {
-      console.error('Error analyzing file:', error);
-      const errorMessage = {
-        id: Date.now(),
-        type: 'bot',
-        message: `❌ **File Analysis Error**\n\n**File:** ${selectedAnalysisFile.name}\n**Error:** Failed to analyze file. Please try again.\n\nMake sure your file is not corrupted and try uploading it again.`,
-        timestamp: new Date()
-      };
-      setChatMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
-  // Auto-scroll to bottom of chat
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [chatMessages]);
-
-  // Handle chatbot message send
-  const handleSendMessage = async () => {
-    if (!newMessage.trim()) return;
-
-    const userMessage = {
-      id: Date.now(),
-      type: 'user',
-      message: newMessage,
-      timestamp: new Date()
-    };
-
-    setChatMessages(prev => [...prev, userMessage]);
-    setNewMessage('');
-    setIsTyping(true);
-
-    try {
-      // Get context from available resources
-      const context = `Available resources: ${pdfs.length} PDFs, ${videos.length} videos, ${mcqs.length} MCQs. Categories: ${[...new Set([...pdfs.map(p => p.category), ...videos.map(v => v.category)])].join(', ')}`;
-
-      const response = await fetch('/api/resources/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          message: newMessage,
-          context
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-      const botResponse = {
-        id: Date.now() + 1,
-        type: 'bot',
-          message: data.message,
-          timestamp: new Date(data.timestamp)
-        };
-        setChatMessages(prev => [...prev, botResponse]);
-      } else {
-        const errorData = await response.json();
-        const botResponse = {
-          id: Date.now() + 1,
-          type: 'bot',
-          message: `Sorry, I encountered an error: ${errorData.message || 'Failed to get response'}`,
-        timestamp: new Date()
-      };
-      setChatMessages(prev => [...prev, botResponse]);
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      const botResponse = {
-        id: Date.now() + 1,
-        type: 'bot',
-        message: 'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date()
-      };
-      setChatMessages(prev => [...prev, botResponse]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
-  // Handle bookmark toggle for MCQs
+  // Handle MCQ bookmark
   const handleBookmark = async (questionId) => {
     try {
       const isBookmarked = bookmarkedIds.includes(questionId);
-      const endpoint = isBookmarked ? '/api/questions/bookmarks/remove' : '/api/questions/bookmarks';
+      const endpoint = isBookmarked 
+        ? '/api/questions/bookmarks/remove'
+        : '/api/questions/bookmarks';
       
-      const res = await fetch(endpoint, {
-        method: 'POST',
+      const method = isBookmarked ? 'POST' : 'POST';
+      const body = isBookmarked 
+        ? JSON.stringify({ questionId })
+        : JSON.stringify({ questionId });
+      
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ questionId })
+        body
       });
       
-      if (res.ok) {
-        setBookmarkedIds(prev => {
+      if (response.ok) {
           if (isBookmarked) {
-            return prev.filter(id => id !== questionId);
+          setBookmarkedIds(prev => prev.filter(id => id !== questionId));
           } else {
-            return [...prev, questionId];
+          setBookmarkedIds(prev => [...prev, questionId]);
           }
-        });
-      } else {
-        const errorData = await res.json();
-        console.error('Bookmark error:', errorData.message);
       }
     } catch (error) {
       console.error('Error toggling bookmark:', error);
@@ -695,22 +657,10 @@ const Resource = ({ user }) => {
 
   // Get filtered resources
   const filteredMcqs = getFilteredMCQs();
-  
-  const filteredPdfs = pdfs.filter(item => {
-    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.category.toLowerCase() === selectedCategory.toLowerCase();
-    return matchesSearch && matchesCategory;
-  });
-
-  const filteredVideos = videos.filter(item => {
-    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.category.toLowerCase() === selectedCategory.toLowerCase();
-    return matchesSearch && matchesCategory;
-  });
 
   // Check if resource is bookmarked
   const isResourceBookmarked = (resourceId) => {
-    return bookmarkedResources.some(bm => bm.questionId === resourceId);
+    return bookmarkedResources.some(bm => bm.resourceId === resourceId);
   };
 
   return (
@@ -742,182 +692,30 @@ const Resource = ({ user }) => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* AI Assistant Section - Priority */}
-        <div className="mb-12">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
-            {/* AI Assistant Header */}
-            <div className="bg-black px-6 py-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <Brain className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">AI Study Assistant</h2>
-                  <p className="text-gray-300 text-sm">Powered by Gemini - Your intelligent learning companion</p>
-                </div>
-              </div>
-            </div>
-
-            {/* AI Assistant Content */}
-            <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Chat Interface */}
-                <div className="lg:col-span-2">
-                  <div className="bg-gray-50 rounded-xl p-4 h-96 flex flex-col">
-                    {/* Chat Messages */}
-                    <div 
-                      ref={chatContainerRef}
-                      className="flex-1 overflow-y-auto space-y-4 mb-4"
-                    >
-                      {chatMessages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div
-                            className={`max-w-xs px-4 py-3 rounded-2xl ${
-                              message.type === 'user'
-                                ? 'bg-black text-white'
-                                : 'bg-white text-gray-800 shadow-sm border border-gray-200'
-                            }`}
-                          >
-                            <p className="text-sm whitespace-pre-line">{message.message}</p>
-                            <p className="text-xs opacity-70 mt-2">
-                              {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                      {isTyping && (
-                        <div className="flex justify-start">
-                          <div className="bg-white text-gray-800 px-4 py-3 rounded-2xl shadow-sm border border-gray-200">
-                            <div className="flex space-x-1">
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-        </div>
-
-                    {/* Message Input */}
-                    <div className="flex space-x-3">
-                      <input
-                        type="text"
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                        placeholder="Ask me anything about aptitude, DSA, or technical topics..."
-                        className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-                      />
-                      <button
-                        onClick={handleSendMessage}
-                        disabled={!newMessage.trim() || isTyping}
-                        className="bg-black text-white p-3 rounded-xl hover:bg-gray-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Send className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* File Analysis Panel - Always Visible */}
+        {/* Main Layout - 1/3 Filters, 2/3 Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Side - Filters (1/3) */}
                 <div className="lg:col-span-1">
-                  <div className="bg-gray-50 rounded-xl p-4 h-[28rem]">
-                    <div className="mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">File Analysis</h3>
-                      <p className="text-sm text-gray-600">Upload files for AI analysis</p>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Analysis Type</label>
-                        <select
-                          value={analysisType}
-                          onChange={(e) => setAnalysisType(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-                        >
-                          <option value="summary">Summary</option>
-                          <option value="explanation">Explanation</option>
-                          <option value="questions">Generate Questions</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Upload File</label>
-                        <input
-                          type="file"
-                          accept=".pdf,image/*"
-                          onChange={handleAnalysisFileSelect}
-                          className="w-full text-sm"
-                        />
-                        {selectedAnalysisFile && (
-                          <p className="text-xs text-gray-600 mt-2">Selected: {selectedAnalysisFile.name}</p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">
-                          Supported: PDF files (text-based) and images (JPEG, PNG, etc.)
-                        </p>
-                      </div>
-                      
-                      <button
-                        onClick={handleAnalyzeFile}
-                        disabled={!selectedAnalysisFile || analyzing}
-                        className="w-full px-4 py-3 bg-black text-white text-sm rounded-lg hover:bg-gray-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                      >
-                        {analyzing ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            <span>Analyzing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>Analyze File</span>
-                          </>
-                        )}
-                      </button>
-                      
-                      <div className="text-xs text-gray-500 space-y-1">
-                        <p><strong>Tips:</strong></p>
-                        <ul className="list-disc list-inside space-y-1">
-                          <li>PDFs and images are analyzed using AI vision</li>
-                          <li>Ensure files are clear and readable</li>
-                          <li>Analysis results will appear in the chat</li>
-                          <li>Supported: PDF, JPEG, PNG, and other image formats</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Search and Filters Section */}
-        <div className="mb-8">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Search Resources</h2>
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sticky top-24">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Filters</h2>
             
             {/* Search Bar */}
             <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
               <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
                     type="text"
-                  placeholder="Search for PDFs, videos, or MCQs..."
+                    placeholder="Search resources..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
                   />
                 </div>
             </div>
 
             {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                 <select
@@ -925,7 +723,7 @@ const Resource = ({ user }) => {
                   onChange={(e) => setSelectedCategory(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
                 >
-                  <option value="">All Categories</option>
+                    <option value="all">All Categories</option>
                 <option value="Aptitude">Aptitude</option>
                   <option value="DSA">DSA</option>
                 <option value="Technical">Technical</option>
@@ -975,8 +773,10 @@ const Resource = ({ user }) => {
             </div>
             </div>
 
+          {/* Right Side - Content (2/3) */}
+          <div className="lg:col-span-2">
             {/* Tabs */}
-            <div className="bg-white rounded-lg shadow-sm mb-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 mb-6">
               <div className="border-b border-gray-200">
                 <nav className="flex items-center justify-between px-6">
                   <div className="flex space-x-8">
@@ -1065,23 +865,25 @@ const Resource = ({ user }) => {
                     
                     {filteredMCQs.length > 0 && (
                       <div className="w-full flex flex-col gap-6 mt-4">
-                        {filteredMCQs.map((q, idx) => (
-                        <div key={q.id} className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-200">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white font-semibold text-sm">
-                                Q{idx + 1}
-                              </div>
-                              <div>
-                                <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-xs font-medium">
+                        {getCurrentPageData(filteredMCQs).map((q, idx) => {
+                          // Calculate the actual question number across all pages
+                          const actualQuestionNumber = (currentPage - 1) * itemsPerPage + idx + 1;
+                          
+                          return (
+                            <div
+                              key={q.id}
+                              className="bg-white rounded-sm shadow p-6 border border-gray-200 hover:shadow-xl transition"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                <div className="text-lg font-bold text-black">Q{actualQuestionNumber}.</div>
+                              <div className="px-3 py-1 text-xs font-semibold bg-gray-200 text-gray-800 rounded-full">
                               {q.level?.charAt(0).toUpperCase() + q.level?.slice(1)}
-                                </span>
                             </div>
+                              <div className="text-xs text-gray-500">
+                                Category: <span className="font-semibold">{q.category}</span> | Subcategory:{' '}
+                                <span className="font-semibold">{q.subcategory}</span>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <span className="text-xs text-gray-500">
-                                Added by: <span className="font-semibold">{q.author?.fullName || 'Unknown'}</span>
-                              </span>
                             <button
                                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                               title={bookmarkedIds.includes(q.id) ? 'Remove from bookmarks' : 'Add to bookmarks'}
@@ -1104,93 +906,116 @@ const Resource = ({ user }) => {
                               )}
                           </div>
                           </div>
-                          <div className="mb-4 text-lg text-gray-900 font-medium">{q.question}</div>
-                          <div className="space-y-2 mb-4">
-                            {Object.entries(q.options).map(([key, val]) => {
+
+                            <div className="mb-4 text-black font-medium text-lg">{q.question}</div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
+                              {Object.entries(q.options).map(([key, option]) => {
                               const selected = answers[idx];
                               const isCorrect = q.correctAns === key;
-                              let btnClass = 'border-gray-300 bg-white hover:bg-gray-50';
+                                let btnClass = 'border-gray-300 bg-gray-50';
+                                
                               if (selected) {
-                                if (selected === key && isCorrect) btnClass = 'border-green-600 bg-green-50 text-green-800';
-                                else if (selected === key && !isCorrect) btnClass = 'border-red-600 bg-red-50 text-red-800';
-                                else if (isCorrect && selected !== key) btnClass = 'border-green-600 bg-green-50 text-green-800';
+                                  if (selected === key && isCorrect) {
+                                    btnClass = 'border-green-600 bg-green-50 text-green-800';
+                                  } else if (selected === key && !isCorrect) {
+                                    btnClass = 'border-red-600 bg-red-50 text-red-800';
+                                  } else if (isCorrect && selected !== key) {
+                                    btnClass = 'border-green-600 bg-green-50 text-green-800';
                               }
+                                }
+                                
                               return (
-                                <div key={key} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                                  <div className="w-5 h-5 border-2 border-gray-300 rounded-full flex items-center justify-center">
-                                    <span className="text-xs font-medium text-gray-600">{key.toUpperCase()}</span>
-                                  </div>
-                                  <span className="text-gray-700">{val}</span>
-                                </div>
+                                  <button
+                                    key={key}
+                                    onClick={() => handleOptionSelect(idx, key, q.correctAns)}
+                                    className={`px-4 py-2 rounded border font-medium text-left transition ${btnClass} hover:bg-gray-100`}
+                                  >
+                                    {key.toUpperCase()}. {option}
+                                  </button>
                               );
                             })}
                           </div>
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm text-gray-600">
-                              <span className="font-medium">Correct Answer:</span> {q.correctAns?.toUpperCase()}
-                            </div>
-                            <button className="text-black hover:text-gray-800 text-sm font-medium">
-                              View Explanation →
+
+                            <button
+                              className="text-black underline text-sm mb-2"
+                              onClick={() => handleShowExplanation(idx)}
+                            >
+                              {showExplanation[idx] ? 'Hide Explanation' : 'See Explanation'}
                           </button>
+                            
+                            {showExplanation[idx] && (
+                              <div className="bg-black text-white p-4 mt-2 rounded">
+                                <div className="font-semibold mb-1">Explanation:</div>
+                                <div className="mb-1">Correct Option: <span className="font-bold text-green-700">{q.correctAns?.toUpperCase()}</span></div>
+                                <div>{q.explanation}</div>
                               </div>
+                            )}
                         </div>
-                      ))}
+                        );
+                      })}
+                        
+                        {/* Pagination for MCQs */}
+                        {getTotalPages(filteredMCQs) > 1 && (
+                          <Pagination
+                            currentPage={currentPage}
+                            totalPages={getTotalPages(filteredMCQs)}
+                            onPageChange={handlePageChange}
+                          />
+                        )}
                       </div>
                     )}
                   </div>
                 )}
 
                 {activeTab === 'pdfs' && (
-                  <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            <div className="bg-gray-100 px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-white" />
-                  </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">PDF Resources</h3>
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">PDF Resources</h2>
                     <p className="text-sm text-gray-600">{filteredPdfs.length} documents available</p>
                   </div>
                 </div>
-                <div className="text-sm text-gray-500">
+                    
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
                   {resourcesLoading ? 'Loading...' : `${filteredPdfs.length} found`}
-                </div>
+                        </span>
               </div>
             </div>
             
-            <div className="p-6">
               {resourcesLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto"></div>
+                        <p className="mt-2 text-gray-600">Loading PDFs...</p>
                 </div>
               ) : filteredPdfs.length === 0 ? (
                 <div className="text-center py-8">
                   <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No PDFs found matching your criteria</p>
+                        <p className="text-gray-600">No PDFs found for the selected filters.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredPdfs.map((pdf) => (
-                    <div key={pdf.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all duration-200 bg-white">
-                      <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900 mb-2 line-clamp-2">{pdf.title}</h4>
-                          <div className="flex items-center space-x-3 text-sm text-gray-600 mb-3">
-                            <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium">{pdf.category}</span>
-                            <span className="flex items-center">
-                              <FileText className="w-4 h-4 mr-1" />
-                              {pdf.fileSize ? Math.round(pdf.fileSize / 1024 / 1024 * 10) / 10 + ' MB' : 'N/A'}
-                            </span>
+                      <div className="space-y-4">
+                        {getCurrentPageData(filteredPdfs).map((pdf, idx) => {
+                          // Calculate the actual item number across all pages
+                          const actualItemNumber = (currentPage - 1) * itemsPerPage + idx + 1;
+                          
+                          return (
+                            <div key={pdf.id} className="bg-white rounded-sm shadow p-6 border border-gray-200 hover:shadow-xl transition">
+                              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                <div className="flex items-center space-x-3">
+                                  <FileText className="w-5 h-5 text-red-500" />
+                                  <div className="text-lg font-bold text-black">PDF {actualItemNumber}.</div>
                             </div>
-                          {pdf.description && (
-                            <p className="text-gray-600 text-sm mb-3 line-clamp-2">{pdf.description}</p>
-                          )}
-                          <p className="text-xs text-gray-500">
-                            Added by: {pdf.creator?.fullName || 'Unknown'}
-                          </p>
+                                <div className="px-3 py-1 text-xs font-semibold bg-gray-200 text-gray-800 rounded-full">
+                                  {pdf.level?.charAt(0).toUpperCase() + pdf.level?.slice(1)}
                           </div>
-                        <div className="flex items-center space-x-2 ml-2">
+                                <div className="text-xs text-gray-500">
+                                  Category: <span className="font-semibold">{pdf.category}</span> | Subcategory:{' '}
+                                  <span className="font-semibold">{pdf.subcategory}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
                   <button
                             onClick={() => handleResourceBookmark(pdf.id, isResourceBookmarked(pdf.id))}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -1214,73 +1039,91 @@ const Resource = ({ user }) => {
                             </button>
                           )}
                         </div>
+                              </div>
+
+                              <div className="mb-4 text-black font-medium text-lg">{pdf.title}</div>
+                              
+                              {pdf.description && (
+                                <p className="text-gray-700 mb-4">{pdf.description}</p>
+                              )}
+
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs text-gray-500">
+                                  Added by: {pdf.creator?.fullName || 'Unknown'}
                       </div>
                       <button 
                         onClick={() => handleDownloadPDF(pdf.id, pdf.fileName)}
-                        className="w-full bg-black text-white px-4 py-3 rounded-lg hover:bg-gray-800 transition-all duration-200 flex items-center justify-center space-x-2"
+                                  className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center space-x-2"
                       >
                           <Download className="w-4 h-4" />
-                          <span>Download PDF</span>
+                                  <span>Download</span>
                   </button>
                 </div>
-                    ))}
                 </div>
+                          );
+                        })}
+                        
+                        {/* Pagination for PDFs */}
+                        {getTotalPages(filteredPdfs) > 1 && (
+                          <Pagination
+                            currentPage={currentPage}
+                            totalPages={getTotalPages(filteredPdfs)}
+                            onPageChange={handlePageChange}
+                          />
               )}
             </div>
+                    )}
                   </div>
                 )}
 
                 {activeTab === 'videos' && (
-                  <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            <div className="bg-gray-100 px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                    <Video className="w-5 h-5 text-white" />
-                  </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Video Resources</h3>
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Video Resources</h2>
                     <p className="text-sm text-gray-600">{filteredVideos.length} videos available</p>
                   </div>
                 </div>
-                <div className="text-sm text-gray-500">
+                    
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
                   {resourcesLoading ? 'Loading...' : `${filteredVideos.length} found`}
-                </div>
+                        </span>
               </div>
             </div>
             
-            <div className="p-6">
               {resourcesLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto"></div>
+                        <p className="mt-2 text-gray-600">Loading videos...</p>
                 </div>
               ) : filteredVideos.length === 0 ? (
                 <div className="text-center py-8">
                   <Video className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No videos found matching your criteria</p>
+                        <p className="text-gray-600">No videos found for the selected filters.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredVideos.map((video) => (
-                    <div key={video.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all duration-200 bg-white">
-                      <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900 mb-2 line-clamp-2">{video.title}</h4>
-                          <div className="flex items-center space-x-3 text-sm text-gray-600 mb-3">
-                            <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium">{video.category}</span>
-                            <span className="flex items-center">
-                              <Video className="w-4 h-4 mr-1" />
-                              {video.level}
-                            </span>
+                      <div className="space-y-4">
+                        {getCurrentPageData(filteredVideos).map((video, idx) => {
+                          // Calculate the actual item number across all pages
+                          const actualItemNumber = (currentPage - 1) * itemsPerPage + idx + 1;
+                          
+                          return (
+                            <div key={video.id} className="bg-white rounded-sm shadow p-6 border border-gray-200 hover:shadow-xl transition">
+                              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                <div className="flex items-center space-x-3">
+                                  <Video className="w-5 h-5 text-blue-500" />
+                                  <div className="text-lg font-bold text-black">Video {actualItemNumber}.</div>
                             </div>
-                          {video.description && (
-                            <p className="text-gray-600 text-sm mb-3 line-clamp-2">{video.description}</p>
-                          )}
-                          <p className="text-xs text-gray-500">
-                            Added by: {video.creator?.fullName || 'Unknown'}
-                          </p>
+                                <div className="px-3 py-1 text-xs font-semibold bg-gray-200 text-gray-800 rounded-full">
+                                  {video.level?.charAt(0).toUpperCase() + video.level?.slice(1)}
                           </div>
-                        <div className="flex items-center space-x-2 ml-2">
+                                <div className="text-xs text-gray-500">
+                                  Category: <span className="font-semibold">{video.category}</span> | Subcategory:{' '}
+                                  <span className="font-semibold">{video.subcategory}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
                       <button
                             onClick={() => handleResourceBookmark(video.id, isResourceBookmarked(video.id))}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -1304,21 +1147,44 @@ const Resource = ({ user }) => {
                             </button>
                           )}
                         </div>
+                              </div>
+
+                              <div className="mb-4 text-black font-medium text-lg">{video.title}</div>
+                              
+                              {video.description && (
+                                <p className="text-gray-700 mb-4">{video.description}</p>
+                              )}
+
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs text-gray-500">
+                                  Added by: {video.creator?.fullName || 'Unknown'}
                       </div>
                       <button 
                         onClick={() => handlePlayVideo(video.videoUrl)}
-                        className="w-full bg-black text-white px-4 py-3 rounded-lg hover:bg-gray-800 transition-all duration-200 flex items-center justify-center space-x-2"
+                                  className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center space-x-2"
                       >
                           <Play className="w-4 h-4" />
-                          <span>Watch Video</span>
+                                  <span>Watch</span>
                       </button>
                       </div>
-                    ))}
                   </div>
+                          );
+                        })}
+                        
+                        {/* Pagination for Videos */}
+                        {getTotalPages(filteredVideos) > 1 && (
+                          <Pagination
+                            currentPage={currentPage}
+                            totalPages={getTotalPages(filteredVideos)}
+                            onPageChange={handlePageChange}
+                          />
+                )}
+              </div>
+                    )}
+            </div>
                 )}
               </div>
             </div>
-                )}
           </div>
                   </div>
 

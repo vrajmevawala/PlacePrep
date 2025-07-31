@@ -1,17 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Bell, BookOpen, Target, Trophy, Bookmark, BarChart3, LogOut, Trash2, Check } from 'lucide-react';
+import { User, Bell, BookOpen, Target, Trophy, Bookmark, BarChart3, LogOut, Trash2, Check, Bot, AlertTriangle } from 'lucide-react';
 import { ChevronDown } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useNotifications } from '../contexts/NotificationContext.jsx';
 import logo from '../../assests/logo.png';
 
-const Navigation = ({ user, onLogout }) => {
+const Navigation = ({ user, onLogout, isContestMode = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef(null);
   const [showPracticeDropdown, setShowPracticeDropdown] = useState(false);
   const practiceDropdownRef = useRef(null);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const userDropdownRef = useRef(null);
   
   const { 
     notifications, 
@@ -27,14 +29,15 @@ const Navigation = ({ user, onLogout }) => {
   ];
 
   const privateNavItems = [
+    { name: 'Dashboard', path: '/dashboard', icon: null },
     { name: 'Practice', path: '/practice', icon: Target },
-    { name: 'Resources', path: '/resources', icon: BookOpen },
-    { name: 'Results', path: '/results', icon: BarChart3 },
-    { name: 'Bookmarks', path: '/bookmarks', icon: Bookmark },
-    { name: 'Contests', path: user?.role === 'admin' ? '/admin-contests' : '/contests', icon: Trophy },
+    { name: 'Resource', path: '/resources', icon: BookOpen },
+    { name: 'Contest', path: user?.role === 'admin' ? '/admin-contests' : '/contests', icon: Trophy },
+    { name: 'Result', path: '/results', icon: BarChart3 },
+    { name: 'AI Assistant', path: '/ai-assistant', icon: Bot },
   ];
 
-  // Close notification dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
@@ -43,8 +46,11 @@ const Navigation = ({ user, onLogout }) => {
       if (practiceDropdownRef.current && !practiceDropdownRef.current.contains(event.target)) {
         setShowPracticeDropdown(false);
       }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
+        setShowUserDropdown(false);
+      }
     }
-    if (showNotifications || showPracticeDropdown) {
+    if (showNotifications || showPracticeDropdown || showUserDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -52,9 +58,14 @@ const Navigation = ({ user, onLogout }) => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showNotifications, showPracticeDropdown]);
+  }, [showNotifications, showPracticeDropdown, showUserDropdown]);
 
   const handleNotificationClick = async (notification) => {
+    if (isContestMode) {
+      alert('Navigation is disabled during contest. Please complete or submit the contest first.');
+      return;
+    }
+
     if (!notification.isRead) {
       await markAsRead(notification.id);
     }
@@ -106,16 +117,39 @@ const Navigation = ({ user, onLogout }) => {
     }
   };
 
+  const handleNavigationClick = (e, path) => {
+    if (isContestMode) {
+      e.preventDefault();
+      alert('Navigation is disabled during contest. Please complete or submit the contest first.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleLogout = () => {
+    if (isContestMode) {
+      alert('Cannot logout during contest. Please complete or submit the contest first.');
+      return;
+    }
+    onLogout();
+  };
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2 cursor-pointer">
-            <img src={logo} alt="PlacePrep Logo" className="w-32 h-auto" />
-          </Link>
+          {/* Left Side - Logo */}
+          <div className="flex-shrink-0">
+            <Link 
+              to="/" 
+              className="flex items-center space-x-2 cursor-pointer"
+              onClick={(e) => handleNavigationClick(e, '/')}
+            >
+              <img src={logo} alt="PlacePrep Logo" className="w-32 h-auto" />
+            </Link>
+          </div>
 
-          {/* Navigation Items */}
+          {/* Center - Navigation Items */}
           <div className="hidden md:flex items-center space-x-8">
             {!user ? (
               <>
@@ -126,8 +160,11 @@ const Navigation = ({ user, onLogout }) => {
                     className={`text-sm font-medium transition-colors ${
                       location.pathname === item.path
                         ? 'text-black border-b-2 border-black'
-                        : 'text-gray-600 hover:text-black'
+                        : isContestMode 
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-gray-600 hover:text-black'
                     }`}
+                    onClick={(e) => handleNavigationClick(e, item.path)}
                   >
                     {item.name}
                   </Link>
@@ -135,57 +172,63 @@ const Navigation = ({ user, onLogout }) => {
               </>
             ) : (
               <>
-                <button
-                  onClick={() => navigate('/dashboard')}
-                  className={`text-sm font-medium transition-colors ${
-                    location.pathname === '/dashboard'
-                      ? 'text-black border-b-2 border-black'
-                      : 'text-gray-600 hover:text-black'
-                  }`}
-                >
-                  Dashboard
-                </button>
-                {/* Practice Dropdown */}
-                <div
-                  className="relative"
-                  ref={practiceDropdownRef}
-                  onMouseEnter={() => setShowPracticeDropdown(true)}
-                  onMouseLeave={() => setShowPracticeDropdown(false)}
-                >
-                  <button
-                    className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
-                      location.pathname === '/practice'
-                        ? 'text-black border-b-2 border-black'
-                        : 'text-gray-600 hover:text-black'
-                    }`}
-                    onClick={() => setShowPracticeDropdown((prev) => !prev)}
-                  >
-                    <Target className="w-4 h-4" />
-                    <span>Practice</span>
-                    <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${showPracticeDropdown ? 'rotate-180' : ''}`} />
-                  </button>
-                  {showPracticeDropdown && (
-                    <div
-                      className="absolute left-0 mt-0 w-44 bg-white border border-gray-200 rounded shadow-lg z-50"
-                    >
-                      <button
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                        onClick={() => { setShowPracticeDropdown(false); navigate('/practice?category=Aptitude'); }}
-                      >Aptitude Test</button>
-                      <button
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                        onClick={() => { setShowPracticeDropdown(false); navigate('/practice?category=Technical'); }}
-                      >Technical Test</button>
-                      <button
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                        onClick={() => { setShowPracticeDropdown(false); navigate('/practice?category=DSA'); }}
-                      >DSA Round</button>
-                    </div>
-                  )}
-                </div>
-                {/* Other nav items */}
-                {privateNavItems.filter(item => item.name !== 'Practice').map((item) => {
+                {privateNavItems.map((item) => {
                   const Icon = item.icon;
+                  
+                  // Special handling for Practice dropdown
+                  if (item.name === 'Practice') {
+                    return (
+                      <div
+                        key={item.path}
+                        className="relative"
+                        ref={practiceDropdownRef}
+                        onMouseEnter={() => !isContestMode && setShowPracticeDropdown(true)}
+                        onMouseLeave={() => setShowPracticeDropdown(false)}
+                      >
+                        <button
+                          className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
+                            location.pathname === '/practice'
+                              ? 'text-black border-b-2 border-black'
+                              : isContestMode 
+                                ? 'text-gray-400 cursor-not-allowed'
+                                : 'text-gray-600 hover:text-black'
+                          }`}
+                          onClick={() => {
+                            if (isContestMode) {
+                              alert('Navigation is disabled during contest. Please complete or submit the contest first.');
+                              return;
+                            }
+                            setShowPracticeDropdown((prev) => !prev);
+                          }}
+                          disabled={isContestMode}
+                        >
+                          <Target className="w-4 h-4" />
+                          <span>Practice</span>
+                          <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${showPracticeDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+                        {showPracticeDropdown && !isContestMode && (
+                          <div
+                            className="absolute left-0 mt-1 w-44 bg-white border border-gray-200 rounded shadow-lg z-50"
+                          >
+                            <button
+                              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                              onClick={() => { setShowPracticeDropdown(false); navigate('/practice?category=Aptitude'); }}
+                            >Aptitude Test</button>
+                            <button
+                              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                              onClick={() => { setShowPracticeDropdown(false); navigate('/practice?category=Technical'); }}
+                            >Technical Test</button>
+                            <button
+                              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                              onClick={() => { setShowPracticeDropdown(false); navigate('/practice?category=DSA'); }}
+                            >DSA Round</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  
+                  // Regular navigation items
                   return (
                     <Link
                       key={item.path}
@@ -193,10 +236,13 @@ const Navigation = ({ user, onLogout }) => {
                       className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
                         location.pathname === item.path
                           ? 'text-black border-b-2 border-black'
-                          : 'text-gray-600 hover:text-black'
+                          : isContestMode 
+                            ? 'text-gray-400 cursor-not-allowed'
+                            : 'text-gray-600 hover:text-black'
                       }`}
+                      onClick={(e) => handleNavigationClick(e, item.path)}
                     >
-                      <Icon className="w-4 h-4" />
+                      {Icon && <Icon className="w-4 h-4" />}
                       <span>{item.name}</span>
                     </Link>
                   );
@@ -211,33 +257,78 @@ const Navigation = ({ user, onLogout }) => {
               <>
                 <Link
                   to="/login"
-                  className="text-sm font-medium text-gray-600 hover:text-black transition-colors"
+                  className={`text-sm font-medium transition-colors ${
+                    isContestMode 
+                      ? 'text-gray-400 cursor-not-allowed'
+                      : 'text-gray-600 hover:text-black'
+                  }`}
+                  onClick={(e) => handleNavigationClick(e, '/login')}
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
-                  className="bg-black text-white px-4 py-2 rounded-sm text-sm font-medium hover:bg-gray-800 transition-colors"
+                  className={`px-4 py-2 rounded-sm text-sm font-medium transition-colors ${
+                    isContestMode 
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-black text-white hover:bg-gray-800'
+                  }`}
+                  onClick={(e) => handleNavigationClick(e, '/signup')}
                 >
                   Sign Up
                 </Link>
               </>
             ) : (
               <>
+                {/* Contest Mode Warning */}
+                {isContestMode && (
+                  <div className="flex items-center space-x-2 px-3 py-1 bg-yellow-100 border border-yellow-300 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                    <span className="text-xs font-medium text-yellow-800">Contest Mode</span>
+                  </div>
+                )}
+
+                {/* Bookmark Icon Only */}
+                <Link
+                  to="/bookmarks"
+                  className={`p-2 transition-colors ${
+                    location.pathname === '/bookmarks'
+                      ? 'text-black'
+                      : isContestMode 
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'text-gray-600 hover:text-black'
+                  }`}
+                  onClick={(e) => handleNavigationClick(e, '/bookmarks')}
+                >
+                  <Bookmark className="w-5 h-5" />
+                </Link>
+
+                {/* Notification */}
                 <div className="relative" ref={notificationRef}>
                   <button
-                    className="p-2 text-gray-600 hover:text-black transition-colors relative"
-                    onClick={() => setShowNotifications((prev) => !prev)}
+                    className={`p-2 transition-colors relative ${
+                      isContestMode 
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'text-gray-600 hover:text-black'
+                    }`}
+                    onClick={() => {
+                      if (isContestMode) {
+                        alert('Notifications are disabled during contest. Please complete or submit the contest first.');
+                        return;
+                      }
+                      setShowNotifications((prev) => !prev);
+                    }}
+                    disabled={isContestMode}
                   >
                     <Bell className="w-5 h-5" />
                     {/* Notification dot */}
-                    {unreadCount > 0 && (
+                    {unreadCount > 0 && !isContestMode && (
                       <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-medium">
                         {unreadCount > 99 ? '99+' : unreadCount}
                       </span>
                     )}
                   </button>
-                  {showNotifications && (
+                  {showNotifications && !isContestMode && (
                     <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
                       <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                         <h3 className="font-semibold text-gray-900">Notifications</h3>
@@ -300,21 +391,48 @@ const Navigation = ({ user, onLogout }) => {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+
+                {/* User Profile Dropdown */}
+                <div className="relative" ref={userDropdownRef}>
+                  <div 
+                    className={`w-8 h-8 bg-black rounded-full flex items-center justify-center cursor-pointer transition-colors ${
+                      isContestMode 
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'hover:bg-gray-800'
+                    }`}
+                    onMouseEnter={() => !isContestMode && setShowUserDropdown(true)}
+                    onMouseLeave={() => setShowUserDropdown(false)}
+                    onClick={() => {
+                      if (isContestMode) {
+                        alert('User menu is disabled during contest. Please complete or submit the contest first.');
+                        return;
+                      }
+                    }}
+                  >
                     <User className="w-4 h-4 text-white" />
                   </div>
-                  <span className="text-sm font-medium">{user.name}</span>
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                    {user.role}
-                  </span>
+                  {showUserDropdown && !isContestMode && (
+                    <div 
+                      className="absolute right-1/2 transform translate-x-1/2 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
+                      onMouseEnter={() => setShowUserDropdown(true)}
+                      onMouseLeave={() => setShowUserDropdown(false)}
+                    >
+                      <div className="p-3 border-b border-gray-200">
+                        <p className="text-sm font-medium text-gray-900">{user.fullName}</p>
+                        <p className="text-xs text-gray-500">{user.role}</p>
+                      </div>
+                      <div className="p-1">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          <span>Logout</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={onLogout}
-                  className="p-2 text-gray-600 hover:text-black transition-colors"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
               </>
             )}
           </div>
@@ -324,4 +442,4 @@ const Navigation = ({ user, onLogout }) => {
   );
 };
 
-export default Navigation; 
+export default Navigation;

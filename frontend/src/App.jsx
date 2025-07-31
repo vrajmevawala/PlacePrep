@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -31,6 +31,7 @@ import TakeContest from './pages/TakeContest.jsx';
 import ContestResults from './pages/ContestResults.jsx';
 import AdminContests from './pages/AdminContests.jsx';
 import AdminResults from './pages/AdminResults.jsx';
+import AIAssistant from './pages/AIAssistant.jsx';
 
 // Contexts
 import { NotificationProvider } from './contexts/NotificationContext.jsx';
@@ -39,6 +40,10 @@ function App() {
   const [user, setUser] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check if user is currently in a contest
+  const isContestMode = location.pathname.startsWith('/take-contest/');
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -97,6 +102,7 @@ function App() {
         console.warn('Session check failed:', error);
       }
     };
+    
     checkSession();
   }, [navigate]);
 
@@ -106,7 +112,7 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
-        credentials: 'include'
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Login failed');
@@ -161,6 +167,7 @@ function App() {
         <Navigation 
           user={user} 
           onLogout={handleLogout}
+          isContestMode={isContestMode}
         />
         <main className="pt-16">
           <Routes>
@@ -177,6 +184,7 @@ function App() {
             <Route path="/contest-results/:contestId" element={<ContestResults />} />
             <Route path="/admin-contests" element={<AdminContests user={user} />} />
             <Route path="/admin-results" element={<AdminResults user={user} />} />
+            <Route path="/ai-assistant" element={<AIAssistant user={user} />} />
             <Route path="/dashboard" element={
               user ? (
                 user.role === 'admin' ? (
@@ -206,4 +214,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;

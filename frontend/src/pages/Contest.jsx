@@ -165,7 +165,7 @@ const Contest = ({ user }) => {
         <div className="mb-12">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-black flex items-center justify-center">
+              <div className="w-12 h-12 bg-black flex items-center justify-center rounded-xl shadow-lg">
                 <Trophy className="w-6 h-6 text-white" />
               </div>
               <div>

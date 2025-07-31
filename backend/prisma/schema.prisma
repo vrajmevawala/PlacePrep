@@ -110,13 +110,16 @@ model Activity {
 }
 
 model Bookmark {
-  id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
-  question  Question @relation(fields: [questionId], references: [id])
-  questionId Int
-  createdAt DateTime @default(now())
+  id         Int       @id @default(autoincrement())
+  user       User      @relation(fields: [userId], references: [id])
+  userId     Int
+  question   Question? @relation(fields: [questionId], references: [id])
+  questionId Int?
+  resource   Resource? @relation(fields: [resourceId], references: [id])
+  resourceId Int?
+  createdAt  DateTime  @default(now())
   @@unique([userId, questionId])
+  @@unique([userId, resourceId])
 }
 
 model Notification {
@@ -132,20 +135,21 @@ model Notification {
 }
 
 model Resource {
-  id          Int      @id @default(autoincrement())
+  id          Int         @id @default(autoincrement())
   title       String
   description String?
   category    Category
   subcategory String?
   level       Level
   type        ResourceType
-  fileUrl     String?  // For PDF files
-  fileName    String?  // Original filename
-  fileSize    Int?     // File size in bytes
-  videoUrl    String?  // For video resources
+  fileUrl     String?     // For PDF files
+  fileName    String?     // Original filename
+  fileSize    Int?        // File size in bytes
+  videoUrl    String?     // For video resources
   createdBy   Int
-  createdAt   DateTime @default(now())
-  creator     User     @relation("UserResources", fields: [createdBy], references: [id])
+  createdAt   DateTime    @default(now())
+  creator     User        @relation("UserResources", fields: [createdBy], references: [id])
+  bookmarks   Bookmark[]
 }
 
 enum Category {

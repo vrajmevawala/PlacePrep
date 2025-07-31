@@ -229,7 +229,7 @@ router.post('/bookmark/:id', authMiddleware, async (req, res) => {
     const existingBookmark = await prisma.bookmark.findFirst({
       where: {
         userId: req.user.id,
-        questionId: resourceId
+        resourceId: resourceId
       }
     });
 
@@ -241,7 +241,7 @@ router.post('/bookmark/:id', authMiddleware, async (req, res) => {
     await prisma.bookmark.create({
       data: {
         userId: req.user.id,
-        questionId: resourceId
+        resourceId: resourceId
       }
     });
 
@@ -261,7 +261,7 @@ router.delete('/bookmark/:id', authMiddleware, async (req, res) => {
     await prisma.bookmark.deleteMany({
       where: {
         userId: req.user.id,
-        questionId: resourceId
+        resourceId: resourceId
       }
     });
 
@@ -277,12 +277,13 @@ router.get('/bookmarks', authMiddleware, async (req, res) => {
   try {
     const bookmarks = await prisma.bookmark.findMany({
       where: {
-        userId: req.user.id
+        userId: req.user.id,
+        resourceId: { not: null }
       },
       include: {
-        question: {
+        resource: {
           include: {
-            author: {
+            creator: {
               select: {
                 id: true,
                 fullName: true
@@ -300,6 +301,126 @@ router.get('/bookmarks', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error fetching bookmarks:', error);
     res.status(500).json({ message: 'Failed to fetch bookmarks' });
+  }
+});
+
+// Get all bookmarks (questions and resources)
+router.get('/all-bookmarks', authMiddleware, async (req, res) => {
+  try {
+    const { category, subcategory, level, type } = req.query;
+    
+    // Build where clause for filtering
+    const whereClause = {
+      userId: req.user.id,
+      OR: [
+        { questionId: { not: null } },
+        { resourceId: { not: null } }
+      ]
+    };
+
+    // Add filters if provided
+    if (category || subcategory || level || type) {
+      whereClause.AND = [];
+      
+      if (category) {
+        whereClause.AND.push({
+          OR: [
+            { question: { category } },
+            { resource: { category } }
+          ]
+        });
+      }
+      
+      if (subcategory) {
+        whereClause.AND.push({
+          OR: [
+            { question: { subcategory } },
+            { resource: { subcategory } }
+          ]
+        });
+      }
+      
+      if (level) {
+        whereClause.AND.push({
+          OR: [
+            { question: { level } },
+            { resource: { level } }
+          ]
+        });
+      }
+      
+      if (type) {
+        whereClause.AND.push({
+          resource: { type }
+        });
+      }
+    }
+
+    const bookmarks = await prisma.bookmark.findMany({
+      where: whereClause,
+      include: {
+        question: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                fullName: true
+              }
+            }
+          }
+        },
+        resource: {
+          include: {
+            creator: {
+              select: {
+                id: true,
+                fullName: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    res.json({ bookmarks });
+  } catch (error) {
+    console.error('Error fetching all bookmarks:', error);
+    res.status(500).json({ message: 'Failed to fetch bookmarks' });
+  }
+});
+
+// Remove bookmark (for both questions and resources)
+router.post('/remove-bookmark', authMiddleware, async (req, res) => {
+  try {
+    const { questionId, resourceId } = req.body;
+    
+    if (!questionId && !resourceId) {
+      return res.status(400).json({ message: 'Either questionId or resourceId is required' });
+    }
+
+    const whereClause = {
+      userId: req.user.id
+    };
+
+    if (questionId) {
+      whereClause.questionId = parseInt(questionId);
+    }
+
+    if (resourceId) {
+      whereClause.resourceId = parseInt(resourceId);
+    }
+
+    await prisma.bookmark.deleteMany({
+      where: whereClause
+    });
+
+    res.json({ message: 'Bookmark removed successfully' });
+  } catch (error) {
+    console.error('Error removing bookmark:', error);
+    res.status(500).json({ message: 'Failed to remove bookmark' });
   }
 });
 
@@ -595,7 +716,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Delete associated bookmarks
     await prisma.bookmark.deleteMany({
-      where: { questionId: parseInt(id) }
+      where: { resourceId: parseInt(id) }
     });
 
     await prisma.resource.delete({

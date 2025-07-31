@@ -1,4 +1,4 @@
-import { BookmarkCheck } from 'lucide-react';
+import { BookmarkCheck, FileText, Video, Target, Download, Play } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 const Bookmark = () => {
@@ -6,49 +6,54 @@ const Bookmark = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [category, setCategory] = useState('Aptitude');
-  const [subcategory, setSubcategory] = useState('');
-  const [level, setLevel] = useState('');
+  const [category, setCategory] = useState('all');
+  const [subcategory, setSubcategory] = useState('all');
+  const [level, setLevel] = useState('all');
+  const [type, setType] = useState('all');
   const [subcategories, setSubcategories] = useState([]);
   const [showExplanation, setShowExplanation] = useState({});
 
   useEffect(() => {
     const fetchSubcategories = async () => {
       try {
-        const res = await fetch(`/api/questions/subcategories?category=${category}`);
+        const res = await fetch(`/api/questions/subcategories?category=${category === 'all' ? 'Aptitude' : category}`);
         const data = await res.json();
         if (res.ok && data.subcategories && data.subcategories.length) {
           setSubcategories(data.subcategories);
           setSubcategory(data.subcategories.includes('All') ? 'All' : data.subcategories[0]);
         } else {
           setSubcategories([]);
-          setSubcategory('');
+          setSubcategory('all');
         }
       } catch {
         setSubcategories([]);
-        setSubcategory('');
+        setSubcategory('all');
       }
     };
-    fetchSubcategories();
+    
+    if (category !== 'all') {
+      fetchSubcategories();
+    } else {
+      setSubcategories([]);
+      setSubcategory('all');
+    }
   }, [category]);
 
   useEffect(() => {
-    fetch('/api/questions/bookmarks', { credentials: 'include' })
-      .then(res => res.ok ? res.json() : { bookmarks: [] })
-      .then(data => setBookmarks(data.bookmarks || []))
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
+    fetchBookmarks();
   }, []);
 
-  const handleSearch = async () => {
+  const fetchBookmarks = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (category) params.append('category', category);
-      if (subcategory && subcategory !== 'All') params.append('subcategory', subcategory);
-      if (level) params.append('level', level);
-      const res = await fetch(`/api/questions/bookmarks?${params.toString()}`, {
+      if (category && category !== 'all') params.append('category', category);
+      if (subcategory && subcategory !== 'all' && subcategory !== 'All') params.append('subcategory', subcategory);
+      if (level && level !== 'all') params.append('level', level);
+      if (type && type !== 'all') params.append('type', type);
+      
+      const res = await fetch(`/api/resources/all-bookmarks?${params.toString()}`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch bookmarks');
@@ -61,13 +66,21 @@ const Bookmark = () => {
     }
   };
 
+  const handleSearch = () => {
+    fetchBookmarks();
+  };
+
   const handleRemoveBookmark = async (bm) => {
     try {
-      const res = await fetch('/api/questions/bookmarks/remove', {
+      const body = bm.questionId 
+        ? { questionId: bm.questionId }
+        : { resourceId: bm.resourceId };
+      
+      const res = await fetch('/api/resources/remove-bookmark', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ questionId: bm.questionId })
+        body: JSON.stringify(body)
       });
       if (!res.ok) throw new Error('Failed to remove bookmark');
       setBookmarks(prev => prev.filter(b => b.id !== bm.id));
@@ -78,6 +91,37 @@ const Bookmark = () => {
 
   const handleShowExplanation = (id) => {
     setShowExplanation(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleDownloadPDF = async (resourceId, fileName) => {
+    try {
+      const response = await fetch(`/api/resources/download/${resourceId}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || 'document.pdf';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Failed to download PDF. Please try again.');
+    }
+  };
+
+  const handlePlayVideo = (videoUrl) => {
+    if (videoUrl) {
+      window.open(videoUrl, '_blank');
+    }
   };
 
   if (loading) {
@@ -111,8 +155,11 @@ const Bookmark = () => {
                 onChange={e => setCategory(e.target.value)}
                 className="w-full px-3 py-2 border rounded"
               >
+                <option value="all">All Categories</option>
                 <option value="Aptitude">Aptitude</option>
                 <option value="Technical">Technical</option>
+                <option value="DSA">DSA</option>
+                <option value="General">General</option>
               </select>
             </div>
             <div>
@@ -121,17 +168,14 @@ const Bookmark = () => {
                 value={subcategory}
                 onChange={e => setSubcategory(e.target.value)}
                 className="w-full px-3 py-2 border rounded"
-                disabled={subcategories.length === 0}
+                disabled={subcategories.length === 0 && category !== 'all'}
               >
-                {subcategories.length === 0 ? (
-                  <option value="">No subcategories found</option>
-                ) : (
-                  subcategories.map(sub => (
-                    <option key={sub} value={sub}>
-                      {sub === 'All' ? 'All (All Subcategories)' : sub}
-                    </option>
-                  ))
-                )}
+                <option value="all">All Subcategories</option>
+                {subcategories.map(sub => (
+                  <option key={sub} value={sub}>
+                    {sub === 'All' ? 'All (All Subcategories)' : sub}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -141,16 +185,28 @@ const Bookmark = () => {
                 onChange={e => setLevel(e.target.value)}
                 className="w-full px-3 py-2 border rounded"
               >
-                <option value="">No Filter</option>
+                <option value="all">All Levels</option>
                 <option value="easy">Easy</option>
                 <option value="medium">Medium</option>
                 <option value="hard">Hard</option>
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1">Type</label>
+              <select
+                value={type}
+                onChange={e => setType(e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+              >
+                <option value="all">All Types</option>
+                <option value="MCQ">MCQ</option>
+                <option value="PDF">PDF</option>
+                <option value="VIDEO">Video</option>
+              </select>
+            </div>
             <button
               onClick={handleSearch}
               className="w-full mt-2 px-6 py-2 bg-black text-white font-bold rounded-sm border border-black hover:bg-gray-900"
-              disabled={!subcategory}
             >
               Search Now
             </button>
@@ -158,72 +214,144 @@ const Bookmark = () => {
           </div>
         </div>
 
-        {/* Bookmarked Questions */}
-        <div className="flex-1 w-full max-w-3xl">
+        {/* Bookmarked Items */}
+        <div className="flex-1 w-full max-w-4xl">
           {bookmarks.length === 0 ? (
             <p className="text-xl text-gray-500 text-center">No bookmarks yet.</p>
           ) : (
             <div className="flex flex-col gap-6">
               {bookmarks.map((bm, idx) => {
-                const q = bm.question;
-                return (
-                  <div
-                    key={bm.id}
-                    className="bg-white rounded-sm shadow p-6 border border-gray-200 hover:shadow-xl transition"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                      <div className="text-lg font-bold text-black">Q{idx + 1}.</div>
-                      <div className="px-3 py-1 text-xs font-semibold bg-gray-200 text-gray-800 rounded-full">
-                        {q.level?.charAt(0).toUpperCase() + q.level?.slice(1)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Category: <span className="font-semibold">{q.category}</span> | Subcategory:{' '}
-                        <span className="font-semibold">{q.subcategory}</span>
-                      </div>
-                      <BookmarkCheck
-                        className="w-5 h-5 text-yellow-500 cursor-pointer"
-                        title="Remove Bookmark"
-                        onClick={() => handleRemoveBookmark(bm)}
-                      />
-                    </div>
-
-                    <div className="mb-4 text-black font-medium text-lg">{q.question}</div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
-                      {Object.entries(q.options).map(([key, val]) => {
-                        const isCorrect = q.correctAns === key;
-                        const btnClass = isCorrect
-                          ? 'border-green-600 bg-green-50 text-green-800'
-                          : 'border-gray-300';
-                        return (
-                          <div
-                            key={key}
-                            className={`px-4 py-2 rounded border bg-gray-50 font-medium text-left transition ${btnClass}`}
-                          >
-                            {key.toUpperCase()}. {val}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <button
-                      className="text-black underline text-sm mb-2"
-                      onClick={() => handleShowExplanation(bm.id)}
+                // Handle question bookmarks
+                if (bm.question) {
+                  const q = bm.question;
+                  return (
+                    <div
+                      key={bm.id}
+                      className="bg-white rounded-sm shadow p-6 border border-gray-200 hover:shadow-xl transition"
                     >
-                      {showExplanation[bm.id] ? 'Hide Explanation' : 'See Explanation'}
-                    </button>
-                    {showExplanation[bm.id] && (
-                      <div className="bg-black text-white p-4 mt-2 rounded">
-                        <div className="font-semibold mb-1">Explanation:</div>
-                        <div className="mb-1">Correct Option: <span className="font-bold text-green-700">{q.correctAns?.toUpperCase()}</span></div>
-                        <div>{q.explanation}</div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <div className="text-lg font-bold text-black">Q{idx + 1}.</div>
+                        <div className="px-3 py-1 text-xs font-semibold bg-gray-200 text-gray-800 rounded-full">
+                          {q.level?.charAt(0).toUpperCase() + q.level?.slice(1)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Category: <span className="font-semibold">{q.category}</span> | Subcategory:{' '}
+                          <span className="font-semibold">{q.subcategory}</span>
+                        </div>
+                        <BookmarkCheck
+                          className="w-5 h-5 text-yellow-500 cursor-pointer"
+                          title="Remove Bookmark"
+                          onClick={() => handleRemoveBookmark(bm)}
+                        />
                       </div>
-                    )}
-                    <div className="text-xs text-gray-400">
-                      Bookmarked on: {new Date(bm.createdAt).toLocaleString()}
+
+                      <div className="mb-4 text-black font-medium text-lg">{q.question}</div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
+                        {Object.entries(q.options).map(([key, val]) => {
+                          const isCorrect = q.correctAns === key;
+                          const btnClass = isCorrect
+                            ? 'border-green-600 bg-green-50 text-green-800'
+                            : 'border-gray-300';
+                          return (
+                            <div
+                              key={key}
+                              className={`px-4 py-2 rounded border bg-gray-50 font-medium text-left transition ${btnClass}`}
+                            >
+                              {key.toUpperCase()}. {val}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        className="text-black underline text-sm mb-2"
+                        onClick={() => handleShowExplanation(bm.id)}
+                      >
+                        {showExplanation[bm.id] ? 'Hide Explanation' : 'See Explanation'}
+                      </button>
+                      {showExplanation[bm.id] && (
+                        <div className="bg-black text-white p-4 mt-2 rounded">
+                          <div className="font-semibold mb-1">Explanation:</div>
+                          <div className="mb-1">Correct Option: <span className="font-bold text-green-700">{q.correctAns?.toUpperCase()}</span></div>
+                          <div>{q.explanation}</div>
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-400">
+                        Bookmarked on: {new Date(bm.createdAt).toLocaleString()}
+                      </div>
                     </div>
-                  </div>
-                );
+                  );
+                }
+
+                // Handle resource bookmarks
+                if (bm.resource) {
+                  const r = bm.resource;
+                  return (
+                    <div
+                      key={bm.id}
+                      className="bg-white rounded-sm shadow p-6 border border-gray-200 hover:shadow-xl transition"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center space-x-3">
+                          {r.type === 'PDF' && <FileText className="w-5 h-5 text-red-500" />}
+                          {r.type === 'VIDEO' && <Video className="w-5 h-5 text-blue-500" />}
+                          <div className="text-lg font-bold text-black">{r.type}</div>
+                        </div>
+                        <div className="px-3 py-1 text-xs font-semibold bg-gray-200 text-gray-800 rounded-full">
+                          {r.level?.charAt(0).toUpperCase() + r.level?.slice(1)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Category: <span className="font-semibold">{r.category}</span> | Subcategory:{' '}
+                          <span className="font-semibold">{r.subcategory}</span>
+                        </div>
+                        <BookmarkCheck
+                          className="w-5 h-5 text-yellow-500 cursor-pointer"
+                          title="Remove Bookmark"
+                          onClick={() => handleRemoveBookmark(bm)}
+                        />
+                      </div>
+
+                      <div className="mb-4 text-black font-medium text-lg">{r.title}</div>
+                      
+                      {r.description && (
+                        <p className="text-gray-700 mb-4">{r.description}</p>
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs text-gray-500">
+                          Added by: {r.creator?.fullName || 'Unknown'}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {r.type === 'PDF' && (
+                            <button
+                              onClick={() => handleDownloadPDF(r.id, r.fileName)}
+                              className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center space-x-2"
+                            >
+                              <Download className="w-4 h-4" />
+                              <span>Download</span>
+                            </button>
+                          )}
+                          {r.type === 'VIDEO' && (
+                            <button
+                              onClick={() => handlePlayVideo(r.videoUrl)}
+                              className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center space-x-2"
+                            >
+                              <Play className="w-4 h-4" />
+                              <span>Watch</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-gray-400 mt-2">
+                        Bookmarked on: {new Date(bm.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return null;
               })}
             </div>
           )}

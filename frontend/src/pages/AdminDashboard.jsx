@@ -104,7 +104,6 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const [selectedContestStats, setSelectedContestStats] = useState(null);
   const [showContestStatsModal, setShowContestStatsModal] = useState(false);
   const [loadingContestStats, setLoadingContestStats] = useState(false);
-  const [filteredQuestionStats, setFilteredQuestionStats] = useState(null);
 
   // Add filter/sort state
   const [contestSort, setContestSort] = useState({ field: 'startTime', order: 'desc' });
@@ -857,7 +856,6 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const handleViewContestStats = async (contest) => {
     setShowContestStatsModal(true);
     setLoadingContestStats(true);
-    setFilteredQuestionStats(null); // Reset filter when opening new contest
     try {
       const res = await fetch(`/api/testseries/${contest.id}/stats`, { credentials: 'include' });
       const data = await res.json();
@@ -1933,28 +1931,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 {/* Question-wise Statistics Table */}
                 {selectedContestStats.questionStats && selectedContestStats.questionStats.length > 0 && (
                   <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold text-black">Question-wise Performance</h3>
-                      <div className="flex items-center space-x-4">
-                        <label className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id="showNotAttemptedOnly"
-                            className="rounded border-gray-300 text-black focus:ring-black"
-                            onChange={(e) => {
-                              const filtered = e.target.checked 
-                                ? selectedContestStats.questionStats.filter(q => q.notAttempted > 0)
-                                : selectedContestStats.questionStats;
-                              setFilteredQuestionStats(filtered);
-                            }}
-                          />
-                          <span className="text-sm text-gray-700">Show Not Attempted Only</span>
-                        </label>
-                        <span className="text-sm text-gray-500">
-                          Showing {filteredQuestionStats?.length || selectedContestStats.questionStats.length} of {selectedContestStats.questionStats.length} questions
-                        </span>
-                      </div>
-                    </div>
+                    <h3 className="font-semibold text-black mb-4">Question-wise Performance</h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border border-gray-200 rounded-lg">
                         <thead className="bg-gray-50">
@@ -1964,11 +1941,10 @@ const AdminDashboard = ({ user, onNavigate }) => {
                             <th className="py-3 px-4 font-medium text-black">Incorrect</th>
                             <th className="py-3 px-4 font-medium text-black">Not Attempted</th>
                             <th className="py-3 px-4 font-medium text-black">Success Rate</th>
-                            <th className="py-3 px-4 font-medium text-black">Real-time Status</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {(filteredQuestionStats || selectedContestStats.questionStats).map((q, idx) => (
+                          {selectedContestStats.questionStats.map((q, idx) => (
                             <tr key={q.questionId} className="border-t border-gray-200">
                               <td className="py-3 px-4 max-w-xs truncate" title={q.question}>
                                 <span className="font-medium text-black">{q.question}</span>
@@ -1978,15 +1954,6 @@ const AdminDashboard = ({ user, onNavigate }) => {
                               <td className="py-3 px-4 text-black font-medium">{q.notAttempted}</td>
                               <td className="py-3 px-4 font-medium text-black">
                                 {q.totalAttempts > 0 ? `${((q.correctAttempts / q.totalAttempts) * 100).toFixed(1)}%` : '0%'}
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                  q.notAttempted > 0 
-                                    ? 'bg-orange-100 text-orange-800' 
-                                    : 'bg-green-100 text-green-800'
-                                }`}>
-                                  {q.notAttempted > 0 ? 'Not Attempted' : 'All Attempted'}
-                                </span>
                               </td>
                             </tr>
                           ))}

@@ -6,7 +6,7 @@ import {
   XCircle, 
   Clock, 
   BarChart3, 
-l  ArrowLeft, 
+  ArrowLeft, 
   Star, 
   Target, 
   Award 
@@ -30,8 +30,16 @@ const ContestResults = () => {
 
     const fetchResults = async () => {
       try {
+        // Check if we have a participation ID from URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const participationId = urlParams.get('pid');
+        
         // First try to fetch results
-        const resultsResponse = await fetch(`/api/testseries/${contestId}/result`, {
+        const resultsUrl = participationId 
+          ? `/api/testseries/${contestId}/result?pid=${participationId}`
+          : `/api/testseries/${contestId}/result`;
+          
+        const resultsResponse = await fetch(resultsUrl, {
           credentials: 'include'
         });
         
@@ -180,7 +188,7 @@ const ContestResults = () => {
     );
   }
 
-  const score = results.correctAnswers || 0;
+  const score = results.correct || results.correctAnswers || 0;
   const totalQuestions = results.totalQuestions || 0;
   const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
   const timeTaken = results.timeTaken || 0;
@@ -260,7 +268,7 @@ const ContestResults = () => {
         </div>
 
         {/* Detailed Results */}
-        {results.questionResults && results.questionResults.length > 0 && (
+        {(results.questionResults || results.details) && (results.questionResults || results.details).length > 0 && (
           <div className="bg-white border border-gray-200 p-8 mb-8">
             <h3 className="text-xl font-bold text-black mb-6 flex items-center">
               <Target className="w-5 h-5 mr-3 text-black" />
@@ -268,7 +276,7 @@ const ContestResults = () => {
             </h3>
             
             <div className="space-y-4">
-              {results.questionResults.map((result, index) => (
+              {(results.questionResults || results.details).map((result, index) => (
                 <div
                   key={index}
                   className={`p-4 border ${
@@ -281,7 +289,7 @@ const ContestResults = () => {
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <span className="text-sm font-semibold text-black">
-                          Question {index + 1}
+                          Question ID: {result.questionId}
                         </span>
                         {result.isCorrect ? (
                           <CheckCircle className="w-4 h-4 text-green-600" />
@@ -292,13 +300,16 @@ const ContestResults = () => {
                       <p className="text-gray-700 mb-2">{result.question}</p>
                       <div className="text-sm space-y-1">
                         <p className="text-gray-600">
-                          Your Answer: <span className="font-medium">{result.userAnswer || 'Not answered'}</span>
+                          Your Answer: <span className="font-medium">{result.userAnswer || result.selected || 'Not answered'}</span>
                         </p>
                         {!result.isCorrect && (
                           <p className="text-green-600">
-                            Correct Answer: <span className="font-medium">{result.correctAnswer}</span>
+                            Correct Answer: <span className="font-medium">{result.correctAnswer || result.correct}</span>
                           </p>
                         )}
+                        <p className="text-gray-500">
+                          Status: <span className="font-medium">{result.isAttempted ? 'Attempted' : 'Not Attempted'}</span>
+                        </p>
                       </div>
                     </div>
                   </div>

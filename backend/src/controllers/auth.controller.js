@@ -44,6 +44,17 @@ export const signup = async (req, res) => {
         });
 
         if (result) {
+            // Send welcome notification
+            const notificationService = req.app.get('notificationService');
+            if (notificationService) {
+                try {
+                    await notificationService.notifyWelcome(result.id, result);
+                    console.log(`Welcome notification sent to new user: ${result.fullName}`);
+                } catch (error) {
+                    console.error('Failed to send welcome notification:', error);
+                }
+            }
+
             generateToken(result.id, result.role, res);
             res.status(201).json({
                 role: result.role,

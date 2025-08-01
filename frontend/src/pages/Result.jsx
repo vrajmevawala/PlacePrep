@@ -24,61 +24,94 @@ const Result = () => {
   const chartRef = useRef({});
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      fetch('/api/testseries/participations', { credentials: 'include' }).then(res => res.json()),
-      fetch('/api/free-practice/participations', { credentials: 'include' }).then(res => res.json())
-    ])
-      .then(async ([testSeriesData, freePracticeData]) => {
+    const fetchParticipations = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const [testSeriesData, freePracticeData] = await Promise.all([
+          fetch('/api/testseries/participations', { credentials: 'include' }).then(res => res.json()),
+          fetch('/api/free-practice/participations', { credentials: 'include' }).then(res => res.json())
+        ]);
+
         const testSeriesParticipations = (testSeriesData.participations || []).map(p => ({ ...p, _type: 'testSeries' }));
         const freePracticeParticipations = (freePracticeData.participations || []).map(p => ({ ...p, _type: 'freePractice' }));
         const allParticipations = [...testSeriesParticipations, ...freePracticeParticipations].sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+        
         setParticipations(allParticipations);
 
         const resultsObj = {};
         const statsObj = {};
 
+        // Fetch results for each participation
         for (const p of allParticipations) {
           try {
             if (p._type === 'testSeries') {
+              // For test series, fetch result with participation ID
               const res = await fetch(`/api/testseries/${p.testSeriesId}/result?pid=${p.pid}`, { credentials: 'include' });
               
               if (res.status === 403) {
                 // Contest hasn't ended yet
                 resultsObj[p.pid] = { error: 'Results not available yet', contestNotEnded: true };
               } else if (res.ok) {
-                resultsObj[p.pid] = await res.json();
+                const resultData = await res.json();
+                resultsObj[p.pid] = resultData;
               } else {
-                resultsObj[p.pid] = { error: 'No result' };
+                resultsObj[p.pid] = { error: 'No result available' };
               }
 
+              // Fetch stats for test series
               if (!statsObj[p.testSeriesId]) {
-                const statRes = await fetch(`/api/testseries/${p.testSeriesId}/stats`, { credentials: 'include' });
-                statsObj[p.testSeriesId] = statRes.ok ? await statRes.json() : { error: 'No stats' };
+                try {
+                  const statRes = await fetch(`/api/testseries/${p.testSeriesId}/stats`, { credentials: 'include' });
+                  if (statRes.ok) {
+                    statsObj[p.testSeriesId] = await statRes.json();
+                  } else {
+                    statsObj[p.testSeriesId] = { error: 'No stats available' };
+                  }
+                } catch (statError) {
+                  statsObj[p.testSeriesId] = { error: 'Failed to load stats' };
+                }
               }
             } else {
+              // For free practice
               const res = await fetch(`/api/free-practice/result?pid=${p.pid}`, { credentials: 'include' });
-              resultsObj[p.pid] = res.ok ? await res.json() : { error: 'No result' };
-              statsObj[p.freePracticeId] = { totalQuestions: resultsObj[p.pid]?.totalQuestions ?? '-', scores: [], average: 0 };
+              if (res.ok) {
+                const resultData = await res.json();
+                resultsObj[p.pid] = resultData;
+                statsObj[p.freePracticeId] = { 
+                  totalQuestions: resultData.totalQuestions || resultData.correct || 0, 
+                  scores: [], 
+                  average: 0 
+                };
+              } else {
+                resultsObj[p.pid] = { error: 'No result available' };
+              }
             }
-          } catch {
-            resultsObj[p.pid] = { error: 'No result' };
+          } catch (error) {
+            console.error('Error fetching result for participation:', p.pid, error);
+            resultsObj[p.pid] = { error: 'Failed to load result' };
           }
         }
 
         setResults(resultsObj);
         setStats(statsObj);
+      } catch (error) {
+        console.error('Error fetching participations:', error);
+        setError('Failed to load participations. Please try again.');
+      } finally {
         setLoading(false);
-      })
-      .catch(() => {
-        setError('Failed to load participations.');
-        setLoading(false);
-      });
+      }
+    };
+
+    fetchParticipations();
   }, []);
 
   useEffect(() => {
     if (showDetails) {
       const p = participations.find(x => x.pid === showDetails);
+      if (!p) return;
+      
       const stat = stats[p._type === 'testSeries' ? p.testSeriesId : p.freePracticeId];
       const result = results[showDetails];
       if (!stat || !result || result.error || stat.error) return;
@@ -86,33 +119,46 @@ const Result = () => {
       const canvas = document.getElementById(`scoreChart-${showDetails}`);
       if (!canvas) return;
 
-      if (chartRef.current[showDetails]) chartRef.current[showDetails].destroy();
+      // Clean up existing chart
+      if (chartRef.current[showDetails]) {
+        chartRef.current[showDetails].destroy();
+        chartRef.current[showDetails] = null;
+      }
 
-      const userScore = result.correct;
+      const userScore = result.correct ?? result.correctAnswers ?? 0;
       const scores = stat.scores || [];
 
-      const data = {
-        labels: scores.map((_, i) => `User ${i + 1}`),
-        datasets: [{
-          label: 'Scores',
-          data: scores,
-          backgroundColor: scores.map(s => s === userScore ? 'rgba(59, 130, 246, 0.8)' : 'rgba(156, 163, 175, 0.4)'),
-          borderColor: scores.map(s => s === userScore ? 'rgba(59, 130, 246, 1)' : 'rgba(156, 163, 175, 0.8)'),
-          borderWidth: 2
-        }]
-      };
+      // Only create chart if there are scores to display
+      if (scores.length > 0) {
+        const data = {
+          labels: scores.map((_, i) => `User ${i + 1}`),
+          datasets: [{
+            label: 'Scores',
+            data: scores,
+            backgroundColor: scores.map(s => s === userScore ? 'rgba(59, 130, 246, 0.8)' : 'rgba(156, 163, 175, 0.4)'),
+            borderColor: scores.map(s => s === userScore ? 'rgba(59, 130, 246, 1)' : 'rgba(156, 163, 175, 0.8)'),
+            borderWidth: 2
+          }]
+        };
 
-      chartRef.current[showDetails] = new Chart(canvas, {
-        type: 'bar',
-        data,
-        options: {
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { color: '#374151' }, grid: { color: '#e5e7eb' } },
-            y: { beginAtZero: true, ticks: { color: '#374151' }, grid: { color: '#e5e7eb' } }
-          }
+        try {
+          chartRef.current[showDetails] = new Chart(canvas, {
+            type: 'bar',
+            data,
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: '#374151' }, grid: { color: '#e5e7eb' } },
+                y: { beginAtZero: true, ticks: { color: '#374151' }, grid: { color: '#e5e7eb' } }
+              }
+            }
+          });
+        } catch (error) {
+          console.error('Error creating chart:', error);
         }
-      });
+      }
     }
 
     return () => {
@@ -146,17 +192,26 @@ const Result = () => {
     totalAttempts: filteredParticipations.length,
     completedAttempts: completedParticipations.length,
     averageScore: completedParticipations.length > 0 
-      ? (completedParticipations.reduce((sum, p) => sum + (results[p.pid]?.correct || 0), 0) / completedParticipations.length).toFixed(1)
+      ? (completedParticipations.reduce((sum, p) => {
+          const result = results[p.pid];
+          const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
+          return sum + correctScore;
+        }, 0) / completedParticipations.length).toFixed(1)
       : '0',
     bestScore: completedParticipations.length > 0 
-      ? Math.max(...completedParticipations.map(p => results[p.pid]?.correct || 0))
+      ? Math.max(...completedParticipations.map(p => {
+          const result = results[p.pid];
+          return result?.correct ?? result?.correctAnswers ?? 0;
+        }))
       : '0',
     averagePercentage: completedParticipations.length > 0 
       ? (completedParticipations.reduce((sum, p) => {
           const result = results[p.pid];
           const stat = stats[p._type === 'testSeries' ? p.testSeriesId : p.freePracticeId];
-          if (result && !result.error && stat?.totalQuestions && stat.totalQuestions !== '-') {
-            return sum + ((result.correct / stat.totalQuestions) * 100);
+          const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
+          const totalQuestions = stat?.totalQuestions ?? result?.totalQuestions ?? 0;
+          if (result && !result.error && totalQuestions > 0) {
+            return sum + ((correctScore / totalQuestions) * 100);
           }
           return sum;
         }, 0) / completedParticipations.length).toFixed(1)
@@ -343,14 +398,20 @@ const Result = () => {
                     const stat = stats[p._type === 'testSeries' ? p.testSeriesId : p.freePracticeId];
                     let percent = '-';
                     let percentile = '-';
+                    
+
 
                     if (result && !result.error && stat && !stat.error && stat.scores?.length > 0 && p._type === 'testSeries') {
-                      percent = ((result.correct / stat.totalQuestions) * 100).toFixed(1);
-                      const userScore = result.correct;
+                      const correctScore = result.correct ?? result.correctAnswers ?? 0;
+                      const totalQuestions = stat.totalQuestions ?? result.totalQuestions ?? 0;
+                      percent = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
+                      const userScore = correctScore;
                       const scores = stat.scores;
                       percentile = ((scores.filter(s => s < userScore).length / scores.length) * 100).toFixed(1);
-                    } else if (result && !result.error && stat?.totalQuestions && stat.totalQuestions !== '-') {
-                      percent = ((result.correct / stat.totalQuestions) * 100).toFixed(1);
+                    } else if (result && !result.error) {
+                      const correctScore = result.correct ?? result.correctAnswers ?? 0;
+                      const totalQuestions = stat?.totalQuestions ?? result.totalQuestions ?? 0;
+                      percent = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
                     }
 
                     return (
@@ -382,9 +443,9 @@ const Result = () => {
                             <span className="text-sm text-orange-600 font-medium">Coming Soon</span>
                           ) : (
                             <div className="flex items-center space-x-2">
-                              <span className="font-semibold text-gray-900">{result?.correct ?? '-'}</span>
+                              <span className="font-semibold text-gray-900">{result?.correct ?? result?.correctAnswers ?? '-'}</span>
                               <span className="text-gray-400">/</span>
-                              <span className="text-gray-600">{stat?.totalQuestions ?? '-'}</span>
+                              <span className="text-gray-600">{stat?.totalQuestions ?? result?.totalQuestions ?? '-'}</span>
                             </div>
                           )}
                         </td>
@@ -453,55 +514,95 @@ const Result = () => {
         {/* Detailed Result Modal */}
         {showDetails && results[showDetails] && (() => {
           const p = participations.find(x => x.pid === showDetails);
-          const stat = p && stats[p._type === 'testSeries' ? p.testSeriesId : p.freePracticeId];
+          if (!p) return null;
+          
+          const stat = stats[p._type === 'testSeries' ? p.testSeriesId : p.freePracticeId];
           const result = results[showDetails];
-          if (!p || !stat || !result || result.error || stat.error) return null;
+          if (!stat || !result || result.error || stat.error) return null;
+
+          const correctScore = result.correct ?? result.correctAnswers ?? 0;
+          const totalQuestions = stat.totalQuestions || result.totalQuestions || 0;
+          const percentage = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
+          const attempted = result.attempted || correctScore || 0;
+          const wrong = attempted - correctScore;
 
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
               <div className="bg-white rounded-xl p-6 sm:p-8 w-full max-w-6xl max-h-[95vh] overflow-auto relative shadow-lg">
                 <button onClick={() => setShowDetails(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl font-bold">×</button>
-                <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">{p._type === 'testSeries' ? p.testSeries?.title : p.freePractice?.title} - Details</h2>
+                <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">
+                  {p._type === 'testSeries' ? (p.testSeries?.title || 'Contest') : (p.freePractice?.title || 'Free Practice')} - Details
+                </h2>
+                
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
-                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">Score: <span className="font-bold">{result.correct} / {stat.totalQuestions}</span></div>
-                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">Percentage: <span className="font-bold">{((result.correct / stat.totalQuestions) * 100).toFixed(1)}%</span></div>
-                  {p._type === 'testSeries' && <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">Average: <span className="font-bold">{stat.average.toFixed(2)}</span></div>}
-                  {p._type === 'testSeries' && <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">Percentile: <span className="font-bold">{((stat.scores.filter(s => s < result.correct).length / stat.scores.length) * 100).toFixed(1)}</span></div>}
-                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">Correct: <span className="text-green-600 font-bold">{result.correct}</span></div>
-                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">Wrong: <span className="text-red-600 font-bold">{result.attempted - result.correct}</span></div>
+                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
+                    Score: <span className="font-bold">{correctScore} / {totalQuestions}</span>
+                  </div>
+                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
+                    Percentage: <span className="font-bold">{percentage}%</span>
+                  </div>
+                  {p._type === 'testSeries' && stat.average && (
+                    <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
+                      Average: <span className="font-bold">{stat.average.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {p._type === 'testSeries' && stat.scores && stat.scores.length > 0 && (
+                    <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
+                      Percentile: <span className="font-bold">
+                        {((stat.scores.filter(s => s < correctScore).length / stat.scores.length) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  )}
+                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
+                    Correct: <span className="text-green-600 font-bold">{correctScore}</span>
+                  </div>
+                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
+                    Wrong: <span className="text-red-600 font-bold">{wrong}</span>
+                  </div>
                 </div>
+                
                 {Array.isArray(stat.scores) && stat.scores.length > 1 && (
                   <div className="mb-6 bg-gray-50 rounded-lg p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Distribution</h3>
-                    <canvas id={`scoreChart-${showDetails}`} height="200"></canvas>
+                    <div style={{ height: '300px' }}>
+                      <canvas id={`scoreChart-${showDetails}`}></canvas>
+                    </div>
                   </div>
                 )}
-                <div className="overflow-x-auto border border-gray-200 rounded-lg bg-white">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50 text-gray-900 font-semibold">
-                      <tr>
-                        <th className="p-3">QID</th>
-                        <th className="p-3">Selected</th>
-                        <th className="p-3">Correct</th>
-                        <th className="p-3">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.details?.map((d, i) => (
-                        <tr key={i} className="border-t border-gray-100 text-gray-900">
-                          <td className="p-3">{d.questionId}</td>
-                          <td className="p-3">{d.selected ?? '-'}</td>
-                          <td className="p-3">{d.correct ?? '-'}</td>
-                          <td className="p-3">
-                            {d.selected == null ? <span className="text-gray-500">Not Attempted</span> :
-                              d.isCorrect ? <span className="text-green-700 font-semibold">Correct</span> :
-                                <span className="text-red-600 font-semibold">Wrong</span>}
-                          </td>
+                
+                {result.details && result.details.length > 0 && (
+                  <div className="overflow-x-auto border border-gray-200 rounded-lg bg-white">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-gray-50 text-gray-900 font-semibold">
+                        <tr>
+                          <th className="p-3">QID</th>
+                          <th className="p-3">Selected</th>
+                          <th className="p-3">Correct</th>
+                          <th className="p-3">Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {result.details.map((d, i) => (
+                          <tr key={i} className="border-t border-gray-100 text-gray-900">
+                            <td className="p-3">{d.questionId}</td>
+                            <td className="p-3">{d.selected || d.userAnswer || '-'}</td>
+                            <td className="p-3">{d.correct || d.correctAnswer || '-'}</td>
+                            <td className="p-3">
+                              {!d.selected && !d.userAnswer ? (
+                                <span className="text-gray-500">Not Attempted</span>
+                              ) : d.isCorrect ? (
+                                <span className="text-green-700 font-semibold">Correct</span>
+                              ) : (
+                                <span className="text-red-600 font-semibold">Wrong</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                
                 <button onClick={() => setShowDetails(null)} className="mt-6 w-full py-3 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-lg font-semibold transition-colors">
                   Close
                 </button>

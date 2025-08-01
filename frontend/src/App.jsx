@@ -39,6 +39,8 @@ import { NotificationProvider } from './contexts/NotificationContext.jsx';
 function App() {
   const [user, setUser] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalType, setAuthModalType] = useState('login'); // 'login', 'signup', 'forgot-password', 'reset-password'
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -72,7 +74,11 @@ function App() {
     // Check for reset password token in URL
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('token')) {
-      navigate('/reset-password');
+      setAuthModalType('reset-password');
+      setShowAuthModal(true);
+      // Clean up the URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
       return;
     }
     
@@ -89,12 +95,8 @@ function App() {
         if (res.ok) {
           const data = await res.json();
           setUser(data);
-          // Only redirect to dashboard if on home or login/signup
-          if (
-            window.location.pathname === '/' ||
-            window.location.pathname === '/login' ||
-            window.location.pathname === '/signup'
-          ) {
+          // Only redirect to dashboard if on home
+          if (window.location.pathname === '/') {
             navigate('/dashboard');
           }
         }
@@ -119,6 +121,7 @@ function App() {
       // Store token in localStorage as backup (backend sets cookie)
       if (data.token) localStorage.setItem('jwt', data.token);
       setUser(data);
+      setShowAuthModal(false);
       navigate('/dashboard');
     } catch (err) {
       toast.error(err.message || 'Login failed');
@@ -142,6 +145,7 @@ function App() {
         throw new Error((data && data.message) || 'Signup failed');
       }
       setUser(data);
+      setShowAuthModal(false);
       navigate('/dashboard');
     } catch (err) {
       toast.error(err.message || 'Signup failed');
@@ -153,6 +157,17 @@ function App() {
     localStorage.removeItem('jwt');
     setUser(null);
     navigate('/');
+  };
+
+  // Auth modal handlers
+  const openAuthModal = (type) => {
+    setAuthModalType(type);
+    setShowAuthModal(true);
+  };
+
+  const closeAuthModal = () => {
+    setShowAuthModal(false);
+    setAuthModalType('login');
   };
 
   // Google Auth handler
@@ -168,10 +183,11 @@ function App() {
           user={user} 
           onLogout={handleLogout}
           isContestMode={isContestMode}
+          onOpenAuthModal={openAuthModal}
         />
         <main className="pt-16">
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Home onOpenAuthModal={openAuthModal} />} />
             <Route path="/why-choose-us" element={<WhyChooseUs />} />
             <Route path="/resources" element={<Resource user={user} />} />
             <Route path="/contests" element={<Contest user={user} />} />
@@ -179,6 +195,7 @@ function App() {
             <Route path="/results" element={<Result />} />
             <Route path="/bookmarks" element={<Bookmark />} />
             <Route path="/create-contest" element={<CreateContest />} />
+            <Route path="/edit-contest/:contestId" element={<CreateContest />} />
             <Route path="/join-contest" element={<JoinContest />} />
             <Route path="/take-contest/:contestId" element={<TakeContest />} />
             <Route path="/contest-results/:contestId" element={<ContestResults />} />
@@ -198,10 +215,7 @@ function App() {
                 <Navigate to="/" />
               )
             } />
-            <Route path="/login" element={<Modal isOpen={true} onClose={() => navigate("/")}><LoginForm onLogin={handleLogin} onForgotPassword={() => navigate('/forgot-password')} onGoogleAuth={handleGoogleAuth} onSignUp={() => navigate('/signup')} /></Modal>} />
-            <Route path="/signup" element={<Modal isOpen={true} onClose={() => navigate("/")}><SignUpForm onSignUp={handleSignUp} onGoogleAuth={handleGoogleAuth} onSignIn={() => navigate('/login')} /></Modal>} />
-            <Route path="/forgot-password" element={<Modal isOpen={true} onClose={() => navigate("/")}><ForgotPassword onBack={() => navigate('/login')} /></Modal>} />
-            <Route path="/reset-password" element={<Modal isOpen={true} onClose={() => navigate("/")}><ResetPassword onBack={() => navigate('/login')} /></Modal>} />
+
             <Route path="/google-auth-callback" element={<GoogleAuthCallback onAuthSuccess={user => { setUser(user); navigate('/dashboard'); }} />} />
             <Route path="/offline-check" element={<div className="flex flex-col items-center justify-center min-h-screen"><h1 className="text-2xl font-bold mb-4">Offline Check Test Page</h1><p>If you go offline, you should see the offline message.</p></div>} />
             <Route path="*" element={<Navigate to="/" />} />
@@ -209,6 +223,37 @@ function App() {
           <ToastContainer position="top-right" autoClose={3000} />
         </main>
         <Footer />
+
+        {/* Auth Modal */}
+        {showAuthModal && (
+          <Modal isOpen={showAuthModal} onClose={closeAuthModal}>
+            {authModalType === 'login' && (
+              <LoginForm 
+                onLogin={handleLogin} 
+                onForgotPassword={() => setAuthModalType('forgot-password')} 
+                onGoogleAuth={handleGoogleAuth} 
+                onSignUp={() => setAuthModalType('signup')} 
+              />
+            )}
+            {authModalType === 'signup' && (
+              <SignUpForm 
+                onSignUp={handleSignUp} 
+                onGoogleAuth={handleGoogleAuth} 
+                onSignIn={() => setAuthModalType('login')} 
+              />
+            )}
+            {authModalType === 'forgot-password' && (
+              <ForgotPassword 
+                onBack={() => setAuthModalType('login')} 
+              />
+            )}
+            {authModalType === 'reset-password' && (
+              <ResetPassword 
+                onBack={() => setAuthModalType('login')} 
+              />
+            )}
+          </Modal>
+        )}
       </div>
     </NotificationProvider>
   );

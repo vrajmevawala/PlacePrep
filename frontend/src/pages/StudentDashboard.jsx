@@ -248,7 +248,8 @@ const StudentDashboard = ({ user }) => {
                         <h3 className="font-medium">{contest.name}</h3>
                       </div>
                       <div className="text-sm text-gray-600 space-y-1 ml-9">
-                        <p>{contest.date} at {contest.time}</p>
+                        <p className="font-medium">{contest.date} at {contest.time}</p>
+                        <p className="text-blue-600">{contest.timeStatus}</p>
                         <p>{contest.participants} participants</p>
                       </div>
                       <button className="mt-3 w-full bg-black text-white py-2 px-4 rounded-sm text-sm hover:bg-gray-800 transition-colors">

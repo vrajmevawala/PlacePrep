@@ -32,7 +32,7 @@ const TakeContest = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const [fullscreenActive, setFullscreenActive] = useState(false);
-  const [started, setStarted] = useState(!isFullscreen); // If not fullscreen mode, start immediately
+  const [started, setStarted] = useState(false); // Always require user to click start button
   const [hasSubmitted, setHasSubmitted] = useState(false); // Track if user has already submitted
   const [showSecurityWarning, setShowSecurityWarning] = useState(false); // Show security warning modal
   
@@ -40,20 +40,24 @@ const TakeContest = () => {
   const startTimeRef = useRef(null);
   const submissionAttemptedRef = useRef(false); // Global flag to prevent any submission
 
+  // Reset submission state on component mount (for new users/sessions)
+  useEffect(() => {
+    // Clear any old submission state from localStorage
+    const localStorageKey = `contest_${contestId}_submitted`;
+    localStorage.removeItem(localStorageKey);
+    
+    // Reset submission flags
+    submissionAttemptedRef.current = false;
+    setHasSubmitted(false);
+    setSubmitting(false);
+  }, [contestId]);
+
   // Security violation handling - immediate auto-submit
   const handleViolation = (violationType) => {
-    console.log(`Security violation detected: ${violationType} - Auto-submitting contest`);
-    console.log('Violation details:', {
-      violationType,
-      timestamp: new Date().toISOString(),
-      userAgent: navigator.userAgent,
-      fullscreen: !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement)
-    });
     setShowSecurityWarning(true);
     
     // Auto-submit immediately after 3 seconds, even with no answers
     setTimeout(() => {
-      console.log('Auto-submitting contest due to security violation');
       handleSubmitContest();
     }, 3000);
   };
@@ -63,22 +67,19 @@ const TakeContest = () => {
     try {
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(err => {
-          console.log('Fullscreen request failed:', err);
           // Continue with contest even if fullscreen fails
         });
       } else if (document.documentElement.webkitRequestFullscreen) {
         document.documentElement.webkitRequestFullscreen().catch(err => {
-          console.log('Webkit fullscreen request failed:', err);
+          // Continue with contest even if fullscreen fails
         });
       } else if (document.documentElement.msRequestFullscreen) {
         document.documentElement.msRequestFullscreen().catch(err => {
-          console.log('MS fullscreen request failed:', err);
+          // Continue with contest even if fullscreen fails
         });
-      } else {
-        console.log('Fullscreen API not supported');
       }
     } catch (err) {
-      console.log('Fullscreen error:', err);
+      // Continue with contest even if fullscreen fails
     }
   };
 
@@ -94,53 +95,58 @@ const TakeContest = () => {
 
   // Submit contest function - must be defined before useEffect
   const handleSubmitContest = useCallback(async () => {
-    // Multiple layers of protection
-    if (submissionAttemptedRef.current) {
-      console.log('Submission already attempted, ignoring request');
+    
+    // Validate contest data
+    if (!contest || !contest.id) {
+      console.error('No contest data available');
+      setError('Contest data not available');
       return;
     }
     
-    if (submitting) {
-      console.log('Already submitting, ignoring request');
+    if (!questions || questions.length === 0) {
+      console.error('No questions available');
+      setError('No questions available for this contest');
+      return;
+    }
+    
+    // Check if contest is still active
+    const now = new Date();
+    const contestEndTime = new Date(contest.endTime);
+    
+    // Note: User authentication is already verified by the fact they're in the contest
+    
+    // Multiple layers of protection
+    if (submissionAttemptedRef.current) {
       return;
     }
     
     if (hasSubmitted) {
-      console.log('Already submitted, ignoring request');
       return;
     }
     
     // Allow submission even with no answers (for auto-submission)
     const hasAnswers = Object.values(answers).some(answer => answer !== '');
-    console.log('Submitting contest with answers:', hasAnswers ? 'Yes' : 'No (auto-submission)');
     
-    // Check localStorage as additional protection
+    // Check localStorage as additional protection (but don't block submission)
     const localStorageKey = `contest_${contestId}_submitted`;
     const localSubmitted = localStorage.getItem(localStorageKey);
     if (localSubmitted === 'true') {
-      console.log('localStorage shows already submitted, ignoring request');
-      setHasSubmitted(true);
-      setSubmitting(false); // Reset submitting state
-      submissionAttemptedRef.current = true; // Set global flag
-      return;
+      // Don't block submission here - let the server decide
     }
     
     try {
-      // Transform answers to the format the backend might expect
-      // For auto-submission, include ALL questions (even with empty answers)
-      const answersArray = Object.entries(answers).map(([questionId, selectedOption]) => ({
-        questionId: parseInt(questionId),
-        selectedOption: selectedOption || '' // Use empty string if no answer
+      // Transform answers to the format the backend expects
+      // Include ALL questions (even with empty answers)
+      const answersArray = questions.map(question => ({
+        questionId: question.id,
+        selectedOption: answers[question.id] && answers[question.id].trim() !== '' ? answers[question.id] : '' // Use empty string if no answer
       }));
-
-      // Check if this is an auto-submission (no answers provided)
-      const hasAnswers = Object.values(answers).some(answer => answer !== '');
       const submissionData = {
         answers: answersArray,
         autoSubmitted: !hasAnswers // Flag to indicate auto-submission
       };
 
-      console.log('Submitting with data:', submissionData);
+
 
       const response = await fetch(`/api/testseries/${contestId}/submit`, {
         method: 'POST',
@@ -153,7 +159,6 @@ const TakeContest = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Submission successful:', data);
         // Mark as submitted in localStorage and set global flag
         localStorage.setItem(`contest_${contestId}_submitted`, 'true');
         setHasSubmitted(true);
@@ -168,14 +173,12 @@ const TakeContest = () => {
         });
       } else {
         const errorData = await response.json();
-        console.log('Submission failed:', errorData);
         setError(errorData.message || 'Failed to submit contest');
         // Reset global flag on error to allow retry
         submissionAttemptedRef.current = false;
       }
     } catch (err) {
-      console.error('Submission error:', err);
-      setError('Network error. Please try again.');
+      setError(`Network error: ${err.message}. Please try again.`);
       // Reset global flag on error to allow retry
       submissionAttemptedRef.current = false;
     } finally {
@@ -341,25 +344,20 @@ const TakeContest = () => {
     };
   }, [started, hasSubmitted, isFullscreen]);
 
+  // Redirect to fullscreen URL if not already in fullscreen mode
+  useEffect(() => {
+    if (!isFullscreen) {
+      // Redirect to the same URL with fullscreen parameter
+      navigate(`/take-contest/${contestId}?fullscreen=true`, { replace: true });
+      return;
+    }
+  }, [isFullscreen, contestId, navigate]);
+
   // Check if user has already submitted this contest
   useEffect(() => {
     const checkSubmissionStatus = async () => {
       try {
-        // Check localStorage first for immediate feedback
-        const localStorageKey = `contest_${contestId}_submitted`;
-        const localSubmitted = localStorage.getItem(localStorageKey);
-        
-        if (localSubmitted === 'true') {
-          setHasSubmitted(true);
-          submissionAttemptedRef.current = true; // Set global flag
-          setError('You have already submitted this contest. Redirecting to results...');
-          setTimeout(() => {
-            navigate(`/contest-results/${contestId}`);
-          }, 2000);
-          return;
-        }
-        
-        // Check server for submission status
+        // Check server for submission status first (more reliable)
         const participationsResponse = await fetch('/api/testseries/participations', {
           credentials: 'include'
         });
@@ -374,15 +372,24 @@ const TakeContest = () => {
             setHasSubmitted(true);
             submissionAttemptedRef.current = true; // Set global flag
             // Store in localStorage for future checks
+            const localStorageKey = `contest_${contestId}_submitted`;
             localStorage.setItem(localStorageKey, 'true');
             setError('You have already submitted this contest. Redirecting to results...');
             setTimeout(() => {
               navigate(`/contest-results/${contestId}`);
             }, 2000);
+            return;
           }
         }
+        
+        // If server check passes, clear any old localStorage data
+        const localStorageKey = `contest_${contestId}_submitted`;
+        localStorage.removeItem(localStorageKey);
+        
       } catch (err) {
-        console.log('Failed to check submission status:', err);
+        // On error, clear localStorage to be safe
+        const localStorageKey = `contest_${contestId}_submitted`;
+        localStorage.removeItem(localStorageKey);
       }
     };
     
@@ -459,7 +466,7 @@ const TakeContest = () => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [timeLeft, started]);
+  }, [timeLeft, started, handleSubmitContest]);
 
   const formatTime = (ms) => {
     const hours = Math.floor(ms / (1000 * 60 * 60));
@@ -528,12 +535,8 @@ const TakeContest = () => {
   // Separate submit handler that immediately disables the button
   const handleSubmitClick = () => {
     if (submitting || hasSubmitted || submissionAttemptedRef.current) {
-      console.log('Submit blocked: submitting=', submitting, 'hasSubmitted=', hasSubmitted, 'attempted=', submissionAttemptedRef.current);
       return;
     }
-    
-    // Set global flag to prevent any future attempts
-    submissionAttemptedRef.current = true;
     
     // Immediately set submitting to prevent multiple clicks
     setSubmitting(true);
@@ -682,28 +685,30 @@ const TakeContest = () => {
 
             {/* Options */}
             <div className="space-y-3">
-              {['a', 'b', 'c', 'd'].map(option => (
-                <label
-                  key={option}
-                      className={`flex items-center space-x-3 p-4 border cursor-pointer transition-colors ${
-                        answers[currentQuestion.id] === option
-                          ? 'border-black bg-gray-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                        name={`question-${currentQuestion.id}`}
-                    value={option}
-                        checked={answers[currentQuestion.id] === option}
-                        onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
-                        className="w-4 h-4 text-black border-gray-300 focus:ring-black"
-                      />
-                      <span className="font-medium text-gray-900">
-                        {option.toUpperCase()}. {currentQuestion.options[option]}
-                  </span>
-                </label>
-              ))}
+              {Object.keys(currentQuestion.options)
+                .filter(option => currentQuestion.options[option] && currentQuestion.options[option].trim() !== '')
+                .map(option => (
+                  <label
+                    key={option}
+                    className={`flex items-center space-x-3 p-4 border cursor-pointer transition-colors ${
+                      answers[currentQuestion.id] === option
+                        ? 'border-black bg-gray-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`question-${currentQuestion.id}`}
+                      value={option}
+                      checked={answers[currentQuestion.id] === option}
+                      onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
+                      className="w-4 h-4 text-black border-gray-300 focus:ring-black"
+                    />
+                    <span className="font-medium text-gray-900">
+                      {option.toUpperCase()}. {currentQuestion.options[option]}
+                    </span>
+                  </label>
+                ))}
             </div>
           </div>
 

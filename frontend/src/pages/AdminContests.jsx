@@ -293,6 +293,15 @@ const AdminContests = ({ user }) => {
                               <BarChart3 className="w-3 h-3 inline mr-1" />
                               Stats
                             </button>
+                            {status === 'upcoming' && (
+                              <button
+                                onClick={() => navigate(`/edit-contest/${contest.id}`)}
+                                className="px-3 py-1 bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors"
+                              >
+                                <Edit className="w-3 h-3 inline mr-1" />
+                                Edit
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

@@ -82,49 +82,110 @@ server.listen(PORT, () => {
 cron.schedule('*/5 * * * *', async () => { // every 5 minutes
   const now = new Date();
   
-  // Find all test series that have ended but whose questions are still hidden
-  const endedSeries = await prisma.testSeries.findMany({
-    where: {
-      endTime: { lt: now }
-    },
-    include: { questions: true }
-  });
+  try {
+    // Find all test series that have ended but whose questions are still hidden
+    const endedSeries = await prisma.testSeries.findMany({
+      where: {
+        endTime: { lt: now }
+      },
+      include: { questions: true }
+    });
 
-  for (const series of endedSeries) {
-    const hiddenQuestionIds = series.questions.filter(q => !q.visibility).map(q => q.id);
-    if (hiddenQuestionIds.length > 0) {
-      await prisma.question.updateMany({
-        where: { id: { in: hiddenQuestionIds } },
-        data: { visibility: true }
-      });
-    }
-  }
-
-  // Check for contests that just started (within last 5 minutes)
-  const justStartedSeries = await prisma.testSeries.findMany({
-    where: {
-      startTime: {
-        gte: new Date(now.getTime() - 5 * 60 * 1000), // 5 minutes ago
-        lte: now
+    for (const series of endedSeries) {
+      const hiddenQuestionIds = series.questions.filter(q => !q.visibility).map(q => q.id);
+      if (hiddenQuestionIds.length > 0) {
+        await prisma.question.updateMany({
+          where: { id: { in: hiddenQuestionIds } },
+          data: { visibility: true }
+        });
       }
     }
-  });
 
-  for (const series of justStartedSeries) {
-    await notificationService.notifyContestStarted(series);
-  }
-
-  // Check for contests that just ended (within last 5 minutes)
-  const justEndedSeries = await prisma.testSeries.findMany({
-    where: {
-      endTime: {
-        gte: new Date(now.getTime() - 5 * 60 * 1000), // 5 minutes ago
-        lte: now
+    // Check for contests that just started (within last 5 minutes)
+    const justStartedSeries = await prisma.testSeries.findMany({
+      where: {
+        startTime: {
+          gte: new Date(now.getTime() - 5 * 60 * 1000), // 5 minutes ago
+          lte: now
+        }
       }
-    }
-  });
+    });
 
-  for (const series of justEndedSeries) {
-    await notificationService.notifyContestEnded(series);
+    for (const series of justStartedSeries) {
+      await notificationService.notifyContestStarted(series);
+    }
+
+    // Check for contests that just ended (within last 5 minutes)
+    const justEndedSeries = await prisma.testSeries.findMany({
+      where: {
+        endTime: {
+          gte: new Date(now.getTime() - 5 * 60 * 1000), // 5 minutes ago
+          lte: now
+        }
+      }
+    });
+
+    for (const series of justEndedSeries) {
+      await notificationService.notifyContestEnded(series);
+    }
+
+    // Check for contests starting in 30 minutes
+    const startingSoonSeries = await prisma.testSeries.findMany({
+      where: {
+        startTime: {
+          gte: new Date(now.getTime() + 30 * 60 * 1000), // 30 minutes from now
+          lte: new Date(now.getTime() + 35 * 60 * 1000)  // 35 minutes from now
+        }
+      }
+    });
+
+    for (const series of startingSoonSeries) {
+      await notificationService.notifyContestStartingSoon(series, 30);
+    }
+
+    // Check for contests ending in 30 minutes
+    const endingSoonSeries = await prisma.testSeries.findMany({
+      where: {
+        endTime: {
+          gte: new Date(now.getTime() + 30 * 60 * 1000), // 30 minutes from now
+          lte: new Date(now.getTime() + 35 * 60 * 1000)  // 35 minutes from now
+        }
+      }
+    });
+
+    for (const series of endingSoonSeries) {
+      await notificationService.notifyContestEndingSoon(series, 30);
+    }
+
+  } catch (error) {
+    console.error('Error in cron job:', error);
+  }
+});
+
+// Daily cron job for practice reminders
+cron.schedule('0 9 * * *', async () => { // every day at 9 AM
+  try {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Find users who haven't practiced in the last week
+    const inactiveUsers = await prisma.user.findMany({
+      where: {
+        studentActivities: {
+          none: {
+            time: { gte: oneWeekAgo }
+          }
+        }
+      },
+      select: { id: true, fullName: true }
+    });
+
+    for (const user of inactiveUsers) {
+      await notificationService.notifyPracticeReminder(user.id, 7);
+    }
+
+    console.log(`Sent practice reminders to ${inactiveUsers.length} users`);
+  } catch (error) {
+    console.error('Error in daily cron job:', error);
   }
 });

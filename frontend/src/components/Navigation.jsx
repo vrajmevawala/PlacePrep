@@ -2,26 +2,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, Bell, BookOpen, Target, Trophy, Bookmark, BarChart3, LogOut, Trash2, Check, Bot, AlertTriangle } from 'lucide-react';
 import { ChevronDown } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useNotifications } from '../contexts/NotificationContext.jsx';
+
+import NotificationBell from './NotificationBell.jsx';
 import logo from '../../assests/logo.png';
 
-const Navigation = ({ user, onLogout, isContestMode = false }) => {
+const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [showNotifications, setShowNotifications] = useState(false);
-  const notificationRef = useRef(null);
   const [showPracticeDropdown, setShowPracticeDropdown] = useState(false);
   const practiceDropdownRef = useRef(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const userDropdownRef = useRef(null);
-  
-  const { 
-    notifications, 
-    unreadCount, 
-    markAsRead, 
-    markAllAsRead, 
-    deleteNotification 
-  } = useNotifications();
 
   const publicNavItems = [
     { name: 'Home', path: '/' },
@@ -40,9 +31,6 @@ const Navigation = ({ user, onLogout, isContestMode = false }) => {
   // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
-        setShowNotifications(false);
-      }
       if (practiceDropdownRef.current && !practiceDropdownRef.current.contains(event.target)) {
         setShowPracticeDropdown(false);
       }
@@ -50,7 +38,7 @@ const Navigation = ({ user, onLogout, isContestMode = false }) => {
         setShowUserDropdown(false);
       }
     }
-    if (showNotifications || showPracticeDropdown || showUserDropdown) {
+    if (showPracticeDropdown || showUserDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -58,64 +46,9 @@ const Navigation = ({ user, onLogout, isContestMode = false }) => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showNotifications, showPracticeDropdown, showUserDropdown]);
+  }, [showPracticeDropdown, showUserDropdown]);
 
-  const handleNotificationClick = async (notification) => {
-    if (isContestMode) {
-      alert('Navigation is disabled during contest. Please complete or submit the contest first.');
-      return;
-    }
 
-    if (!notification.isRead) {
-      await markAsRead(notification.id);
-    }
-    
-    // Navigate based on notification type
-    if (notification.data?.contestId) {
-      navigate(`/contests`);
-    } else if (notification.data?.resultId) {
-      navigate(`/results`);
-    }
-    
-    setShowNotifications(false);
-  };
-
-  const handleMarkAllAsRead = async () => {
-    await markAllAsRead();
-  };
-
-  const handleDeleteNotification = async (e, notificationId) => {
-    e.stopPropagation();
-    await deleteNotification(notificationId);
-  };
-
-  const formatNotificationTime = (createdAt) => {
-    const now = new Date();
-    const notificationTime = new Date(createdAt);
-    const diffInMinutes = Math.floor((now - notificationTime) / (1000 * 60));
-    
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
-    return `${Math.floor(diffInMinutes / 1440)}d ago`;
-  };
-
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'CONTEST_ANNOUNCED':
-      case 'CONTEST_STARTED':
-      case 'CONTEST_ENDED':
-        return <Trophy className="w-4 h-4 text-blue-500" />;
-      case 'RESULT_AVAILABLE':
-        return <BarChart3 className="w-4 h-4 text-green-500" />;
-      case 'NEW_QUESTION':
-        return <BookOpen className="w-4 h-4 text-purple-500" />;
-      case 'SYSTEM_UPDATE':
-        return <Bell className="w-4 h-4 text-orange-500" />;
-      default:
-        return <Bell className="w-4 h-4 text-gray-500" />;
-    }
-  };
 
   const handleNavigationClick = (e, path) => {
     if (isContestMode) {
@@ -255,28 +188,40 @@ const Navigation = ({ user, onLogout, isContestMode = false }) => {
           <div className="flex items-center space-x-4">
             {!user ? (
               <>
-                <Link
-                  to="/login"
+                <button
                   className={`text-sm font-medium transition-colors ${
                     isContestMode 
                       ? 'text-gray-400 cursor-not-allowed'
                       : 'text-gray-600 hover:text-black'
                   }`}
-                  onClick={(e) => handleNavigationClick(e, '/login')}
+                  onClick={() => {
+                    if (isContestMode) {
+                      alert('Login is disabled during contest. Please complete or submit the contest first.');
+                      return;
+                    }
+                    onOpenAuthModal('login');
+                  }}
+                  disabled={isContestMode}
                 >
                   Login
-                </Link>
-                <Link
-                  to="/signup"
+                </button>
+                <button
                   className={`px-4 py-2 rounded-sm text-sm font-medium transition-colors ${
                     isContestMode 
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-black text-white hover:bg-gray-800'
                   }`}
-                  onClick={(e) => handleNavigationClick(e, '/signup')}
+                  onClick={() => {
+                    if (isContestMode) {
+                      alert('Sign up is disabled during contest. Please complete or submit the contest first.');
+                      return;
+                    }
+                    onOpenAuthModal('signup');
+                  }}
+                  disabled={isContestMode}
                 >
                   Sign Up
-                </Link>
+                </button>
               </>
             ) : (
               <>
@@ -303,94 +248,14 @@ const Navigation = ({ user, onLogout, isContestMode = false }) => {
                   <Bookmark className="w-5 h-5" />
                 </Link>
 
-                {/* Notification */}
-                <div className="relative" ref={notificationRef}>
-                  <button
-                    className={`p-2 transition-colors relative ${
-                      isContestMode 
-                        ? 'text-gray-400 cursor-not-allowed'
-                        : 'text-gray-600 hover:text-black'
-                    }`}
-                    onClick={() => {
-                      if (isContestMode) {
-                        alert('Notifications are disabled during contest. Please complete or submit the contest first.');
-                        return;
-                      }
-                      setShowNotifications((prev) => !prev);
-                    }}
-                    disabled={isContestMode}
-                  >
+                {/* Notification Bell */}
+                {!isContestMode ? (
+                  <NotificationBell />
+                ) : (
+                  <div className="p-2 text-gray-400 cursor-not-allowed" title="Notifications disabled during contest">
                     <Bell className="w-5 h-5" />
-                    {/* Notification dot */}
-                    {unreadCount > 0 && !isContestMode && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-medium">
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </span>
-                    )}
-                  </button>
-                  {showNotifications && !isContestMode && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
-                      <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-                        <h3 className="font-semibold text-gray-900">Notifications</h3>
-                        {unreadCount > 0 && (
-                          <button
-                            onClick={handleMarkAllAsRead}
-                            className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                          >
-                            <Check className="w-3 h-3" />
-                            <span>Mark all read</span>
-                          </button>
-                        )}
-                      </div>
-                      <div className="max-h-64 overflow-y-auto">
-                        {notifications.length === 0 ? (
-                          <div className="p-4 text-center text-gray-500">
-                            No notifications yet
-                          </div>
-                        ) : (
-                          <ul className="divide-y divide-gray-100">
-                            {notifications.map((notification) => (
-                              <li
-                                key={notification.id}
-                                className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                                  !notification.isRead ? 'bg-blue-50' : ''
-                                }`}
-                                onClick={() => handleNotificationClick(notification)}
-                              >
-                                <div className="flex items-start space-x-3">
-                                  <div className="flex-shrink-0 mt-0.5">
-                                    {getNotificationIcon(notification.type)}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex justify-between items-start">
-                                      <p className={`text-sm font-medium ${
-                                        !notification.isRead ? 'text-gray-900' : 'text-gray-700'
-                                      }`}>
-                                        {notification.title}
-                                      </p>
-                                      <button
-                                        onClick={(e) => handleDeleteNotification(e, notification.id)}
-                                        className="text-gray-400 hover:text-red-500 transition-colors"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    </div>
-                                    <p className="text-sm text-gray-600 mt-1">
-                                      {notification.message}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-2">
-                                      {formatNotificationTime(notification.createdAt)}
-                                    </p>
-                                  </div>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* User Profile Dropdown */}
                 <div className="relative" ref={userDropdownRef}>

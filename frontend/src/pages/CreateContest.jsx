@@ -1,16 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, X, Check, Eye, EyeOff, Trophy, Users, Clock, Upload, FileText } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Plus, Filter, X, Check, Eye, EyeOff, Trophy, Users, Clock, Upload, FileText, Edit } from 'lucide-react';
 
 const CreateContest = () => {
   const [contestName, setContestName] = useState('');
   const [numQuestions, setNumQuestions] = useState(5);
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('12:00');
-  const [startAMPM, setStartAMPM] = useState('AM');
   const [endDate, setEndDate] = useState('');
-  const [endTime, setEndTime] = useState('12:00');
-  const [endAMPM, setEndAMPM] = useState('PM');
+  const [endTime, setEndTime] = useState('13:00');
   const [requiresCode, setRequiresCode] = useState(false);
   const [allQuestions, setAllQuestions] = useState([]);
   const [selectedQuestions, setSelectedQuestions] = useState([]);
@@ -62,16 +60,49 @@ const CreateContest = () => {
   const [itemsPerPage] = useState(10);
 
   const navigate = useNavigate();
+  const { contestId } = useParams();
+  const isEditMode = !!contestId;
 
-  // Helper to generate 12-hour time options in 15-min increments
-  const timeOptions = [];
-  for (let h = 1; h <= 12; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      const hour = h.toString().padStart(2, '0');
-      const min = m.toString().padStart(2, '0');
-      timeOptions.push(`${hour}:${min}`);
+  // Helper to get current date and time for validation
+  const getCurrentDateTime = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return {
+      date: `${year}-${month}-${day}`,
+      time: `${hours}:${minutes}`
+    };
+  };
+
+  // Validation functions
+  const validateStartDateTime = () => {
+    if (!startDate || !startTime) return { isValid: false, message: 'Start date and time are required' };
+    
+    const startDateTime = new Date(`${startDate}T${startTime}`);
+    const now = new Date();
+    
+    if (startDateTime <= now) {
+      return { isValid: false, message: 'Start time cannot be in the past' };
     }
-  }
+    
+    return { isValid: true, message: '' };
+  };
+
+  const validateEndDateTime = () => {
+    if (!endDate || !endTime) return { isValid: false, message: 'End date and time are required' };
+    
+    const endDateTime = new Date(`${endDate}T${endTime}`);
+    const startDateTime = new Date(`${startDate}T${startTime}`);
+    
+    if (endDateTime <= startDateTime) {
+      return { isValid: false, message: 'End time must be after start time' };
+    }
+    
+    return { isValid: true, message: '' };
+  };
 
   // File upload handlers
   const handleExcelUpload = async (e) => {
@@ -289,7 +320,37 @@ const CreateContest = () => {
         setError('Failed to load questions');
         setLoading(false);
       });
-  }, []);
+
+    // If in edit mode, fetch contest data
+    if (isEditMode && contestId) {
+      fetch(`/api/testseries/${contestId}`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+          const contestData = data.testSeries;
+          
+          // Set contest details
+          setContestName(contestData.title);
+          setNumQuestions(contestData.questions.length);
+          setDraftNumQuestions(contestData.questions.length);
+          
+          // Parse start and end times
+          const startDateTime = new Date(contestData.startTime);
+          const endDateTime = new Date(contestData.endTime);
+          
+          setStartDate(startDateTime.toISOString().split('T')[0]);
+          setStartTime(startDateTime.toTimeString().slice(0, 5));
+          setEndDate(endDateTime.toISOString().split('T')[0]);
+          setEndTime(endDateTime.toTimeString().slice(0, 5));
+          setRequiresCode(contestData.requiresCode || false);
+          
+          // Set selected questions
+          setSelectedQuestions(contestData.questions);
+        })
+        .catch(() => {
+          setError('Failed to load contest data');
+        });
+    }
+  }, [isEditMode, contestId]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -579,39 +640,64 @@ const CreateContest = () => {
       setError('Contest name is required');
       return;
     }
-    if (!startDate || !endDate) {
-      setError('Start and end dates are required');
+    if (!startDate || !startTime || !endDate || !endTime) {
+      setError('Start and end dates and times are required');
       return;
     }
+    
+    // Validate start and end times
+    const startValidation = validateStartDateTime();
+    const endValidation = validateEndDateTime();
+    
+    if (!startValidation.isValid) {
+      setError(startValidation.message);
+      return;
+    }
+    
+    if (!endValidation.isValid) {
+      setError(endValidation.message);
+      return;
+    }
+    
     if (selectedQuestions.length !== Number(numQuestions)) {
       setError(`Please select exactly ${numQuestions} questions.`);
       return;
     }
     setError('');
+    
+    // Determine if this is create or update
+    const url = isEditMode ? `/api/testseries/${contestId}` : '/api/testseries';
+    const method = isEditMode ? 'PUT' : 'POST';
+    
     // Submit contest
-    const res = await fetch('/api/testseries', {
-      method: 'POST',
+    const res = await fetch(url, {
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({
         title: contestName,
         numberOfQuestions: numQuestions,
         questionIds: selectedQuestions.map(q => q.id),
-        startTime: `${startDate} ${startTime} ${startAMPM}`,
-        endTime: `${endDate} ${endTime} ${endAMPM}`,
+        startTime: `${startDate}T${startTime}`,
+        endTime: `${endDate}T${endTime}`,
         requiresCode: requiresCode
       })
     });
+    
     if (res.ok) {
       const data = await res.json();
-      const message = requiresCode 
-        ? `Contest created successfully! Contest Code: ${data.testSeries.contestCode}`
-        : 'Contest created successfully!';
+      const action = isEditMode ? 'updated' : 'created';
+      const message = isEditMode 
+        ? 'Contest updated successfully!'
+        : (requiresCode 
+          ? `Contest created successfully! Contest Code: ${data.testSeries.contestCode}`
+          : 'Contest created successfully!');
       alert(message);
       navigate('/admin-dashboard');
     } else {
       const data = await res.json();
-      setError(data.message || 'Failed to create contest');
+      const action = isEditMode ? 'update' : 'create';
+      setError(data.message || `Failed to ${action} contest`);
     }
   };
 
@@ -631,11 +717,18 @@ const CreateContest = () => {
         <div className="mb-12">
           <div className="flex items-center space-x-4 mb-4">
             <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center shadow-sm">
-              <Trophy className="w-6 h-6 text-white" />
+              {isEditMode ? <Edit className="w-6 h-6 text-white" /> : <Trophy className="w-6 h-6 text-white" />}
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-black">Create New Contest</h1>
-              <p className="text-gray-600 mt-2">Select questions from the question bank to create your contest</p>
+              <h1 className="text-4xl font-bold text-black">
+                {isEditMode ? 'Edit Contest' : 'Create New Contest'}
+              </h1>
+              <p className="text-gray-600 mt-2">
+                {isEditMode 
+                  ? 'Modify contest details and questions from the question bank'
+                  : 'Select questions from the question bank to create your contest'
+                }
+              </p>
             </div>
           </div>
         </div>
@@ -694,60 +787,49 @@ const CreateContest = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
               <div>
                 <label className="block text-sm font-semibold text-black mb-3">Start Date & Time</label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <input
                     type="date"
                     className="px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
                     value={startDate}
+                    min={getCurrentDateTime().date}
                     onChange={e => setStartDate(e.target.value)}
                     required
                   />
-                  <select
+                  <input
+                    type="time"
                     className="px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
                     value={startTime}
                     onChange={e => setStartTime(e.target.value)}
                     required
-                  >
-                    {timeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                  </select>
-                  <select
-                    className="px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
-                    value={startAMPM}
-                    onChange={e => setStartAMPM(e.target.value)}
-                  >
-                    <option value="AM">AM</option>
-                    <option value="PM">PM</option>
-                  </select>
+                  />
                 </div>
+                {startDate && startTime && !validateStartDateTime().isValid && (
+                  <p className="text-red-600 text-sm mt-1">{validateStartDateTime().message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-black mb-3">End Date & Time</label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <input
                     type="date"
                     className="px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
                     value={endDate}
+                    min={startDate || getCurrentDateTime().date}
                     onChange={e => setEndDate(e.target.value)}
                     required
                   />
-                  <select
+                  <input
                     type="time"
                     className="px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
                     value={endTime}
                     onChange={e => setEndTime(e.target.value)}
                     required
-                  >
-                    {timeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                  </select>
-                  <select
-                    className="px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
-                    value={endAMPM}
-                    onChange={e => setEndAMPM(e.target.value)}
-                  >
-                    <option value="AM">AM</option>
-                    <option value="PM">PM</option>
-                  </select>
+                  />
                 </div>
+                {endDate && endTime && !validateEndDateTime().isValid && (
+                  <p className="text-red-600 text-sm mt-1">{validateEndDateTime().message}</p>
+                )}
               </div>
             </div>
             
@@ -1128,8 +1210,8 @@ const CreateContest = () => {
               type="submit" 
               className="flex items-center space-x-2 px-8 py-3 bg-black text-white font-semibold hover:bg-gray-800 transition-colors"
             >
-              <Trophy className="w-5 h-5" />
-              <span>Create Contest</span>
+              {isEditMode ? <Edit className="w-5 h-5" /> : <Trophy className="w-5 h-5" />}
+              <span>{isEditMode ? 'Update Contest' : 'Create Contest'}</span>
             </button>
           </div>
         </form>

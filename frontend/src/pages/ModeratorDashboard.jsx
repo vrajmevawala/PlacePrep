@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, Activity, BarChart3, Eye, Plus, Trophy, FileText, Tag, Edit, Trash2, Video, X } from 'lucide-react';
+import { Users, Activity, BarChart3, Eye, Plus, Trophy, FileText, Tag, Edit, Trash2, Video, X, Upload } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const ModeratorDashboard = ({ user }) => {
@@ -57,12 +57,29 @@ const ModeratorDashboard = ({ user }) => {
   const [allContests, setAllContests] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
-  const [allSubcategories, setAllSubcategories] = useState([]);x
+  const [allSubcategories, setAllSubcategories] = useState([]);
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
   const [subcategoryQuestions, setSubcategoryQuestions] = useState([]);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [userResults, setUserResults] = useState([]);
+  
+  // Helper to get contest status
+  const getContestStatus = (contest) => {
+    const now = new Date();
+    const start = new Date(contest.startTime);
+    const end = new Date(contest.endTime);
+    if (now < start) return 'upcoming';
+    if (now >= start && now <= end) return 'live';
+    return 'completed';
+  };
+  
+  // File upload states
+  const [excelUploadStatus, setExcelUploadStatus] = useState('');
+  const [jsonUploadStatus, setJsonUploadStatus] = useState('');
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const fileInputRef = useRef();
+  const jsonFileInputRef = useRef();
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -88,7 +105,16 @@ const ModeratorDashboard = ({ user }) => {
           if (!res.ok) throw new Error('Failed to fetch contests');
           return res.json();
         })
-        .then(data => setAllContests(data.testSeries || []))
+        .then(data => {
+          setAllContests(data.testSeries || []);
+          // Debug: Log contest statuses
+          console.log('Moderator contests:', (data.testSeries || []).map(c => ({
+            id: c.id,
+            title: c.title,
+            startTime: c.startTime,
+            isUpcoming: new Date(c.startTime) > new Date()
+          })));
+        })
         .catch(error => {
           console.error('Error fetching contests:', error);
           setAllContests([]);
@@ -443,6 +469,81 @@ const ModeratorDashboard = ({ user }) => {
     setEditModalOpen(true);
   };
 
+  // File upload handlers
+  const handleExcelUpload = async (e) => {
+    e.preventDefault();
+    if (!fileInputRef.current.files[0]) {
+      setExcelUploadStatus('Please select a file.');
+      return;
+    }
+    setExcelUploadStatus('Uploading...');
+    const formData = new FormData();
+    formData.append('file', fileInputRef.current.files[0]);
+    formData.append('visibility', 'true'); // Set visibility to true for general questions
+    try {
+      const res = await fetch('/api/questions/upload-excel', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setExcelUploadStatus(data.message || 'Questions uploaded successfully!');
+        // Refresh questions
+        const questionsRes = await fetch('/api/questions', { credentials: 'include' });
+        const questionsData = await questionsRes.json();
+        setAllQuestions(questionsData.questions || []);
+        
+        // Close modal after successful upload
+        setTimeout(() => {
+          setShowFileUpload(false);
+          setExcelUploadStatus('');
+        }, 2000);
+      } else {
+        setExcelUploadStatus(data.message || 'Upload failed.');
+      }
+    } catch (err) {
+      setExcelUploadStatus('Upload failed.');
+    }
+  };
+
+  const handleJsonUpload = async (e) => {
+    e.preventDefault();
+    if (!jsonFileInputRef.current.files[0]) {
+      setJsonUploadStatus('Please select a file.');
+      return;
+    }
+    setJsonUploadStatus('Uploading...');
+    const formData = new FormData();
+    formData.append('file', jsonFileInputRef.current.files[0]);
+    formData.append('visibility', 'true'); // Set visibility to true for general questions
+    try {
+      const res = await fetch('/api/questions/upload-json', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setJsonUploadStatus(data.message || 'Questions uploaded successfully!');
+        // Refresh questions
+        const questionsRes = await fetch('/api/questions', { credentials: 'include' });
+        const questionsData = await questionsRes.json();
+        setAllQuestions(questionsData.questions || []);
+        
+        // Close modal after successful upload
+        setTimeout(() => {
+          setShowFileUpload(false);
+          setJsonUploadStatus('');
+        }, 2000);
+      } else {
+        setJsonUploadStatus(data.message || 'Upload failed.');
+      }
+    } catch (err) {
+      setJsonUploadStatus('Upload failed.');
+    }
+  };
+
   // Pagination helper functions
   const getCurrentPageData = (data) => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -658,7 +759,7 @@ const ModeratorDashboard = ({ user }) => {
                   <span>Create Question</span>
                 </button>
                 <button
-                  onClick={() => setShowContestForm(true)}
+                  onClick={() => navigate('/create-contest')}
                   className="w-full flex items-center justify-center space-x-2 border border-gray-300 px-4 py-3 rounded-sm hover:bg-gray-50"
                 >
                   <Trophy className="w-5 h-5" />
@@ -748,13 +849,21 @@ const ModeratorDashboard = ({ user }) => {
               <h2 className="text-xl font-semibold mb-4">Resource Management</h2>
               
               {/* Add Resource Buttons */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                 <button
                   onClick={() => setShowForm(true)}
                   className="flex items-center justify-center space-x-2 bg-black text-white px-6 py-4 rounded-lg hover:bg-gray-800 transition-colors"
                 >
                   <Plus className="w-5 h-5" />
                   <span>Add Question</span>
+                </button>
+                
+                <button
+                  onClick={() => setShowFileUpload(true)}
+                  className="flex items-center justify-center space-x-2 bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Upload className="w-5 h-5" />
+                  <span>Upload Files</span>
                 </button>
                 
                 <button
@@ -842,7 +951,7 @@ const ModeratorDashboard = ({ user }) => {
             <div className="p-6 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-xl font-semibold">All Contests</h2>
               <button
-                onClick={() => setShowContestForm(true)}
+                onClick={() => navigate('/create-contest')}
                 className="flex items-center space-x-2 bg-black text-white px-4 py-2 rounded-sm hover:bg-gray-800"
               >
                 <Plus className="w-4 h-4" />
@@ -856,7 +965,9 @@ const ModeratorDashboard = ({ user }) => {
                     <th className="py-2 px-3">Name</th>
                     <th className="py-2 px-3">Start Time</th>
                     <th className="py-2 px-3">End Time</th>
+                    <th className="py-2 px-3">Status</th>
                     <th className="py-2 px-3">Created By</th>
+                    <th className="py-2 px-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -874,7 +985,26 @@ const ModeratorDashboard = ({ user }) => {
                         </td>
                         <td className="py-2 px-3">{new Date(contest.startTime).toLocaleString()}</td>
                         <td className="py-2 px-3">{new Date(contest.endTime).toLocaleString()}</td>
+                        <td className="py-2 px-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            getContestStatus(contest) === 'upcoming' ? 'bg-blue-100 text-blue-800' :
+                            getContestStatus(contest) === 'live' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {getContestStatus(contest).charAt(0).toUpperCase() + getContestStatus(contest).slice(1)}
+                          </span>
+                        </td>
                         <td className="py-2 px-3">{contest.creator?.fullName || 'Unknown'}</td>
+                        <td className="py-2 px-3">
+                          {getContestStatus(contest) === 'upcoming' && (
+                            <button
+                              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold"
+                              onClick={() => navigate(`/edit-contest/${contest.id}`)}
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -1448,6 +1578,89 @@ const ModeratorDashboard = ({ user }) => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* File Upload Modal */}
+        {showFileUpload && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-lg mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Upload Questions</h2>
+                <button
+                  onClick={() => setShowFileUpload(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Excel Upload */}
+                <div className="border border-gray-200 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-3">Upload Excel File</h3>
+                  <form onSubmit={handleExcelUpload} className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Select Excel File (.xlsx, .xls)
+                      </label>
+                      <input
+                        type="file"
+                        accept=".xlsx, .xls"
+                        ref={fileInputRef}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                    >
+                      Upload Excel
+                    </button>
+                    {excelUploadStatus && (
+                      <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                        {excelUploadStatus}
+                      </div>
+                    )}
+                  </form>
+                </div>
+
+                {/* JSON Upload */}
+                <div className="border border-gray-200 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-3">Upload JSON File</h3>
+                  <form onSubmit={handleJsonUpload} className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Select JSON File (.json)
+                      </label>
+                      <input
+                        type="file"
+                        accept=".json"
+                        ref={jsonFileInputRef}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      Upload JSON
+                    </button>
+                    {jsonUploadStatus && (
+                      <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                        {jsonUploadStatus}
+                      </div>
+                    )}
+                  </form>
+                </div>
+
+                <div className="text-xs text-gray-500 text-center">
+                  <p>• Excel files should have columns: question, subcategory, level, options (JSON), correctAns, explanation</p>
+                  <p>• JSON files should contain an array of question objects with the same structure</p>
+                  <p className="text-black font-medium mt-2">✅ Questions uploaded here will be visible in the general question bank</p>
+                </div>
+              </div>
             </div>
           </div>
         )}

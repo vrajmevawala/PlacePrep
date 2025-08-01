@@ -108,6 +108,15 @@ const Contest = ({ user }) => {
       participation.testSeriesId === contestId && participation.submittedAt
     );
   };
+
+  // Helper function to get participation ID for a contest
+  const getParticipationId = (contestId) => {
+    if (!user || !userParticipations.length) return null;
+    const participation = userParticipations.find(p => 
+      p.testSeriesId === contestId && p.submittedAt
+    );
+    return participation ? participation.pid : null;
+  };
   const filteredContests = contests
     .filter(c => {
       // Hide contests completed more than 1 day ago
@@ -152,8 +161,8 @@ const Contest = ({ user }) => {
         const data = await response.json();
         
         if (response.ok) {
-          // Navigate to take contest page
-          navigate(`/take-contest/${data.contest.id}`);
+          // Navigate to take contest page with fullscreen parameter
+          navigate(`/take-contest/${data.contest.id}?fullscreen=true`);
         } else {
           console.error('Failed to join contest:', data.message);
           // Use a more user-friendly error handling instead of alert
@@ -379,7 +388,12 @@ const Contest = ({ user }) => {
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    navigate(`/contest-results/${contest.id}`);
+                                    const participationId = getParticipationId(contest.id);
+                                    if (participationId) {
+                                      navigate(`/contest-results/${contest.id}?pid=${participationId}`);
+                                    } else {
+                                      navigate(`/contest-results/${contest.id}`);
+                                    }
                                   }}
                                   className="px-4 py-2 text-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-colors"
                                 >

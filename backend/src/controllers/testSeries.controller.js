@@ -71,7 +71,12 @@ export const createTestSeries = async (req, res) => {
     // Send notification about new contest
     const notificationService = getNotificationService(req);
     if (notificationService) {
-      await notificationService.notifyContestAnnounced(testSeries);
+      try {
+        await notificationService.notifyContestAnnounced(testSeries);
+        console.log(`Contest announcement notification sent for: ${testSeries.title}`);
+      } catch (error) {
+        console.error('Failed to send contest announcement notification:', error);
+      }
     }
 
     res.status(201).json({ testSeries });
@@ -229,53 +234,121 @@ export const submitTestSeriesAnswers = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { answers } = req.body; // [{ questionId, selectedOption }]
-    if (!Array.isArray(answers) || answers.length === 0) {
+    const { answers, autoSubmitted = false } = req.body; // [{ questionId, selectedOption }]
+    
+    if (!Array.isArray(answers)) {
       return res.status(400).json({ message: 'Answers are required.' });
     }
+    
     // Fetch correct answers for the questions in this test series
     const testSeries = await prisma.testSeries.findUnique({
       where: { id: Number(id) },
       include: {
         questions: {
-          select: { id: true, correctAns: true }
+          select: { 
+            id: true, 
+            correctAns: true,
+            question: true,
+            options: true
+          }
         }
       }
     });
+    
     if (!testSeries) {
       return res.status(404).json({ message: 'Test series not found.' });
     }
-    // Map questionId to correctAns
+    
+    // Map questionId to correctAns and question details
     const correctMap = {};
+    const questionMap = {};
     testSeries.questions.forEach(q => {
       correctMap[q.id] = q.correctAns;
+      questionMap[q.id] = q;
     });
-    // Calculate score
+    
+
+    
+    // Calculate score - only count questions with actual answers
     let score = 0;
+    let attempted = 0;
+    const questionResults = [];
+    
     answers.forEach(ans => {
-      if (correctMap[ans.questionId] && correctMap[ans.questionId] === ans.selectedOption) {
-        score++;
+      const hasAnswer = ans.selectedOption && ans.selectedOption.trim() !== '' && ans.selectedOption !== 'null';
+      
+      if (hasAnswer) {
+        attempted++;
+        if (correctMap[ans.questionId] && correctMap[ans.questionId] === ans.selectedOption) {
+          score++;
+        }
       }
+      
+      // Create result object for each question
+      questionResults.push({
+        questionId: ans.questionId,
+        question: questionMap[ans.questionId]?.question || '',
+        options: questionMap[ans.questionId]?.options || {},
+        userAnswer: ans.selectedOption || '',
+        correctAnswer: correctMap[ans.questionId] || '',
+        isCorrect: hasAnswer && correctMap[ans.questionId] === ans.selectedOption,
+        isAttempted: hasAnswer
+      });
     });
-    // Update participation (set endTime)
+    
+    // Update participation (set endTime and submittedAt)
     await prisma.participation.updateMany({
       where: { sid: userId, testSeriesId: Number(id) },
-      data: { endTime: new Date() }
+      data: { 
+        endTime: new Date(),
+        submittedAt: new Date()
+      }
     });
+    
     // Log student activity for each question (create a new record for every answer)
     const now = new Date();
+    
     for (const ans of answers) {
+      const activityData = {
+        sid: userId,
+        qid: ans.questionId,
+        testSeriesId: Number(id),
+        time: now,
+        selectedAnswer: ans.selectedOption && ans.selectedOption.trim() !== '' && ans.selectedOption !== 'null' ? ans.selectedOption : null
+      };
+      
       await prisma.studentActivity.create({
-        data: {
-          sid: userId,
-          qid: ans.questionId,
-          testSeriesId: Number(id),
-          time: now,
-          selectedAnswer: ans.selectedOption
-        }
+        data: activityData
       });
     }
-    res.json({ score, total: testSeries.questions.length });
+    
+    // Send performance notification for high scores (80% or above)
+    const percentage = Math.round((score / testSeries.questions.length) * 100);
+    const notificationService = getNotificationService(req);
+    if (notificationService && percentage >= 80) {
+      try {
+        await notificationService.notifyHighScore(userId, testSeries, score, testSeries.questions.length);
+        console.log(`High score notification sent for user ${userId}: ${percentage}%`);
+      } catch (error) {
+        console.error('Failed to send high score notification:', error);
+      }
+    }
+
+    res.json({ 
+      score, 
+      correct: score, // Add this for consistency
+      total: testSeries.questions.length,
+      attempted,
+      autoSubmitted,
+      results: {
+        correctAnswers: score,
+        correct: score, // Add this for consistency
+        totalQuestions: testSeries.questions.length,
+        attemptedQuestions: attempted,
+        timeTaken: 0, // You can calculate this from start/end time if needed
+        questionResults
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -284,12 +357,24 @@ export const submitTestSeriesAnswers = async (req, res) => {
 export const getUserContestResult = async (req, res) => {
   try {
     const { id } = req.params; // contest id
+    const { pid } = req.query; // participation id (optional)
     const userId = req.user.id;
 
-    // Get contest start/end time and questions
+    // Get contest start/end time and questions with correct answers
     const contest = await prisma.testSeries.findUnique({
       where: { id: Number(id) },
-      select: { startTime: true, endTime: true, questions: { select: { id: true, correctAns: true } } }
+      select: { 
+        startTime: true, 
+        endTime: true, 
+        questions: { 
+          select: { 
+            id: true, 
+            question: true, 
+            options: true, 
+            correctAns: true 
+          } 
+        } 
+      }
     });
     if (!contest) return res.status(404).json({ message: 'Contest not found' });
 
@@ -305,37 +390,83 @@ export const getUserContestResult = async (req, res) => {
       });
     }
 
-    // Get all StudentActivity for this user/contest in the contest window
-    const activities = await prisma.studentActivity.findMany({
-      where: {
-        sid: userId,
-        testSeriesId: Number(id),
-        time: { gte: contest.startTime, lte: contest.endTime }
+    // Get StudentActivity for this user/contest
+    let activities;
+    if (pid) {
+      // If participation ID is provided, get activities for that specific participation
+      const participation = await prisma.participation.findFirst({
+        where: {
+          pid: Number(pid),
+          sid: userId,
+          testSeriesId: Number(id)
+        }
+      });
+      
+      if (!participation) {
+        return res.status(404).json({ message: 'Participation not found' });
       }
-    });
+      
+      // Get activities for this user/contest without strict time filtering
+      activities = await prisma.studentActivity.findMany({
+        where: {
+          sid: userId,
+          testSeriesId: Number(id)
+        }
+      });
+    } else {
+      // Get all activities for this user/contest without strict time filtering
+      activities = await prisma.studentActivity.findMany({
+        where: {
+          sid: userId,
+          testSeriesId: Number(id)
+        }
+      });
+    }
 
-    // Map questionId to correctAns
+    // Map questionId to correctAns and question details
     const correctMap = {};
-    contest.questions.forEach(q => { correctMap[q.id] = q.correctAns; });
+    const questionMap = {};
+    contest.questions.forEach(q => { 
+      correctMap[q.id] = q.correctAns;
+      questionMap[q.id] = q;
+    });
 
     // Calculate stats
     let correct = 0;
     let attempted = 0;
-    activities.forEach(act => {
-      if (act.selectedAnswer) attempted++;
-      if (act.selectedAnswer && correctMap[act.qid] === act.selectedAnswer) correct++;
+    const questionResults = [];
+    
+    // Process each question
+    contest.questions.forEach(question => {
+      const activity = activities.find(act => act.qid === question.id);
+      const hasAnswer = activity && activity.selectedAnswer && activity.selectedAnswer.trim() !== '' && activity.selectedAnswer !== 'null';
+      
+      if (hasAnswer) {
+        attempted++;
+        if (correctMap[question.id] === activity.selectedAnswer) {
+          correct++;
+        }
+      }
+      
+      questionResults.push({
+        questionId: question.id,
+        question: question.question,
+        options: question.options,
+        userAnswer: activity?.selectedAnswer || '',
+        correctAnswer: correctMap[question.id],
+        isCorrect: hasAnswer && correctMap[question.id] === activity.selectedAnswer,
+        isAttempted: hasAnswer
+      });
     });
+    
+
 
     res.json({
       totalQuestions: contest.questions.length,
       attempted,
       correct,
-      details: activities.map(act => ({
-        questionId: act.qid,
-        selected: act.selectedAnswer,
-        correct: correctMap[act.qid],
-        isCorrect: act.selectedAnswer === correctMap[act.qid]
-      }))
+      correctAnswers: correct, // Add this for consistency
+      questionResults
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -378,8 +509,9 @@ export const getContestStats = async (req, res) => {
     const userScores = {};
     allActivities.forEach(act => {
       if (!userScores[act.sid]) userScores[act.sid] = { correct: 0, attempted: 0 };
-      if (act.selectedAnswer) userScores[act.sid].attempted++;
-      if (act.selectedAnswer && correctMap[act.qid] === act.selectedAnswer) userScores[act.sid].correct++;
+      const hasAnswer = act.selectedAnswer && act.selectedAnswer.trim() !== '' && act.selectedAnswer !== 'null';
+      if (hasAnswer) userScores[act.sid].attempted++;
+      if (hasAnswer && correctMap[act.qid] === act.selectedAnswer) userScores[act.sid].correct++;
     });
 
     // Build array of scores
@@ -408,7 +540,8 @@ export const getContestStats = async (req, res) => {
     allActivities.forEach(act => {
       if (questionStats[act.qid]) {
         questionStats[act.qid].totalAttempts++;
-        if (act.selectedAnswer) {
+        const hasAnswer = act.selectedAnswer && act.selectedAnswer.trim() !== '' && act.selectedAnswer !== 'null';
+        if (hasAnswer) {
           if (act.selectedAnswer === correctMap[act.qid]) {
             questionStats[act.qid].correctAttempts++;
           } else {
@@ -571,19 +704,129 @@ export const getUpcomingContests = async (req, res) => {
         endTime: true,
         requiresCode: true,
         contestCode: true,
-        participations: true, // <-- Correct field
+        participations: true,
       }
     });
-    // Map to expected frontend format
-    const result = contests.map(c => ({
-      name: c.title,
-      date: c.startTime.toISOString().split('T')[0],
-      time: c.startTime.toISOString().split('T')[1]?.slice(0,5),
-      participants: c.participations ? c.participations.length : 0, // <-- Correct field
-      requiresCode: c.requiresCode,
-      contestCode: c.contestCode
-    }));
+    
+    // Map to expected frontend format with proper timezone handling
+    const result = contests.map(c => {
+      // Convert UTC to local time
+      const startTime = new Date(c.startTime);
+      const endTime = new Date(c.endTime);
+      
+      // Format date and time in local timezone
+      const formatDate = (date) => {
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        });
+      };
+      
+      const formatTime = (date) => {
+        return date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+      };
+      
+      // Calculate time until start
+      const timeUntilStart = startTime.getTime() - now.getTime();
+      const hoursUntilStart = Math.floor(timeUntilStart / (1000 * 60 * 60));
+      const minutesUntilStart = Math.floor((timeUntilStart % (1000 * 60 * 60)) / (1000 * 60));
+      
+      let timeStatus = '';
+      if (hoursUntilStart > 24) {
+        const daysUntilStart = Math.floor(hoursUntilStart / 24);
+        timeStatus = `${daysUntilStart} day${daysUntilStart > 1 ? 's' : ''} away`;
+      } else if (hoursUntilStart > 0) {
+        timeStatus = `${hoursUntilStart}h ${minutesUntilStart}m away`;
+      } else if (minutesUntilStart > 0) {
+        timeStatus = `${minutesUntilStart}m away`;
+      } else {
+        timeStatus = 'Starting now';
+      }
+      
+      return {
+        id: c.id,
+        name: c.title,
+        date: formatDate(startTime),
+        time: formatTime(startTime),
+        endDate: formatDate(endTime),
+        endTime: formatTime(endTime),
+        participants: c.participations ? c.participations.length : 0,
+        requiresCode: c.requiresCode,
+        contestCode: c.contestCode,
+        timeStatus,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString()
+      };
+    });
+    
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update TestSeries (admin/moderator only)
+export const updateTestSeries = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, startTime, endTime, requiresCode } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    if (!['admin', 'moderator'].includes(userRole)) {
+      return res.status(403).json({ message: 'Only admin or moderator can update test series.' });
+    }
+
+    // Check if contest exists
+    const existingContest = await prisma.testSeries.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!existingContest) {
+      return res.status(404).json({ message: 'Test series not found.' });
+    }
+
+    // Check if contest has already started
+    const now = new Date();
+    const contestStartTime = new Date(existingContest.startTime);
+    
+    if (now >= contestStartTime) {
+      return res.status(400).json({ message: 'Cannot update contest that has already started.' });
+    }
+
+    // Validate times
+    const newStartTime = new Date(startTime);
+    const newEndTime = new Date(endTime);
+    
+    if (newStartTime <= now) {
+      return res.status(400).json({ message: 'Start time cannot be in the past.' });
+    }
+    
+    if (newEndTime <= newStartTime) {
+      return res.status(400).json({ message: 'End time must be after start time.' });
+    }
+
+    // Update the contest
+    const updatedContest = await prisma.testSeries.update({
+      where: { id: Number(id) },
+      data: {
+        title: title.trim(),
+        startTime: newStartTime,
+        endTime: newEndTime,
+        requiresCode: requiresCode || false
+      },
+      include: { 
+        questions: { select: { id: true, question: true, options: true, level: true, category: true, subcategory: true } }, 
+        creator: true 
+      },
+    });
+
+    res.json({ testSeries: updatedContest });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

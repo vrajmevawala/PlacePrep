@@ -3,7 +3,7 @@
 // Only styling-related consistency updates have been applied
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, UserPlus, Activity, BarChart3, Eye, Plus, Settings, Trophy, Users as UsersIcon, FileText, Tag, Edit, Trash2, Video, X } from 'lucide-react';
+import { Users, UserPlus, Activity, BarChart3, Eye, Plus, Settings, Trophy, Users as UsersIcon, FileText, Tag, Edit, Trash2, Video, X, Upload } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
@@ -98,6 +98,10 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const [stats, setStats] = useState(null);
   const [showContestQuestionsModal, setShowContestQuestionsModal] = useState(false);
   const [selectedContestQuestions, setSelectedContestQuestions] = useState([]);
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   const [selectedContestTitle, setSelectedContestTitle] = useState('');
   const [loadingContestQuestions, setLoadingContestQuestions] = useState(false);
   const [contestStats, setContestStats] = useState([]);
@@ -457,6 +461,71 @@ const AdminDashboard = ({ user, onNavigate }) => {
     } catch (err) {
       alert('Failed to delete question.');
     }
+  };
+
+  // Pagination helper functions
+  const getCurrentPageData = (data) => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (data) => {
+    return Math.ceil(data.length / itemsPerPage);
+  };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    
+    return (
+      <div className="flex items-center space-x-1">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+        >
+          Previous
+        </button>
+        
+        {pages.map(page => (
+          <button
+            key={page}
+            onClick={() => onPageChange(page)}
+            className={`px-3 py-1 border text-sm rounded ${
+              currentPage === page
+                ? 'bg-black text-white border-black'
+                : 'border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+        
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+        >
+          Next
+        </button>
+      </div>
+    );
   };
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
@@ -890,6 +959,15 @@ const AdminDashboard = ({ user, onNavigate }) => {
       return (new Date(a[field]) - new Date(b[field])) * order;
     });
 
+  // Debug: Log contest statuses
+  console.log('All contests:', allContests.map(c => ({
+    id: c.id,
+    title: c.title,
+    startTime: c.startTime,
+    status: getContestStatus(c),
+    isUpcoming: getContestStatus(c) === 'upcoming'
+  })));
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -1153,7 +1231,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
               <h2 className="text-xl font-semibold mb-4">Resource Management</h2>
               
               {/* Add Resource Buttons */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <button
                   onClick={() => setShowForm(true)}
                   className="flex items-center justify-center space-x-2 bg-black text-white px-6 py-4 rounded-lg hover:bg-gray-800 transition-colors"
@@ -1206,25 +1284,54 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {allQuestions.map(q => (
-                    <tr key={q.id} className="border-b hover:bg-gray-50 transition">
-                      <td className="py-2 px-3">{q.question}</td>
-                      <td className="py-2 px-3">{q.category}</td>
-                      <td className="py-2 px-3">{q.subcategory}</td>
-                      <td className="py-2 px-3">{q.level}</td>
-                      <td className="py-2 px-3 flex gap-2">
-                        <button onClick={() => handleEditQuestion(q)} className="text-gray-600 hover:text-black mr-3">
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDeleteQuestion(q.id)} className="text-gray-600 hover:text-red-600">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {getCurrentPageData(allQuestions).map((q, index) => {
+                    const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                    return (
+                      <tr key={q.id} className="border-b hover:bg-gray-50 transition">
+                        <td className="py-2 px-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                            </div>
+                            <div>{q.question}</div>
+                          </div>
+                        </td>
+                        <td className="py-2 px-3">{q.category}</td>
+                        <td className="py-2 px-3">{q.subcategory}</td>
+                        <td className="py-2 px-3">{q.level}</td>
+                        <td className="py-2 px-3 flex gap-2">
+                          <button onClick={() => handleEditQuestion(q)} className="text-gray-600 hover:text-black mr-3">
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDeleteQuestion(q.id)} className="text-gray-600 hover:text-red-600">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination for Resources */}
+            {getTotalPages(allQuestions) > 1 && (
+              <div className="px-6 py-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing {getCurrentPageData(allQuestions).length} of {allQuestions.length} questions
+                    {getTotalPages(allQuestions) > 1 && (
+                      <span> (Page {currentPage} of {getTotalPages(allQuestions)})</span>
+                    )}
+                  </div>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={getTotalPages(allQuestions)}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1285,16 +1392,32 @@ const AdminDashboard = ({ user, onNavigate }) => {
                       <td className="py-2 px-3">{new Date(contest.endTime).toLocaleString()}</td>
                       <td className="py-2 px-3 font-mono text-blue-700">{contest.requiresCode ? contest.contestCode : '-'}</td>
                       <td className="py-2 px-3">
-                        {getContestStatus(contest).charAt(0).toUpperCase() + getContestStatus(contest).slice(1)}
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          getContestStatus(contest) === 'upcoming' ? 'bg-blue-100 text-blue-800' :
+                          getContestStatus(contest) === 'live' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {getContestStatus(contest).charAt(0).toUpperCase() + getContestStatus(contest).slice(1)}
+                        </span>
                       </td>
                       <td className="py-2 px-3">{contest.creator?.fullName || 'Unknown'}</td>
                       <td className="py-2 px-3">
-                        <button
-                          className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800 text-sm font-semibold"
-                          onClick={() => handleViewContestQuestions(contest)}
-                        >
-                          View
-                        </button>
+                        <div className="flex space-x-2">
+                          <button
+                            className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800 text-sm font-semibold"
+                            onClick={() => handleViewContestQuestions(contest)}
+                          >
+                            View
+                          </button>
+                          {getContestStatus(contest) === 'upcoming' && (
+                            <button
+                              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold"
+                              onClick={() => navigate(`/edit-contest/${contest.id}`)}
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

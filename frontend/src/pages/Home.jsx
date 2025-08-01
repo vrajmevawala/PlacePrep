@@ -2,7 +2,7 @@ import React from 'react';
 import { ArrowRight, Target, BookOpen, Trophy, BarChart3, Users, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const Home = () => {
+const Home = ({ onOpenAuthModal }) => {
   const navigate = useNavigate();
   const features = [
     {
@@ -49,14 +49,14 @@ const Home = () => {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
-              onClick={() => navigate('/signup')}
+              onClick={() => onOpenAuthModal('signup')}
               className="bg-black text-white px-8 py-3 rounded-sm font-medium hover:bg-gray-800 transition-colors flex items-center justify-center space-x-2"
             >
               <span>Get Started</span>
               <ArrowRight className="w-5 h-5" />
             </button>
             <button
-              onClick={() => navigate('/login')}
+              onClick={() => onOpenAuthModal('login')}
               className="border border-black text-black px-8 py-3 rounded-sm font-medium hover:bg-gray-50 transition-colors"
             >
               Login

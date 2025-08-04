@@ -1,5 +1,5 @@
 import express from 'express';
-import { createTestSeries, getAllTestSeries, getTestSeriesById, getTestSeriesQuestions, submitTestSeriesAnswers, joinTestSeries, getUserContestResult, getContestStats, getAllContestStats, getUserParticipations, getUpcomingContests, joinContestByCode, updateTestSeries } from '../controllers/testSeries.controller.js';
+import { createTestSeries, getAllTestSeries, getTestSeriesById, getTestSeriesQuestions, submitTestSeriesAnswers, joinTestSeries, getUserContestResult, getContestStats, getAllContestStats, getUserParticipations, getUpcomingContests, joinContestByCode, updateTestSeries, recordViolation } from '../controllers/testSeries.controller.js';
 import authMiddleware from '../middleware/auth.middleware.js';
 import { requireAdminOrModerator } from '../middleware/role.middleware.js';
 
@@ -15,6 +15,7 @@ router.get('/stats/all', getAllContestStats);
 router.get('/:id', getTestSeriesById);
 router.get('/:id/questions', getTestSeriesQuestions);
 router.post('/:id/submit', submitTestSeriesAnswers);
+router.post('/:id/violation', recordViolation);
 router.post('/:id/join', joinTestSeries);
 router.post('/join-by-code', joinContestByCode);
 router.get('/:id/result', getUserContestResult);

@@ -22,10 +22,8 @@ export const NotificationProvider = ({ children, user }) => {
   useEffect(() => {
     // Only connect if user exists and has a valid ID
     if (!user || !user.id) {
-      console.log('No valid user found, skipping socket connection. User:', user);
       // Clean up existing connection if any
       if (socketRef.current) {
-        console.log('Cleaning up existing socket connection due to no valid user');
         socketRef.current.disconnect();
         socketRef.current = null;
         setIsConnected(false);
@@ -33,11 +31,8 @@ export const NotificationProvider = ({ children, user }) => {
       return;
     }
 
-    console.log('Initializing socket connection for user:', user.id);
-
     // Clean up existing connection if any
     if (socketRef.current) {
-      console.log('Cleaning up existing socket connection');
       socketRef.current.disconnect();
       socketRef.current = null;
     }
@@ -53,15 +48,12 @@ export const NotificationProvider = ({ children, user }) => {
     });
 
     newSocket.on('connect', () => {
-      console.log('Connected to notification server, socket ID:', newSocket.id);
       setIsConnected(true);
       // Join user's personal room
       newSocket.emit('join-user', user.id);
-      console.log('Joined user room:', user.id);
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.log('Disconnected from notification server:', reason);
       setIsConnected(false);
     });
 
@@ -104,7 +96,6 @@ export const NotificationProvider = ({ children, user }) => {
     // Cleanup function
     return () => {
       if (socketRef.current) {
-        console.log('Cleaning up socket connection on unmount');
         socketRef.current.disconnect();
         socketRef.current = null;
       }
@@ -115,7 +106,6 @@ export const NotificationProvider = ({ children, user }) => {
   const fetchNotifications = async () => {
     // Only fetch if we have a valid user
     if (!user || !user.id) {
-      console.log('No valid user, skipping notification fetch');
       return;
     }
 
@@ -132,7 +122,6 @@ export const NotificationProvider = ({ children, user }) => {
       if (response.ok) {
         const data = await response.json();
         setNotifications(data);
-        console.log('Fetched notifications:', data.length);
       } else {
         console.error('Failed to fetch notifications:', response.status);
       }
@@ -145,7 +134,6 @@ export const NotificationProvider = ({ children, user }) => {
   const fetchUnreadCount = async () => {
     // Only fetch if we have a valid user
     if (!user || !user.id) {
-      console.log('No valid user, skipping unread count fetch');
       return;
     }
 
@@ -162,7 +150,6 @@ export const NotificationProvider = ({ children, user }) => {
       if (response.ok) {
         const data = await response.json();
         setUnreadCount(data.count);
-        console.log('Unread count:', data.count);
       } else {
         console.error('Failed to fetch unread count:', response.status);
       }

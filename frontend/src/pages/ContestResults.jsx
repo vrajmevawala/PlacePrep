@@ -9,7 +9,8 @@ import {
   ArrowLeft, 
   Star, 
   Target, 
-  Award 
+  Award,
+  AlertTriangle
 } from 'lucide-react';
 
 const ContestResults = () => {
@@ -229,46 +230,94 @@ const ContestResults = () => {
         <div className="bg-white border border-gray-200 p-8 mb-8">
           <h2 className="text-2xl font-bold text-black mb-6 flex items-center">
             <BarChart3 className="w-6 h-6 mr-3 text-black" />
-            Performance Summary
+            {results?.hasParticipated ? 'Performance Summary' : 'Contest Information'}
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {/* Score */}
-            <div className="text-center p-6 bg-gray-50 border border-gray-200">
-              <div className="text-4xl font-bold text-black mb-2">{score}/{totalQuestions}</div>
-              <div className="text-sm text-gray-600">Correct Answers</div>
-            </div>
-            
-            {/* Percentage */}
-            <div className="text-center p-6 bg-gray-50 border border-gray-200">
-              <div className={`text-4xl font-bold mb-2 ${getPerformanceColor(percentage)}`}>
-                {percentage}%
+          {results?.hasParticipated ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              {/* Score */}
+              <div className="text-center p-6 bg-gray-50 border border-gray-200">
+                <div className="text-4xl font-bold text-black mb-2">{score}/{totalQuestions}</div>
+                <div className="text-sm text-gray-600">Correct Answers</div>
               </div>
-              <div className="text-sm text-gray-600">Success Rate</div>
-            </div>
-            
-            {/* Time Taken */}
-            <div className="text-center p-6 bg-gray-50 border border-gray-200">
-              <div className="text-4xl font-bold text-black mb-2">
-                {Math.floor(timeTaken / 60)}:{(timeTaken % 60).toString().padStart(2, '0')}
+              
+              {/* Percentage */}
+              <div className="text-center p-6 bg-gray-50 border border-gray-200">
+                <div className={`text-4xl font-bold mb-2 ${getPerformanceColor(percentage)}`}>
+                  {percentage}%
+                </div>
+                <div className="text-sm text-gray-600">Success Rate</div>
               </div>
-              <div className="text-sm text-gray-600">Time Taken</div>
+              
+              {/* Time Taken */}
+              <div className="text-center p-6 bg-gray-50 border border-gray-200">
+                <div className="text-4xl font-bold text-black mb-2">
+                  {Math.floor(timeTaken / 60)}:{(timeTaken % 60).toString().padStart(2, '0')}
+                </div>
+                <div className="text-sm text-gray-600">Time Taken</div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              {/* Contest Info */}
+              <div className="text-center p-6 bg-gray-50 border border-gray-200">
+                <div className="text-4xl font-bold text-black mb-2">{totalQuestions}</div>
+                <div className="text-sm text-gray-600">Total Questions</div>
+              </div>
+              
+              {/* Contest Status */}
+              <div className="text-center p-6 bg-gray-50 border border-gray-200">
+                <div className="text-4xl font-bold text-green-600 mb-2">
+                  Completed
+                </div>
+                <div className="text-sm text-gray-600">Contest Status</div>
+              </div>
+              
+              {/* Contest Duration */}
+              <div className="text-center p-6 bg-gray-50 border border-gray-200">
+                <div className="text-4xl font-bold text-black mb-2">
+                  {Math.floor(timeTaken / 60)}:{(timeTaken % 60).toString().padStart(2, '0')}
+                </div>
+                <div className="text-sm text-gray-600">Contest Duration</div>
+              </div>
+            </div>
+          )}
+
+          {/* Violation Information - Only show for participants */}
+          {results?.hasParticipated && results.violations > 0 && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center space-x-2 mb-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <h4 className="text-lg font-semibold text-red-800">Security Violations</h4>
+              </div>
+              <p className="text-red-700">
+                {results.violations === 1 
+                  ? '1 security violation was recorded during this contest.'
+                  : `${results.violations} security violations were recorded during this contest.`
+                }
+                {results.autoSubmitted && ' Contest was automatically submitted due to multiple violations.'}
+              </p>
+            </div>
+          )}
 
           {/* Performance Message */}
           <div className="text-center p-6 bg-gray-50 border border-gray-200">
             <div className="text-lg font-semibold text-black mb-2">
-              {getPerformanceMessage(percentage)}
+              {results?.hasParticipated ? getPerformanceMessage(percentage) : 'Contest has been completed'}
             </div>
             <div className="text-sm text-gray-600">
               Contest: {contest?.title}
             </div>
+            {!results?.hasParticipated && (
+              <div className="text-sm text-gray-500 mt-2">
+                You did not participate in this contest
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Detailed Results */}
-        {(results.questionResults || results.details) && (results.questionResults || results.details).length > 0 && (
+        {/* Detailed Results - Only show for participants */}
+        {results?.hasParticipated && (results.questionResults || results.details) && (results.questionResults || results.details).length > 0 && (
           <div className="bg-white border border-gray-200 p-8 mb-8">
             <h3 className="text-xl font-bold text-black mb-6 flex items-center">
               <Target className="w-5 h-5 mr-3 text-black" />
@@ -311,6 +360,44 @@ const ContestResults = () => {
                           Status: <span className="font-medium">{result.isAttempted ? 'Attempted' : 'Not Attempted'}</span>
                         </p>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Contest Questions - Show for non-participants */}
+        {!results?.hasParticipated && (results.questionResults || results.details) && (results.questionResults || results.details).length > 0 && (
+          <div className="bg-white border border-gray-200 p-8 mb-8">
+            <h3 className="text-xl font-bold text-black mb-6 flex items-center">
+              <Target className="w-5 h-5 mr-3 text-black" />
+              Contest Questions
+            </h3>
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-blue-800">
+                <strong>Note:</strong> You did not participate in this contest. Below are the questions that were asked.
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              {(results.questionResults || results.details).map((result, index) => (
+                <div
+                  key={index}
+                  className="p-4 border border-gray-200 bg-gray-50"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-sm font-semibold text-black">
+                        Question {index + 1}
+                      </span>
+                    </div>
+                    <p className="text-gray-700 mb-2">{result.question}</p>
+                    <div className="text-sm space-y-1">
+                      <p className="text-gray-500">
+                        Options: {Object.keys(result.options || {}).map(key => `${key.toUpperCase()}. ${result.options[key]}`).join(', ')}
+                      </p>
                     </div>
                   </div>
                 </div>

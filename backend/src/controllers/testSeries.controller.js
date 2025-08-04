@@ -234,7 +234,7 @@ export const submitTestSeriesAnswers = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { answers, autoSubmitted = false } = req.body; // [{ questionId, selectedOption }]
+    const { answers, autoSubmitted = false, violationType = null } = req.body; // [{ questionId, selectedOption }]
     
     if (!Array.isArray(answers)) {
       return res.status(400).json({ message: 'Answers are required.' });
@@ -296,12 +296,28 @@ export const submitTestSeriesAnswers = async (req, res) => {
       });
     });
     
-    // Update participation (set endTime and submittedAt)
+    // Get current participation to check violations
+    const participation = await prisma.participation.findFirst({
+      where: { sid: userId, testSeriesId: Number(id) }
+    });
+
+    if (!participation) {
+      return res.status(404).json({ message: 'Participation not found.' });
+    }
+
+    // Handle violations
+    let currentViolations = participation.violations || 0;
+    if (violationType) {
+      currentViolations += 1;
+    }
+
+    // Update participation (set endTime, submittedAt, and violations)
     await prisma.participation.updateMany({
       where: { sid: userId, testSeriesId: Number(id) },
       data: { 
         endTime: new Date(),
-        submittedAt: new Date()
+        submittedAt: new Date(),
+        violations: currentViolations
       }
     });
     
@@ -340,6 +356,7 @@ export const submitTestSeriesAnswers = async (req, res) => {
       total: testSeries.questions.length,
       attempted,
       autoSubmitted,
+      violations: currentViolations,
       results: {
         correctAnswers: score,
         correct: score, // Add this for consistency
@@ -391,10 +408,12 @@ export const getUserContestResult = async (req, res) => {
     }
 
     // Get StudentActivity for this user/contest
-    let activities;
+    let activities = [];
+    let participation = null;
+    
     if (pid) {
       // If participation ID is provided, get activities for that specific participation
-      const participation = await prisma.participation.findFirst({
+      participation = await prisma.participation.findFirst({
         where: {
           pid: Number(pid),
           sid: userId,
@@ -414,13 +433,24 @@ export const getUserContestResult = async (req, res) => {
         }
       });
     } else {
-      // Get all activities for this user/contest without strict time filtering
-      activities = await prisma.studentActivity.findMany({
+      // Get participation and activities for this user/contest
+      participation = await prisma.participation.findFirst({
         where: {
           sid: userId,
           testSeriesId: Number(id)
         }
       });
+      
+      // If user participated, get their activities
+      if (participation) {
+        activities = await prisma.studentActivity.findMany({
+          where: {
+            sid: userId,
+            testSeriesId: Number(id)
+          }
+        });
+      }
+      // If no participation, we'll still show contest info but no personal results
     }
 
     // Map questionId to correctAns and question details
@@ -466,6 +496,9 @@ export const getUserContestResult = async (req, res) => {
       attempted,
       correct,
       correctAnswers: correct, // Add this for consistency
+      violations: participation?.violations || 0,
+      autoSubmitted: participation?.violations >= 2,
+      hasParticipated: !!participation,
       questionResults
     });
   } catch (error) {
@@ -901,6 +934,43 @@ export const joinContestByCode = async (req, res) => {
         questions: contest.questions
       },
       participation
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Record a violation for a contest
+export const recordViolation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { violationType } = req.body;
+
+    if (!violationType) {
+      return res.status(400).json({ message: 'Violation type is required.' });
+    }
+
+    // Get current participation
+    const participation = await prisma.participation.findFirst({
+      where: { sid: userId, testSeriesId: Number(id) }
+    });
+
+    if (!participation) {
+      return res.status(404).json({ message: 'Participation not found.' });
+    }
+
+    // Update violation count
+    const currentViolations = (participation.violations || 0) + 1;
+    
+    await prisma.participation.updateMany({
+      where: { sid: userId, testSeriesId: Number(id) },
+      data: { violations: currentViolations }
+    });
+
+    res.json({ 
+      violations: currentViolations,
+      shouldAutoSubmit: currentViolations >= 2
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

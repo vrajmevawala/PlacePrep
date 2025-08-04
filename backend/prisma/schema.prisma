@@ -83,6 +83,7 @@ model Participation {
   startTime      DateTime
   endTime        DateTime?
   submittedAt    DateTime?
+  violations     Int           @default(0)
   freePractice   freePractice? @relation("FreePracticeParticipation", fields: [freePracticeId], references: [id])
   user           User          @relation(fields: [sid], references: [id])
   testSeries     TestSeries?   @relation("TestSeriesParticipation", fields: [testSeriesId], references: [id])

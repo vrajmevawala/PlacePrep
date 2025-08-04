@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trophy, Eye, BarChart3 } from 'lucide-react';
+import { Plus, Trophy, Eye, BarChart3, Edit } from 'lucide-react';
 
 const AdminContests = ({ user }) => {
   const navigate = useNavigate();

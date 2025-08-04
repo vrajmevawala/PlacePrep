@@ -117,6 +117,55 @@ const Contest = ({ user }) => {
     );
     return participation ? participation.pid : null;
   };
+
+  // Helper function to check if contest is completed and results should be available
+  const shouldShowResults = (contest) => {
+    const status = getContestStatus(contest);
+    return status === 'completed';
+  };
+
+  // Helper function to get the appropriate action for a contest
+  const getContestAction = (contest) => {
+    const status = getContestStatus(contest);
+    
+    if (status === 'completed') {
+      return {
+        type: 'view-results',
+        label: 'View Results',
+        className: 'bg-purple-600 text-white hover:bg-purple-700'
+      };
+    }
+    
+    if (hasUserParticipated(contest.id)) {
+      return {
+        type: 'view-results',
+        label: 'View Results',
+        className: 'bg-purple-600 text-white hover:bg-purple-700'
+      };
+    }
+    
+    if (status === 'live') {
+      return {
+        type: 'join',
+        label: contest.requiresCode ? 'Join with Code' : 'Join Contest',
+        className: 'bg-green-600 text-white hover:bg-green-700'
+      };
+    }
+    
+    if (status === 'upcoming') {
+      return {
+        type: 'join',
+        label: contest.requiresCode ? 'Join with Code' : 'Join Contest',
+        className: 'bg-blue-600 text-white hover:bg-blue-700'
+      };
+    }
+    
+    return {
+      type: 'join',
+      label: 'Join Contest',
+      className: 'bg-gray-600 text-white hover:bg-gray-700'
+    };
+  };
   const filteredContests = contests
     .filter(c => {
       // Hide contests completed more than 1 day ago
@@ -136,6 +185,15 @@ const Contest = ({ user }) => {
 
   const handleJoinContest = async (contest) => {
     try {
+      const status = getContestStatus(contest);
+      
+      // Check if contest is completed
+      if (status === 'completed') {
+        // If contest is completed, navigate to results
+        navigate(`/contest-results/${contest.id}`);
+        return;
+      }
+      
       // Check if user has already participated in this contest
       if (hasUserParticipated(contest.id)) {
         // If already participated, navigate to results
@@ -147,39 +205,39 @@ const Contest = ({ user }) => {
         // If contest requires code, navigate to join contest page
         navigate('/join-contest');
       } else {
-      // If no code required, join directly
-      setJoiningContest(contest.id);
-      try {
-        const response = await fetch(`/api/testseries/${contest.id}/join`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-          // Navigate to take contest page with fullscreen parameter
-          navigate(`/take-contest/${data.contest.id}?fullscreen=true`);
-        } else {
-          console.error('Failed to join contest:', data.message);
-          // Use a more user-friendly error handling instead of alert
-          setError(data.message || 'Failed to join contest');
+        // If no code required, join directly
+        setJoiningContest(contest.id);
+        try {
+          const response = await fetch(`/api/testseries/${contest.id}/join`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+          });
+          
+          const data = await response.json();
+          
+          if (response.ok) {
+            // Navigate to take contest page with fullscreen parameter
+            navigate(`/take-contest/${data.contest.id}?fullscreen=true`);
+          } else {
+            console.error('Failed to join contest:', data.message);
+            // Use a more user-friendly error handling instead of alert
+            setError(data.message || 'Failed to join contest');
+          }
+        } catch (error) {
+          console.error('Network error:', error);
+          setError('Network error. Please try again.');
+        } finally {
+          setJoiningContest(null);
         }
-      } catch (error) {
-        console.error('Network error:', error);
-        setError('Network error. Please try again.');
-      } finally {
-        setJoiningContest(null);
       }
+    } catch (error) {
+      console.error('Error in handleJoinContest:', error);
+      setError('An unexpected error occurred. Please try again.');
+      setJoiningContest(null);
     }
-  } catch (error) {
-    console.error('Error in handleJoinContest:', error);
-    setError('An unexpected error occurred. Please try again.');
-    setJoiningContest(null);
-  }
   };
 
   return (
@@ -383,49 +441,47 @@ const Contest = ({ user }) => {
                               </div>
                             </td>
                             <td className="py-4 px-6">
-                              {hasUserParticipated(contest.id) ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const participationId = getParticipationId(contest.id);
-                                    if (participationId) {
-                                      navigate(`/contest-results/${contest.id}?pid=${participationId}`);
-                                    } else {
-                                      navigate(`/contest-results/${contest.id}`);
-                                    }
-                                  }}
-                                  className="px-4 py-2 text-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-colors"
-                                >
-                                  View Results
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handleJoinContest(contest);
-                                  }}
-                                  disabled={joiningContest === contest.id}
-                                  className={`px-4 py-2 text-sm font-semibold transition-colors ${
-                                    joiningContest === contest.id
-                                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                      : status === 'live'
-                                      ? 'bg-green-600 text-white hover:bg-green-700'
-                                      : status === 'upcoming'
-                                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                      : 'bg-gray-600 text-white hover:bg-gray-700'
-                                  }`}
-                                >
-                                  {joiningContest === contest.id ? (
-                                    'Joining...'
-                                  ) : contest.requiresCode ? (
-                                    'Join with Code'
-                                  ) : (
-                                    'Join Contest'
-                                  )}
-                                </button>
-                              )}
+                              {(() => {
+                                const action = getContestAction(contest);
+                                
+                                if (action.type === 'view-results') {
+                                  return (
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const participationId = getParticipationId(contest.id);
+                                        if (participationId) {
+                                          navigate(`/contest-results/${contest.id}?pid=${participationId}`);
+                                        } else {
+                                          navigate(`/contest-results/${contest.id}`);
+                                        }
+                                      }}
+                                      className={`px-4 py-2 text-sm font-semibold transition-colors ${action.className}`}
+                                    >
+                                      {action.label}
+                                    </button>
+                                  );
+                                } else {
+                                  return (
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleJoinContest(contest);
+                                      }}
+                                      disabled={joiningContest === contest.id}
+                                      className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                                        joiningContest === contest.id
+                                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                          : action.className
+                                      }`}
+                                    >
+                                      {joiningContest === contest.id ? 'Joining...' : action.label}
+                                    </button>
+                                  );
+                                }
+                              })()}
                             </td>
                           </tr>
                         );

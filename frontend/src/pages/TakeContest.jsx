@@ -35,6 +35,9 @@ const TakeContest = () => {
   const [started, setStarted] = useState(false); // Always require user to click start button
   const [hasSubmitted, setHasSubmitted] = useState(false); // Track if user has already submitted
   const [showSecurityWarning, setShowSecurityWarning] = useState(false); // Show security warning modal
+  const [violationCount, setViolationCount] = useState(0); // Track violation count
+  const [showViolationWarning, setShowViolationWarning] = useState(false); // Show violation warning modal
+  const [currentViolationType, setCurrentViolationType] = useState(''); // Track current violation type
   
   const intervalRef = useRef(null);
   const startTimeRef = useRef(null);
@@ -52,14 +55,43 @@ const TakeContest = () => {
     setSubmitting(false);
   }, [contestId]);
 
+  // Record violation and handle accordingly
+  const recordViolation = async (violationType) => {
+    try {
+      const response = await fetch(`/api/testseries/${contestId}/violation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ violationType })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setViolationCount(data.violations);
+        
+        if (data.shouldAutoSubmit) {
+          // Second violation - auto submit
+          setCurrentViolationType(violationType);
+          setShowSecurityWarning(true);
+          setTimeout(() => {
+            handleSubmitContest();
+          }, 3000);
+        } else {
+          // First violation - show warning
+          setCurrentViolationType(violationType);
+          setShowViolationWarning(true);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to record violation:', error);
+    }
+  };
+
   // Security violation handling - immediate auto-submit
   const handleViolation = (violationType) => {
-    setShowSecurityWarning(true);
-    
-    // Auto-submit immediately after 3 seconds, even with no answers
-    setTimeout(() => {
-      handleSubmitContest();
-    }, 3000);
+    recordViolation(violationType);
   };
 
   // Fullscreen management
@@ -143,7 +175,8 @@ const TakeContest = () => {
       }));
       const submissionData = {
         answers: answersArray,
-        autoSubmitted: !hasAnswers // Flag to indicate auto-submission
+        autoSubmitted: !hasAnswers, // Flag to indicate auto-submission
+        violationType: currentViolationType || null // Include violation type if any
       };
 
 
@@ -353,7 +386,7 @@ const TakeContest = () => {
     }
   }, [isFullscreen, contestId, navigate]);
 
-  // Check if user has already submitted this contest
+  // Check if user has already submitted this contest and get violation count
   useEffect(() => {
     const checkSubmissionStatus = async () => {
       try {
@@ -364,21 +397,29 @@ const TakeContest = () => {
         
         if (participationsResponse.ok) {
           const participationsData = await participationsResponse.json();
-          const hasAlreadySubmitted = participationsData.participations?.some(participation => 
-            participation.testSeriesId === parseInt(contestId) && participation.submittedAt
+          const currentParticipation = participationsData.participations?.find(participation => 
+            participation.testSeriesId === parseInt(contestId)
           );
           
-          if (hasAlreadySubmitted) {
-            setHasSubmitted(true);
-            submissionAttemptedRef.current = true; // Set global flag
-            // Store in localStorage for future checks
-            const localStorageKey = `contest_${contestId}_submitted`;
-            localStorage.setItem(localStorageKey, 'true');
-            setError('You have already submitted this contest. Redirecting to results...');
-            setTimeout(() => {
-              navigate(`/contest-results/${contestId}`);
-            }, 2000);
-            return;
+          if (currentParticipation) {
+            // Set violation count if any
+            if (currentParticipation.violations > 0) {
+              setViolationCount(currentParticipation.violations);
+            }
+            
+            // Check if already submitted
+            if (currentParticipation.submittedAt) {
+              setHasSubmitted(true);
+              submissionAttemptedRef.current = true; // Set global flag
+              // Store in localStorage for future checks
+              const localStorageKey = `contest_${contestId}_submitted`;
+              localStorage.setItem(localStorageKey, 'true');
+              setError('You have already submitted this contest. Redirecting to results...');
+              setTimeout(() => {
+                navigate(`/contest-results/${contestId}`);
+              }, 2000);
+              return;
+            }
           }
         }
         
@@ -646,7 +687,17 @@ const TakeContest = () => {
             {/* Progress */}
             <div className="text-sm text-gray-600">
               {answeredCount}/{questions.length} answered
+            </div>
+
+            {/* Violation Counter */}
+            {violationCount > 0 && (
+              <div className="flex items-center space-x-2 px-3 py-2 border border-red-300 bg-red-50">
+                <AlertTriangle className="w-4 h-4 text-red-600" />
+                <span className="text-sm font-semibold text-red-600">
+                  Violations: {violationCount}/2
+                </span>
               </div>
+            )}
 
             {/* Submit Button */}
             <button
@@ -848,16 +899,54 @@ const TakeContest = () => {
         </div>
       </div>
 
-      {/* Security Warning Modal */}
+      {/* Violation Warning Modal - First Violation */}
+      {showViolationWarning && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-lg max-w-md mx-4 text-center">
+            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-yellow-600" />
+            </div>
+            <h3 className="text-xl font-bold text-black mb-2">Security Warning!</h3>
+            <p className="text-gray-600 mb-4">
+              A security violation has been detected: <strong>{currentViolationType}</strong>
+            </p>
+            <p className="text-gray-600 mb-6">
+              This is your <strong>first warning</strong>. Any further violations will result in automatic submission of your contest.
+            </p>
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setShowViolationWarning(false)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
+              >
+                Continue Contest
+              </button>
+              <button
+                onClick={() => {
+                  setShowViolationWarning(false);
+                  handleSubmitContest();
+                }}
+                className="flex-1 px-4 py-2 bg-green-600 text-white hover:bg-green-700 transition-colors"
+              >
+                Submit Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Security Warning Modal - Second Violation */}
       {showSecurityWarning && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-lg max-w-md mx-4 text-center">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-8 h-8 text-red-600" />
             </div>
-            <h3 className="text-xl font-bold text-black mb-2">Security Violation!</h3>
+            <h3 className="text-xl font-bold text-black mb-2">Final Security Violation!</h3>
             <p className="text-gray-600 mb-4">
-              A security violation has been detected. Your contest will be automatically submitted in 2 seconds.
+              A second security violation has been detected: <strong>{currentViolationType}</strong>
+            </p>
+            <p className="text-gray-600 mb-4">
+              Your contest will be automatically submitted in 3 seconds.
             </p>
             <div className="text-sm text-gray-500">
               <p>Auto-submitting contest...</p>

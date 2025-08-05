@@ -1,7 +1,3 @@
-// Refactored version with consistent form styling and UI uniformity
-// The logic is unchanged from the uploaded AdminDashboard.jsx
-// Only styling-related consistency updates have been applied
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Users, UserPlus, Activity, BarChart3, Eye, Plus, Settings, Trophy, Users as UsersIcon, FileText, Tag, Edit, Trash2, Video, X, Upload } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';

@@ -1,16 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Chart from 'chart.js/auto';
-import { Loader2, BarChart3, Trophy, Target, Clock, TrendingUp, Award, Users, Calendar, Filter } from 'lucide-react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart } from 'recharts';
-
-// This page is for regular users to view their own contest and practice results
-// It only shows results for the currently logged-in user
-
-const CATEGORY_MAP = {
-  Aptitude: ['Aptitude'],
-  Technical: ['Technical'],
-  DSA: ['DSA', 'Data Structures', 'Algorithms'],
-};
+import { 
+  Loader2, BarChart3, Trophy, Target, Clock, TrendingUp, Award, Users, 
+  Calendar, Filter, Eye, Download, Medal, CheckCircle, XCircle, MinusCircle 
+} from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 
 const Result = () => {
   const [participations, setParticipations] = useState([]);
@@ -19,8 +13,8 @@ const Result = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(null);
-  const [typeFilter, setTypeFilter] = useState('testSeries'); // 'testSeries' (Contest) by default
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'practice', 'contest'
+  const [selectedTest, setSelectedTest] = useState(null);
   const chartRef = useRef({});
 
   useEffect(() => {
@@ -34,8 +28,8 @@ const Result = () => {
           fetch('/api/free-practice/participations', { credentials: 'include' }).then(res => res.json())
         ]);
 
-        const testSeriesParticipations = (testSeriesData.participations || []).map(p => ({ ...p, _type: 'testSeries' }));
-        const freePracticeParticipations = (freePracticeData.participations || []).map(p => ({ ...p, _type: 'freePractice' }));
+        const testSeriesParticipations = (testSeriesData.participations || []).map(p => ({ ...p, _type: 'contest' }));
+        const freePracticeParticipations = (freePracticeData.participations || []).map(p => ({ ...p, _type: 'practice' }));
         const allParticipations = [...testSeriesParticipations, ...freePracticeParticipations].sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
         
         setParticipations(allParticipations);
@@ -46,12 +40,10 @@ const Result = () => {
         // Fetch results for each participation
         for (const p of allParticipations) {
           try {
-            if (p._type === 'testSeries') {
-              // For test series, fetch result with participation ID
+            if (p._type === 'contest') {
               const res = await fetch(`/api/testseries/${p.testSeriesId}/result?pid=${p.pid}`, { credentials: 'include' });
               
               if (res.status === 403) {
-                // Contest hasn't ended yet
                 resultsObj[p.pid] = { error: 'Results not available yet', contestNotEnded: true };
               } else if (res.ok) {
                 const resultData = await res.json();
@@ -60,7 +52,6 @@ const Result = () => {
                 resultsObj[p.pid] = { error: 'No result available' };
               }
 
-              // Fetch stats for test series
               if (!statsObj[p.testSeriesId]) {
                 try {
                   const statRes = await fetch(`/api/testseries/${p.testSeriesId}/stats`, { credentials: 'include' });
@@ -74,7 +65,6 @@ const Result = () => {
                 }
               }
             } else {
-              // For free practice
               const res = await fetch(`/api/free-practice/result?pid=${p.pid}`, { credentials: 'include' });
               if (res.ok) {
                 const resultData = await res.json();
@@ -107,226 +97,302 @@ const Result = () => {
     fetchParticipations();
   }, []);
 
-  useEffect(() => {
-    if (showDetails) {
-      const p = participations.find(x => x.pid === showDetails);
-      if (!p) return;
-      
-      const stat = stats[p._type === 'testSeries' ? p.testSeriesId : p.freePracticeId];
-      const result = results[showDetails];
-      if (!stat || !result || result.error || stat.error) return;
-
-      const canvas = document.getElementById(`scoreChart-${showDetails}`);
-      if (!canvas) return;
-
-      // Clean up existing chart
-      if (chartRef.current[showDetails]) {
-        chartRef.current[showDetails].destroy();
-        chartRef.current[showDetails] = null;
-      }
-
-      const userScore = result.correct ?? result.correctAnswers ?? 0;
-      const scores = stat.scores || [];
-
-      // Only create chart if there are scores to display
-      if (scores.length > 0) {
-        const data = {
-          labels: scores.map((_, i) => `User ${i + 1}`),
-          datasets: [{
-            label: 'Scores',
-            data: scores,
-            backgroundColor: scores.map(s => s === userScore ? 'rgba(59, 130, 246, 0.8)' : 'rgba(156, 163, 175, 0.4)'),
-            borderColor: scores.map(s => s === userScore ? 'rgba(59, 130, 246, 1)' : 'rgba(156, 163, 175, 0.8)'),
-            borderWidth: 2
-          }]
-        };
-
-        try {
-          chartRef.current[showDetails] = new Chart(canvas, {
-            type: 'bar',
-            data,
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { legend: { display: false } },
-              scales: {
-                x: { ticks: { color: '#374151' }, grid: { color: '#e5e7eb' } },
-                y: { beginAtZero: true, ticks: { color: '#374151' }, grid: { color: '#e5e7eb' } }
-              }
-            }
-          });
-        } catch (error) {
-          console.error('Error creating chart:', error);
-        }
-      }
-    }
-
-    return () => {
-      if (showDetails && chartRef.current[showDetails]) {
-        chartRef.current[showDetails].destroy();
-        chartRef.current[showDetails] = null;
-      }
-    };
-  }, [showDetails, stats, results, participations]);
-
-  // Filtering logic
-  const filteredParticipations = participations.filter(p => {
-    if (typeFilter === 'testSeries' && p._type !== 'testSeries') return false;
-    if (typeFilter === 'freePractice' && p._type !== 'freePractice') return false;
-    if (categoryFilter === 'all') return true;
-    // For testSeries, check contest category; for freePractice, check freePractice category
-    const title = p._type === 'testSeries' ? (p.testSeries?.title || '') : (p.freePractice?.title || '');
-    if (categoryFilter === 'Aptitude') return /aptitude/i.test(title);
-    if (categoryFilter === 'Technical') return /technical/i.test(title);
-    if (categoryFilter === 'DSA') return /dsa|data structures|algorithms/i.test(title);
-    return true;
-  });
-
-  // Calculate performance metrics (excluding contests that haven't ended)
-  const completedParticipations = filteredParticipations.filter(p => {
+  // Calculate performance metrics
+  const practiceTests = participations.filter(p => p._type === 'practice');
+  const contestTests = participations.filter(p => p._type === 'contest');
+  
+  const completedPractice = practiceTests.filter(p => {
     const result = results[p.pid];
-    return !result || !result.contestNotEnded;
+    return result && !result.error;
   });
+  
+  const completedContests = contestTests.filter(p => {
+    const result = results[p.pid];
+    return result && !result.error && !result.contestNotEnded;
+  });
+
+  // Calculate rank for contests
+  const getContestRank = (contestId, userScore) => {
+    const contestStats = stats[contestId];
+    if (!contestStats || !contestStats.scores || contestStats.scores.length === 0) return '-';
+    
+    const sortedScores = [...contestStats.scores].sort((a, b) => b - a);
+    const rank = sortedScores.findIndex(score => score <= userScore) + 1;
+    return rank;
+  };
 
   const performanceMetrics = {
-    totalAttempts: filteredParticipations.length,
-    completedAttempts: completedParticipations.length,
-    averageScore: completedParticipations.length > 0 
-      ? (completedParticipations.reduce((sum, p) => {
+    totalPracticeTests: practiceTests.length,
+    totalContests: contestTests.length,
+    completedPracticeTests: completedPractice.length,
+    completedContests: completedContests.length,
+    averagePracticeScore: completedPractice.length > 0 
+      ? (completedPractice.reduce((sum, p) => {
           const result = results[p.pid];
           const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
-          return sum + correctScore;
-        }, 0) / completedParticipations.length).toFixed(1)
+          const totalQuestions = result?.totalQuestions ?? 0;
+          return sum + (totalQuestions > 0 ? (correctScore / totalQuestions) * 100 : 0);
+        }, 0) / completedPractice.length).toFixed(1)
       : '0',
-    bestScore: completedParticipations.length > 0 
-      ? Math.max(...completedParticipations.map(p => {
+    averageContestScore: completedContests.length > 0 
+      ? (completedContests.reduce((sum, p) => {
           const result = results[p.pid];
-          return result?.correct ?? result?.correctAnswers ?? 0;
-        }))
-      : '0',
-    averagePercentage: completedParticipations.length > 0 
-      ? (completedParticipations.reduce((sum, p) => {
-          const result = results[p.pid];
-          const stat = stats[p._type === 'testSeries' ? p.testSeriesId : p.freePracticeId];
           const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
-          const totalQuestions = stat?.totalQuestions ?? result?.totalQuestions ?? 0;
-          if (result && !result.error && totalQuestions > 0) {
-            return sum + ((correctScore / totalQuestions) * 100);
-          }
-          return sum;
-        }, 0) / completedParticipations.length).toFixed(1)
+          const totalQuestions = result?.totalQuestions ?? 0;
+          return sum + (totalQuestions > 0 ? (correctScore / totalQuestions) * 100 : 0);
+        }, 0) / completedContests.length).toFixed(1)
+      : '0',
+    averageAccuracy: (completedPractice.length + completedContests.length) > 0 
+      ? ((completedPractice.reduce((sum, p) => {
+          const result = results[p.pid];
+          const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
+          const totalQuestions = result?.totalQuestions ?? 0;
+          return sum + (totalQuestions > 0 ? (correctScore / totalQuestions) * 100 : 0);
+        }, 0) + completedContests.reduce((sum, p) => {
+          const result = results[p.pid];
+          const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
+          const totalQuestions = result?.totalQuestions ?? 0;
+          return sum + (totalQuestions > 0 ? (correctScore / totalQuestions) * 100 : 0);
+        }, 0)) / (completedPractice.length + completedContests.length)).toFixed(1)
       : '0'
   };
 
+  // Score trend data for chart
+  const scoreTrendData = [...completedPractice, ...completedContests]
+    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+    .map((p, index) => {
+      const result = results[p.pid];
+      const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
+      const totalQuestions = result?.totalQuestions ?? 0;
+      const percentage = totalQuestions > 0 ? (correctScore / totalQuestions) * 100 : 0;
+      
+      return {
+        date: p.startTime ? new Date(p.startTime).toLocaleDateString() : `Test ${index + 1}`,
+        score: percentage,
+        type: p._type === 'practice' ? 'Practice' : 'Contest',
+        name: p._type === 'contest' ? (p.testSeries?.title || 'Contest') : (p.freePractice?.title || 'Practice')
+      };
+    });
+
+  const TabButton = ({ id, label, icon: Icon, count }) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+        activeTab === id
+          ? 'bg-black text-white shadow-md'
+          : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+      }`}
+    >
+      <Icon className="w-5 h-5" />
+      <span>{label}</span>
+      {count !== undefined && (
+        <span className={`px-2 py-1 rounded-full text-xs ${
+          activeTab === id ? 'bg-white text-black' : 'bg-gray-100 text-gray-600'
+        }`}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+
+  const PerformanceCard = ({ title, value, subtitle, icon: Icon, color = 'black' }) => (
+    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-3xl font-bold text-black mt-2">{value}</p>
+          {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+        </div>
+        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+          <Icon className="w-6 h-6 text-black" />
+        </div>
+      </div>
+    </div>
+  );
+
+  const TestResultRow = ({ test, result, type }) => {
+    const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
+    const totalQuestions = result?.totalQuestions ?? 0;
+    const percentage = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
+    const accuracy = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
+    
+    // Contest-specific data
+    const rank = type === 'contest' ? getContestRank(test.testSeriesId, correctScore) : null;
+    const participants = type === 'contest' ? (stats[test.testSeriesId]?.scores?.length || 0) : null;
+
+    return (
+      <tr className="hover:bg-gray-50 transition-colors">
+        <td className="py-4 px-6">
+          <div className="font-medium text-gray-900">
+            {type === 'contest' ? (test.testSeries?.title || 'Contest') : (test.freePractice?.title || 'Practice')}
+          </div>
+          <div className="text-sm text-gray-500 mt-1">
+            {test.startTime ? new Date(test.startTime).toLocaleDateString() : '-'}
+          </div>
+        </td>
+        {type === 'contest' && (
+          <td className="py-4 px-6">
+            {rank !== '-' ? (
+              <div className="flex items-center space-x-2">
+                <Medal className="w-4 h-4 text-yellow-500" />
+                <span className="font-semibold text-gray-900">{rank}</span>
+              </div>
+            ) : (
+              <span className="text-gray-400">-</span>
+            )}
+          </td>
+        )}
+        <td className="py-4 px-6">
+          <div className="flex items-center space-x-2">
+            <span className="font-semibold text-gray-900">{correctScore}</span>
+            <span className="text-gray-400">/</span>
+            <span className="text-gray-600">{totalQuestions}</span>
+          </div>
+        </td>
+        <td className="py-4 px-6">
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+            parseFloat(percentage) >= 80 ? 'bg-green-100 text-green-800' :
+            parseFloat(percentage) >= 60 ? 'bg-yellow-100 text-yellow-800' :
+            parseFloat(percentage) >= 40 ? 'bg-orange-100 text-orange-800' :
+            'bg-red-100 text-red-800'
+          }`}>
+            {percentage}%
+          </span>
+        </td>
+        <td className="py-4 px-6">
+          <span className="text-sm font-medium text-gray-900">{accuracy}%</span>
+        </td>
+        {type === 'contest' && (
+          <td className="py-4 px-6">
+            <span className="text-sm text-gray-600">{participants}</span>
+          </td>
+        )}
+        <td className="py-4 px-6">
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setSelectedTest({ test, result, type })}
+              className="inline-flex items-center px-3 py-2 bg-black hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <Eye className="w-4 h-4 mr-1" />
+              Details
+            </button>
+            {type === 'contest' && (
+              <button
+                onClick={() => setSelectedTest({ test, result, type, showLeaderboard: true })}
+                className="inline-flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Trophy className="w-4 h-4 mr-1" />
+                Leaderboard
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-600" />
+          <p className="text-gray-600">Loading your results...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 font-medium">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header Section */}
-        <div className="mb-12">
+        {/* Header */}
+        <div className="mb-8">
           <div className="flex items-center space-x-4 mb-6">
-            <div className="w-12 h-12 bg-gray-700 flex items-center justify-center rounded-lg shadow-sm">
+            <div className="w-12 h-12 bg-black flex items-center justify-center rounded-lg">
               <BarChart3 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Performance Dashboard</h1>
-              <p className="text-gray-600 mt-2">Track your progress and analyze your performance across all assessments</p>
+              <h1 className="text-3xl font-bold text-black">My Results</h1>
+              <p className="text-gray-600 mt-2">Track your performance across practice tests and contests</p>
             </div>
           </div>
         </div>
 
-        {/* Filters Section */}
-        <div className="bg-white border border-gray-200 p-8 mb-8 rounded-xl shadow-sm">
-          <div className="flex items-center space-x-3 mb-6">
-            <Filter className="w-5 h-5 text-gray-600" />
-            <h3 className="text-xl font-semibold text-gray-800">Filters & Analysis</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Assessment Type</label>
-              <select
-                value={typeFilter}
-                onChange={e => setTypeFilter(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-gray-400 focus:border-gray-400 transition-colors rounded-lg bg-white"
-              >
-                <option value="testSeries">Contest</option>
-                <option value="freePractice">Free Practice</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-              <select
-                value={categoryFilter}
-                onChange={e => setCategoryFilter(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-gray-400 focus:border-gray-400 transition-colors rounded-lg bg-white"
-              >
-                <option value="all">All Categories</option>
-                <option value="Aptitude">Aptitude</option>
-                <option value="Technical">Technical</option>
-                <option value="DSA">DSA</option>
-              </select>
-            </div>
-            <div className="lg:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Results</label>
-              <div className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <Users className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700">{filteredParticipations.length}</span>
-                  <span className="text-sm text-gray-500">assessments found</span>
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* Tab Navigation */}
+        <div className="flex space-x-4 mb-8">
+          <TabButton 
+            id="overview" 
+            label="Overview" 
+            icon={TrendingUp} 
+          />
+          <TabButton 
+            id="practice" 
+            label="Practice Tests" 
+            icon={Target} 
+            count={completedPractice.length}
+          />
+          <TabButton 
+            id="contest" 
+            label="Contest Results" 
+            icon={Trophy} 
+            count={completedContests.length}
+          />
         </div>
 
-        {/* Performance Overview */}
-        {filteredParticipations.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-8 overflow-hidden">
-            <div className="p-6 border-b border-gray-100">
-              <div className="flex items-center space-x-3">
-                <TrendingUp className="w-6 h-6 text-gray-600" />
-                <h2 className="text-xl font-semibold text-gray-900">Performance Overview</h2>
-              </div>
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div className="space-y-8">
+            {/* Performance Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <PerformanceCard
+                title="Practice Tests"
+                value={`${performanceMetrics.completedPracticeTests}/${performanceMetrics.totalPracticeTests}`}
+                subtitle="Completed"
+                icon={Target}
+                color="blue"
+              />
+              <PerformanceCard
+                title="Contests"
+                value={`${performanceMetrics.completedContests}/${performanceMetrics.totalContests}`}
+                subtitle="Participated"
+                icon={Trophy}
+                color="yellow"
+              />
+              <PerformanceCard
+                title="Average Score"
+                value={`${performanceMetrics.averageAccuracy}%`}
+                subtitle="Overall"
+                icon={TrendingUp}
+                color="green"
+              />
+              <PerformanceCard
+                title="Best Performance"
+                value={Math.max(
+                  parseFloat(performanceMetrics.averagePracticeScore) || 0,
+                  parseFloat(performanceMetrics.averageContestScore) || 0
+                ).toFixed(1) + '%'}
+                subtitle="Category"
+                icon={Award}
+                color="purple"
+              />
             </div>
             
-            {/* Statistics Cards */}
-            <div className="p-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                  <div className="text-3xl font-bold text-gray-900 mb-2">{performanceMetrics.totalAttempts}</div>
-                  <div className="text-sm text-gray-600 font-medium">Total Attempts</div>
-                  {performanceMetrics.totalAttempts !== performanceMetrics.completedAttempts && (
-                    <div className="text-xs text-orange-600 mt-1">
-                      {performanceMetrics.completedAttempts} completed
-                    </div>
-                  )}
-                </div>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                  <div className="text-3xl font-bold text-gray-900 mb-2">{performanceMetrics.averageScore}</div>
-                  <div className="text-sm text-gray-600 font-medium">Average Score</div>
-                </div>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                  <div className="text-3xl font-bold text-gray-900 mb-2">{performanceMetrics.bestScore}</div>
-                  <div className="text-sm text-gray-600 font-medium">Best Score</div>
-                </div>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                  <div className="text-3xl font-bold text-gray-900 mb-2">{performanceMetrics.averagePercentage}%</div>
-                  <div className="text-sm text-gray-600 font-medium">Avg Percentage</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Score Progression Chart */}
-            <div className="mt-6 p-6 border-t border-gray-100">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <Target className="w-5 h-5 mr-2 text-gray-600" />
-                Score Progression
-              </h3>
-              <div className="bg-gray-50 rounded-lg p-6">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={completedParticipations.map((p, i) => ({
-                    date: p.startTime ? new Date(p.startTime).toLocaleDateString() : `Attempt ${i + 1}`,
-                    score: results[p.pid]?.correct ?? 0
-                  }))}>
+            {/* Score Trend Chart */}
+            {scoreTrendData.length > 0 && (
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <h3 className="text-xl font-semibold text-gray-900 mb-6">Score Trend Over Time</h3>
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart data={scoreTrendData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis 
                       dataKey="date" 
@@ -334,7 +400,7 @@ const Result = () => {
                       axisLine={{ stroke: '#d1d5db' }}
                     />
                     <YAxis 
-                      allowDecimals={false} 
+                      domain={[0, 100]}
                       tick={{ fill: '#374151', fontSize: 12 }}
                       axisLine={{ stroke: '#d1d5db' }}
                     />
@@ -345,255 +411,319 @@ const Result = () => {
                         borderRadius: '8px',
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                       }}
+                      formatter={(value, name) => [`${value}%`, 'Score']}
                     />
                     <Line 
                       type="monotone" 
                       dataKey="score" 
-                      stroke="#6b7280" 
-                      strokeWidth={2}
-                      dot={{ r: 4, fill: '#6b7280', stroke: 'white', strokeWidth: 2 }} 
-                      activeDot={{ r: 6, fill: '#6b7280', stroke: 'white', strokeWidth: 2 }} 
+                      stroke="#000000" 
+                      strokeWidth={3}
+                      dot={{ r: 6, fill: '#000000', stroke: 'white', strokeWidth: 2 }} 
+                      activeDot={{ r: 8, fill: '#000000', stroke: 'white', strokeWidth: 2 }} 
                     />
                   </LineChart>
                 </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Recent Activity */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-900">Recent Activity</h3>
+              </div>
+              <div className="p-6">
+                {participations.slice(0, 5).map((p, index) => {
+                  const result = results[p.pid];
+                  const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
+                  const totalQuestions = result?.totalQuestions ?? 0;
+                  const percentage = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
+                  
+                  return (
+                    <div key={p.pid} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+                      <div className="flex items-center space-x-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          p._type === 'contest' ? 'bg-yellow-100' : 'bg-blue-100'
+                        }`}>
+                          {p._type === 'contest' ? (
+                            <Trophy className="w-5 h-5 text-yellow-600" />
+                          ) : (
+                            <Target className="w-5 h-5 text-blue-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {p._type === 'contest' ? (p.testSeries?.title || 'Contest') : (p.freePractice?.title || 'Practice')}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {p.startTime ? new Date(p.startTime).toLocaleDateString() : '-'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-900">{percentage}%</p>
+                        <p className="text-sm text-gray-500">
+                          {correctScore}/{totalQuestions}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         )}
 
-        {/* Results Table */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-100">
+        {/* Practice Tests Tab */}
+        {activeTab === 'practice' && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <Award className="w-6 h-6 text-gray-600" />
-              <h2 className="text-xl font-semibold text-gray-900">Assessment Results</h2>
+                  <Target className="w-6 h-6 text-blue-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">Practice Test Results</h2>
             </div>
+                <span className="text-sm text-gray-500">
+                  {completedPractice.length} completed tests
+                </span>
           </div>
-
-          {loading ? (
-            <div className="p-12 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto mb-3"></div>
-              <p className="text-gray-600">Loading your results...</p>
             </div>
-          ) : error ? (
-            <div className="p-12 text-center">
-              <div className="text-red-600 font-medium">{error}</div>
-            </div>
-          ) : (
+            
+            {completedPractice.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="py-4 px-6 text-left font-semibold text-gray-900 text-sm uppercase tracking-wider">Assessment</th>
-                    <th className="py-4 px-6 text-left font-semibold text-gray-900 text-sm uppercase tracking-wider">Attempt Time</th>
-                    <th className="py-4 px-6 text-left font-semibold text-gray-900 text-sm uppercase tracking-wider">Score</th>
-                    <th className="py-4 px-6 text-left font-semibold text-gray-900 text-sm uppercase tracking-wider">Percentage</th>
-                    <th className="py-4 px-6 text-left font-semibold text-gray-900 text-sm uppercase tracking-wider">Percentile</th>
-                    <th className="py-4 px-6 text-left font-semibold text-gray-900 text-sm uppercase tracking-wider">Actions</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Test Name</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Topic</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Questions</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Score</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Percentage</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Accuracy</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredParticipations.map((p, idx) => {
+                      {completedPractice.map(p => {
                     const result = results[p.pid];
-                    const stat = stats[p._type === 'testSeries' ? p.testSeriesId : p.freePracticeId];
-                    let percent = '-';
-                    let percentile = '-';
-                    
-
-
-                    if (result && !result.error && stat && !stat.error && stat.scores?.length > 0 && p._type === 'testSeries') {
-                      const correctScore = result.correct ?? result.correctAnswers ?? 0;
-                      const totalQuestions = stat.totalQuestions ?? result.totalQuestions ?? 0;
-                      percent = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
-                      const userScore = correctScore;
-                      const scores = stat.scores;
-                      percentile = ((scores.filter(s => s < userScore).length / scores.length) * 100).toFixed(1);
-                    } else if (result && !result.error) {
-                      const correctScore = result.correct ?? result.correctAnswers ?? 0;
-                      const totalQuestions = stat?.totalQuestions ?? result.totalQuestions ?? 0;
-                      percent = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
-                    }
+                        const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
+                        const totalQuestions = result?.totalQuestions ?? 0;
+                        const percentage = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
+                        const accuracy = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
 
                     return (
-                      <tr key={p.pid} className="hover:bg-gray-50 transition-colors duration-150">
+                          <tr key={p.pid} className="hover:bg-gray-50 transition-colors">
                         <td className="py-4 px-6">
                           <div className="font-medium text-gray-900">
-                            {p._type === 'testSeries' ? (p.testSeries?.title || '-') : (p.freePractice?.title || '-')}
+                                {p.freePractice?.title || 'Practice Test'}
                           </div>
-                          <div className="text-xs text-gray-500 mt-1 flex items-center">
-                            {p._type === 'testSeries' ? (
-                              <Trophy className="w-3 h-3 mr-1 text-gray-400" />
-                            ) : (
-                              <Target className="w-3 h-3 mr-1 text-gray-400" />
-                            )}
-                            {p._type === 'testSeries' ? 'Contest' : 'Free Practice'}
+                              <div className="text-sm text-gray-500 mt-1">
+                                {p.startTime ? new Date(p.startTime).toLocaleDateString() : '-'}
                           </div>
                         </td>
                         <td className="py-4 px-6">
-                          <div className="text-sm text-gray-900">
-                            {p.startTime ? new Date(p.startTime).toLocaleDateString() : '-'}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1 flex items-center">
-                            <Clock className="w-3 h-3 mr-1" />
-                            {p.startTime ? new Date(p.startTime).toLocaleTimeString() : '-'}
-                          </div>
+                              <span className="text-sm text-gray-600">
+                                {p.freePractice?.category || 'General'}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className="text-sm font-medium text-gray-900">{totalQuestions}</span>
                         </td>
                         <td className="py-4 px-6">
-                          {result && result.contestNotEnded ? (
-                            <span className="text-sm text-orange-600 font-medium">Coming Soon</span>
-                          ) : (
                             <div className="flex items-center space-x-2">
-                              <span className="font-semibold text-gray-900">{result?.correct ?? result?.correctAnswers ?? '-'}</span>
+                                <span className="font-semibold text-gray-900">{correctScore}</span>
                               <span className="text-gray-400">/</span>
-                              <span className="text-gray-600">{stat?.totalQuestions ?? result?.totalQuestions ?? '-'}</span>
+                                <span className="text-gray-600">{totalQuestions}</span>
                             </div>
-                          )}
                         </td>
                         <td className="py-4 px-6">
-                          {result && result.contestNotEnded ? (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
-                              Coming Soon
-                            </span>
-                          ) : percent !== '-' ? (
                             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                              parseFloat(percent) >= 80 ? 'bg-green-100 text-green-800' :
-                              parseFloat(percent) >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                              parseFloat(percent) >= 40 ? 'bg-orange-100 text-orange-800' :
+                                parseFloat(percentage) >= 80 ? 'bg-green-100 text-green-800' :
+                                parseFloat(percentage) >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                                parseFloat(percentage) >= 40 ? 'bg-orange-100 text-orange-800' :
                               'bg-red-100 text-red-800'
                             }`}>
-                              {percent}%
+                                {percentage}%
                             </span>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
                         </td>
                         <td className="py-4 px-6">
-                          {result && result.contestNotEnded ? (
-                            <span className="text-sm text-orange-600 font-medium">Coming Soon</span>
-                          ) : percentile !== '-' && p._type === 'testSeries' ? (
-                            <span className="text-sm font-medium text-gray-900">{percentile}%</span>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
+                              <span className="text-sm font-medium text-gray-900">{accuracy}%</span>
                         </td>
                         <td className="py-4 px-6">
-                          {result && !result.error ? (
                             <button 
-                              onClick={() => setShowDetails(p.pid)} 
-                              className="inline-flex items-center px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white text-sm font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200 shadow-sm"
+                                onClick={() => setSelectedTest({ test: p, result, type: 'practice' })}
+                                className="inline-flex items-center px-4 py-2 bg-black hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors"
                             >
-                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
+                                <Eye className="w-4 h-4 mr-2" />
                               View Details
                             </button>
-                          ) : result && result.contestNotEnded ? (
-                            <span className="text-sm text-orange-600 font-medium">Results Coming Soon</span>
-                          ) : (
-                            <span className="text-sm text-gray-400">No result</span>
-                          )}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+                          </div>
+            ) : (
+              <div className="text-center py-12">
+                <Target className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <div className="text-lg font-medium text-gray-500 mb-2">No practice tests completed</div>
+                <div className="text-gray-400">Start practicing to see your results here</div>
+              </div>
+            )}
             </div>
           )}
           
-          {filteredParticipations.length === 0 && !loading && !error && (
+        {/* Contest Results Tab */}
+        {activeTab === 'contest' && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Trophy className="w-6 h-6 text-yellow-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">Contest Results</h2>
+                </div>
+                <span className="text-sm text-gray-500">
+                  {completedContests.length} contests participated
+                            </span>
+              </div>
+            </div>
+            
+            {completedContests.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                                    <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Contest Name</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Rank</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Score</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Percentage</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Accuracy</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Participants</th>
+                      <th className="py-4 px-6 text-left font-semibold text-gray-900">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {completedContests.map(p => (
+                      <TestResultRow 
+                        key={p.pid} 
+                        test={p} 
+                        result={results[p.pid]} 
+                        type="contest"
+                      />
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            ) : (
             <div className="text-center py-12">
-              <BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <div className="text-lg font-medium text-gray-500 mb-2">No results found</div>
-              <div className="text-gray-400">Try adjusting your filters to see more results</div>
+                <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <div className="text-lg font-medium text-gray-500 mb-2">No contests participated</div>
+                <div className="text-gray-400">Join contests to see your results here</div>
             </div>
           )}
         </div>
+        )}
 
-        {/* Detailed Result Modal */}
-        {showDetails && results[showDetails] && (() => {
-          const p = participations.find(x => x.pid === showDetails);
-          if (!p) return null;
-          
-          const stat = stats[p._type === 'testSeries' ? p.testSeriesId : p.freePracticeId];
-          const result = results[showDetails];
-          if (!stat || !result || result.error || stat.error) return null;
-
-          const correctScore = result.correct ?? result.correctAnswers ?? 0;
-          const totalQuestions = stat.totalQuestions || result.totalQuestions || 0;
-          const percentage = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
-          const attempted = result.attempted || correctScore || 0;
-          const wrong = attempted - correctScore;
-
-          return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-              <div className="bg-white rounded-xl p-6 sm:p-8 w-full max-w-6xl max-h-[95vh] overflow-auto relative shadow-lg">
-                <button onClick={() => setShowDetails(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl font-bold">×</button>
-                <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">
-                  {p._type === 'testSeries' ? (p.testSeries?.title || 'Contest') : (p.freePractice?.title || 'Free Practice')} - Details
+        {/* Detailed Test Modal */}
+        {selectedTest && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-xl p-6 sm:p-8 w-full max-w-6xl max-h-[95vh] overflow-auto relative shadow-lg">
+              <button 
+                onClick={() => setSelectedTest(null)} 
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl font-bold"
+              >
+                ×
+              </button>
+              
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  {selectedTest.type === 'contest' 
+                    ? (selectedTest.test.testSeries?.title || 'Contest') 
+                    : (selectedTest.test.freePractice?.title || 'Practice Test')
+                  } - Detailed Results
                 </h2>
-                
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
-                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
-                    Score: <span className="font-bold">{correctScore} / {totalQuestions}</span>
+                <p className="text-gray-600">
+                  {selectedTest.test.startTime ? new Date(selectedTest.test.startTime).toLocaleDateString() : '-'}
+                </p>
+              </div>
+
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900">
+                    {selectedTest.result?.correct ?? selectedTest.result?.correctAnswers ?? 0}
                   </div>
-                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
-                    Percentage: <span className="font-bold">{percentage}%</span>
+                  <div className="text-sm text-gray-600">Correct Answers</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900">
+                    {selectedTest.result?.totalQuestions ?? 0}
                   </div>
-                  {p._type === 'testSeries' && stat.average && (
-                    <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
-                      Average: <span className="font-bold">{stat.average.toFixed(2)}</span>
+                  <div className="text-sm text-gray-600">Total Questions</div>
                     </div>
-                  )}
-                  {p._type === 'testSeries' && stat.scores && stat.scores.length > 0 && (
-                    <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
-                      Percentile: <span className="font-bold">
-                        {((stat.scores.filter(s => s < correctScore).length / stat.scores.length) * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                  )}
-                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
-                    Correct: <span className="text-green-600 font-bold">{correctScore}</span>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900">
+                    {selectedTest.result?.totalQuestions > 0 
+                      ? (((selectedTest.result?.correct ?? selectedTest.result?.correctAnswers ?? 0) / selectedTest.result?.totalQuestions) * 100).toFixed(1)
+                      : '0'
+                    }%
                   </div>
-                  <div className="border border-gray-200 rounded-lg p-4 font-medium text-gray-900">
-                    Wrong: <span className="text-red-600 font-bold">{wrong}</span>
+                  <div className="text-sm text-gray-600">Accuracy</div>
+                    </div>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900">
+                    {selectedTest.type === 'contest' ? 'Contest' : 'Practice'}
+                  </div>
+                  <div className="text-sm text-gray-600">Type</div>
                   </div>
                 </div>
                 
-                {Array.isArray(stat.scores) && stat.scores.length > 1 && (
-                  <div className="mb-6 bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Distribution</h3>
-                    <div style={{ height: '300px' }}>
-                      <canvas id={`scoreChart-${showDetails}`}></canvas>
-                    </div>
+              {/* Question-by-Question Breakdown */}
+              {selectedTest.result?.details && selectedTest.result.details.length > 0 && (
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Question-by-Question Breakdown</h3>
                   </div>
-                )}
-                
-                {result.details && result.details.length > 0 && (
-                  <div className="overflow-x-auto border border-gray-200 rounded-lg bg-white">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-gray-50 text-gray-900 font-semibold">
-                        <tr>
-                          <th className="p-3">QID</th>
-                          <th className="p-3">Selected</th>
-                          <th className="p-3">Correct</th>
-                          <th className="p-3">Status</th>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-white border-b border-gray-200">
+                          <th className="px-6 py-3 text-left font-semibold text-gray-900">Question ID</th>
+                          <th className="px-6 py-3 text-left font-semibold text-gray-900">Your Answer</th>
+                          <th className="px-6 py-3 text-left font-semibold text-gray-900">Correct Answer</th>
+                          <th className="px-6 py-3 text-left font-semibold text-gray-900">Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {result.details.map((d, i) => (
-                          <tr key={i} className="border-t border-gray-100 text-gray-900">
-                            <td className="p-3">{d.questionId}</td>
-                            <td className="p-3">{d.selected || d.userAnswer || '-'}</td>
-                            <td className="p-3">{d.correct || d.correctAnswer || '-'}</td>
-                            <td className="p-3">
-                              {!d.selected && !d.userAnswer ? (
-                                <span className="text-gray-500">Not Attempted</span>
-                              ) : d.isCorrect ? (
-                                <span className="text-green-700 font-semibold">Correct</span>
+                        {selectedTest.result.details.map((detail, index) => (
+                          <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="px-6 py-4 font-medium text-gray-900">
+                              {detail.questionId || `Q${index + 1}`}
+                            </td>
+                            <td className="px-6 py-4">
+                              {detail.selected || detail.userAnswer || (
+                                <span className="text-gray-400 italic">Not attempted</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 font-medium text-gray-900">
+                              {detail.correct || detail.correctAnswer || '-'}
+                            </td>
+                            <td className="px-6 py-4">
+                              {!detail.selected && !detail.userAnswer ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                                  <MinusCircle className="w-4 h-4 mr-1" />
+                                  Not Attempted
+                                </span>
+                              ) : detail.isCorrect ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Correct
+                                </span>
                               ) : (
-                                <span className="text-red-600 font-semibold">Wrong</span>
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Wrong
+                                </span>
                               )}
                             </td>
                           </tr>
@@ -601,15 +731,18 @@ const Result = () => {
                       </tbody>
                     </table>
                   </div>
+                  </div>
                 )}
                 
-                <button onClick={() => setShowDetails(null)} className="mt-6 w-full py-3 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-lg font-semibold transition-colors">
+                            <button 
+                onClick={() => setSelectedTest(null)} 
+                className="mt-6 w-full py-3 bg-black hover:bg-gray-800 text-white rounded-lg font-semibold transition-colors"
+              >
                   Close
                 </button>
               </div>
             </div>
-          );
-        })()}
+        )}
       </div>
     </div>
   );

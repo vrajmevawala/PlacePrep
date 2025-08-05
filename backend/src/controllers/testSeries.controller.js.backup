@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import XLSX from 'xlsx';
 const prisma = new PrismaClient();
 
 // Get notification service from app
@@ -535,11 +534,6 @@ export const getContestStats = async (req, res) => {
         } 
       }
     });
-
-    if (!contest) {
-      return res.status(404).json({ message: 'Contest not found.' });
-    }
-
     const correctMap = {};
     contest.questions.forEach(q => { correctMap[q.id] = q.correctAns; });
     const totalQuestions = contest.questions.length;
@@ -660,22 +654,6 @@ export const getAllContestStats = async (req, res) => {
 
       const totalQuestions = contest.questions.length;
       const totalParticipants = participations.length;
-
-      if (totalQuestions === 0) {
-        allContestStats.push({
-          contestId: contest.id,
-          contestTitle: contest.title,
-          startTime: contest.startTime,
-          endTime: contest.endTime,
-          totalQuestions,
-          totalParticipants,
-          averageScore: 0,
-          averagePercentage: 0,
-          status: new Date() < contest.startTime ? 'upcoming' : 
-                 new Date() > contest.endTime ? 'completed' : 'live'
-        });
-        continue;
-      }
 
       if (totalParticipants === 0) {
         allContestStats.push({
@@ -1026,68 +1004,39 @@ export const getContestParticipants = async (req, res) => {
     // Calculate scores and stats for each participant
     const participantsWithStats = await Promise.all(
       participants.map(async (participation) => {
-        try {
-          // Get all answers for this participant
-          const answers = await prisma.studentActivity.findMany({
-            where: {
-              sid: participation.sid,
-              testSeriesId: Number(id)
-            },
-            include: {
-              question: {
-                select: {
-                  id: true,
-                  correctAns: true
-                }
+        const result = await prisma.result.findFirst({
+          where: { pid: participation.id }
+        });
+
+        const totalQuestions = await prisma.question.count({
+          where: {
+            testSeries: {
+              some: {
+                id: Number(id)
               }
             }
-          });
+          }
+        });
 
-          const totalQuestions = await prisma.question.count({
-            where: {
-              testSeries: {
-                some: {
-                  id: Number(id)
-                }
-              }
-            }
-          });
+        const correctAnswers = result?.correct || 0;
+        const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
+        const timeTaken = participation.submittedAt && participation.startTime 
+          ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / 1000 / 60)
+          : 0;
 
-          const correctAnswers = answers.filter(a => a.selectedAnswer === a.question.correctAns).length;
-          const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
-          const timeTaken = participation.submittedAt && participation.startTime 
-            ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / (1000 * 60))
-            : 0;
-
-          return {
-            id: participation.id,
-            userId: participation.user?.id || 'unknown',
-            name: participation.user?.fullName || 'Unknown User',
-            email: participation.user?.email || 'No email',
-            score: correctAnswers,
-            totalQuestions,
-            percentage: parseFloat(percentage),
-            accuracy: parseFloat(percentage),
-            timeTaken,
-            submittedAt: participation.submittedAt,
-            startTime: participation.startTime
-          };
-        } catch (error) {
-          console.error('Error processing participant:', participation.id, error);
-          return {
-            id: participation.id,
-            userId: 'unknown',
-            name: 'Unknown User',
-            email: 'No email',
-            score: 0,
-            totalQuestions: 0,
-            percentage: 0,
-            accuracy: 0,
-            timeTaken: 0,
-            submittedAt: participation.submittedAt,
-            startTime: participation.startTime
-          };
-        }
+        return {
+          id: participation.id,
+          userId: participation.user.id,
+          name: participation.user.fullName,
+          email: participation.user.email,
+          score: correctAnswers,
+          totalQuestions,
+          percentage: parseFloat(percentage),
+          accuracy: parseFloat(percentage),
+          timeTaken,
+          submittedAt: participation.submittedAt,
+          startTime: participation.startTime
+        };
       })
     );
 
@@ -1173,9 +1122,9 @@ export const getParticipantAnswers = async (req, res) => {
     res.json({
       participant: {
         id: participation.id,
-        userId: participation.user?.id || 'unknown',
-        name: participation.user?.fullName || 'Unknown User',
-        email: participation.user?.email || 'No email',
+        userId: participation.user.id,
+        name: participation.user.fullName,
+        email: participation.user.email,
         score: correctAnswers,
         totalQuestions,
         percentage: parseFloat(percentage),
@@ -1185,8 +1134,8 @@ export const getParticipantAnswers = async (req, res) => {
         startTime: participation.startTime
       },
       contest: {
-        id: participation.testSeries?.id || 'unknown',
-        title: participation.testSeries?.title || 'Unknown Contest'
+        id: participation.testSeries.id,
+        title: participation.testSeries.title
       },
       questions: questionsWithAnswers
     });
@@ -1240,8 +1189,8 @@ export const exportContestResults = async (req, res) => {
           : 0;
 
         return {
-          name: participation.user?.fullName || 'Unknown User',
-          email: participation.user?.email || 'No email',
+          name: participation.user.fullName,
+          email: participation.user.email,
           score: correctAnswers,
           totalQuestions,
           percentage,
@@ -1277,7 +1226,7 @@ export const exportContestResults = async (req, res) => {
     });
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${contest?.title || 'contest'}-results.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${contest.title}-results.csv"`);
     res.send(csvContent);
   } catch (error) {
     console.error('Error exporting contest results:', error);
@@ -1285,39 +1234,11 @@ export const exportContestResults = async (req, res) => {
   }
 };
 
-// Download contest results as Excel with detailed answers
-export const downloadContestResultsExcel = async (req, res) => {
+// Get all participants for a specific contest
+export const getContestParticipants = async (req, res) => {
   try {
     const { id } = req.params;
     
-    console.log('Downloading Excel for contest ID:', id);
-    
-    // Get contest details
-    const contest = await prisma.testSeries.findUnique({
-      where: { id: Number(id) },
-      include: {
-        questions: {
-          select: {
-            id: true,
-            question: true,
-            options: true,
-            correctAns: true,
-            level: true,
-            category: true,
-            subcategory: true
-          }
-        }
-      }
-    });
-
-    if (!contest) {
-      console.log('Contest not found for ID:', id);
-      return res.status(404).json({ message: 'Contest not found' });
-    }
-
-    console.log('Found contest:', contest.title, 'with', contest.questions.length, 'questions');
-
-    // Get all participants with their results
     const participants = await prisma.participation.findMany({
       where: {
         testSeriesId: Number(id),
@@ -1326,175 +1247,168 @@ export const downloadContestResultsExcel = async (req, res) => {
       include: {
         user: {
           select: {
+            id: true,
             fullName: true,
             email: true
           }
         },
-        result: true
+        testSeries: {
+          select: {
+            id: true,
+            title: true,
+            questions: {
+              select: {
+                id: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        submittedAt: 'desc'
       }
     });
 
-    // Get detailed answers for each participant
-    const participantsWithAnswers = await Promise.all(
+    // Calculate scores and stats for each participant
+    const participantsWithStats = await Promise.all(
       participants.map(async (participation) => {
-        const answers = await prisma.studentActivity.findMany({
-          where: { 
-            sid: participation.sid,
-            testSeriesId: participation.testSeriesId
-          },
-          include: {
-            question: {
-              select: {
-                id: true,
-                question: true,
-                options: true,
-                correctAns: true
-              }
-            }
-          },
-          orderBy: {
-            qid: 'asc'
-          }
+        const result = await prisma.result.findFirst({
+          where: { pid: participation.id }
         });
 
-        const totalQuestions = contest.questions.length;
-        const correctAnswers = answers.filter(a => a.selectedAnswer === a.question.correctAns).length;
+        const totalQuestions = participation.testSeries.questions.length;
+        const correctAnswers = result?.correct || 0;
         const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
         const timeTaken = participation.submittedAt && participation.startTime 
           ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / 1000 / 60)
           : 0;
 
         return {
-          participant: {
-            name: participation.user?.fullName || 'Unknown User',
-            email: participation.user?.email || 'No email',
-            score: correctAnswers,
-            totalQuestions,
-            percentage,
-            timeTaken,
-            submittedAt: participation.submittedAt ? new Date(participation.submittedAt).toLocaleString() : 'Not submitted',
-            rank: 0 // Will be calculated later
-          },
-          answers: answers.map(answer => ({
-            questionId: answer.qid,
-            question: answer.question.question,
-            options: answer.question.options,
-            userAnswer: answer.selectedAnswer,
-            correctAnswer: answer.question.correctAns,
-            isCorrect: answer.selectedAnswer === answer.question.correctAns,
-            questionNumber: contest.questions.findIndex(q => q.id === answer.qid) + 1
-          }))
+          id: participation.id,
+          userId: participation.user.id,
+          name: participation.user.fullName,
+          email: participation.user.email,
+          score: correctAnswers,
+          totalQuestions,
+          percentage: parseFloat(percentage),
+          accuracy: parseFloat(percentage),
+          timeTaken,
+          submittedAt: participation.submittedAt,
+          startTime: participation.startTime
         };
       })
     );
 
-    // Sort by score (highest first) and assign ranks
-    participantsWithAnswers.sort((a, b) => b.participant.score - a.participant.score);
-    participantsWithAnswers.forEach((participant, index) => {
-      participant.participant.rank = index + 1;
-    });
+    // Sort by score (highest first)
+    participantsWithStats.sort((a, b) => b.score - a.score);
 
-    // Create Excel workbook
-    const workbook = XLSX.utils.book_new();
-
-    // Create Summary sheet
-    const summaryData = participantsWithAnswers.map(p => ({
-      'Rank': p.participant.rank,
-      'Name': p.participant.name,
-      'Email': p.participant.email,
-      'Score': p.participant.score,
-      'Total Questions': p.participant.totalQuestions,
-      'Percentage': `${p.participant.percentage}%`,
-      'Time Taken (minutes)': p.participant.timeTaken,
-      'Submitted At': p.participant.submittedAt
-    }));
-
-    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-
-    // Create detailed answers sheet for each participant
-    participantsWithAnswers.forEach((participant, index) => {
-      const participantName = participant.participant.name.replace(/[^a-zA-Z0-9]/g, '_');
-      const sheetName = `${participant.participant.rank}_${participantName}`.substring(0, 31); // Excel sheet name limit
-      
-      const answersData = participant.answers.map(answer => ({
-        'Question Number': answer.questionNumber,
-        'Question': answer.question,
-        'Options': JSON.stringify(answer.options),
-        'User Answer': answer.userAnswer || 'Not answered',
-        'Correct Answer': answer.correctAnswer,
-        'Status': answer.isCorrect ? 'Correct' : (answer.userAnswer ? 'Incorrect' : 'Not answered')
-      }));
-
-      const answersSheet = XLSX.utils.json_to_sheet(answersData);
-      XLSX.utils.book_append_sheet(workbook, answersSheet, sheetName);
-    });
-
-    // Create Questions sheet
-    const questionsData = contest.questions.map((question, index) => ({
-      'Question Number': index + 1,
-      'Question': question.question,
-      'Options': JSON.stringify(question.options),
-      'Correct Answer': question.correctAns,
-      'Level': question.level,
-      'Category': question.category,
-      'Subcategory': question.subcategory
-    }));
-
-    const questionsSheet = XLSX.utils.json_to_sheet(questionsData);
-    XLSX.utils.book_append_sheet(workbook, questionsSheet, 'Questions');
-
-    // Generate Excel file
-    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-    // Set response headers
-    const fileName = `${contest.title}_Detailed_Results_${new Date().toISOString().split('T')[0]}.xlsx`;
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.setHeader('Content-Length', excelBuffer.length);
-
-    console.log('Excel file generated successfully, size:', excelBuffer.length, 'bytes');
-    res.send(excelBuffer);
+    res.json({ participants: participantsWithStats });
   } catch (error) {
-    console.error('Error downloading contest results Excel:', error);
-    console.error('Error stack:', error.stack);
+    console.error('Error getting contest participants:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get detailed analysis for contest
-export const getDetailedAnalysis = async (req, res) => {
+// Get detailed answers for a specific participant
+export const getParticipantAnswers = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { contestId, participantId } = req.params;
     
-    console.log('Getting detailed analysis for contest ID:', id);
-    
-    // Get contest with questions
-    const contest = await prisma.testSeries.findUnique({
-      where: { id: Number(id) },
+    const participation = await prisma.participation.findFirst({
+      where: {
+        id: Number(participantId),
+        testSeriesId: Number(contestId),
+        contest: true
+      },
       include: {
-        questions: {
+        user: {
           select: {
             id: true,
-            question: true,
-            options: true,
-            correctAns: true,
-            level: true,
-            category: true,
-            subcategory: true
+            fullName: true,
+            email: true
+          }
+        },
+        testSeries: {
+          select: {
+            id: true,
+            title: true,
+            questions: {
+              select: {
+                id: true,
+                question: true,
+                options: true,
+                correctAns: true,
+                explanation: true
+              }
+            }
           }
         }
       }
     });
 
-    if (!contest) {
-      console.log('Contest not found for detailed analysis ID:', id);
-      return res.status(404).json({ message: 'Contest not found' });
+    if (!participation) {
+      return res.status(404).json({ message: 'Participation not found.' });
     }
 
-    console.log('Found contest for analysis:', contest.title, 'with', contest.questions.length, 'questions');
+    const result = await prisma.result.findFirst({
+      where: { pid: participation.id }
+    });
 
-    // Get all participants with their answers
+    const answers = result?.answers || [];
+    const totalQuestions = participation.testSeries.questions.length;
+    const correctAnswers = result?.correct || 0;
+    const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
+    const timeTaken = participation.submittedAt && participation.startTime 
+      ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / 1000 / 60)
+      : 0;
+
+    // Map questions with user answers
+    const questionsWithAnswers = participation.testSeries.questions.map((question, index) => {
+      const userAnswer = answers[index] || null;
+      const isCorrect = userAnswer === question.correctAns;
+      
+      return {
+        id: question.id,
+        question: question.question,
+        options: question.options,
+        correctAnswer: question.correctAns,
+        userAnswer,
+        isCorrect,
+        explanation: question.explanation
+      };
+    });
+
+    res.json({
+      participant: {
+        id: participation.id,
+        userId: participation.user.id,
+        name: participation.user.fullName,
+        email: participation.user.email,
+        score: correctAnswers,
+        totalQuestions,
+        percentage: parseFloat(percentage),
+        accuracy: parseFloat(percentage),
+        timeTaken,
+        submittedAt: participation.submittedAt,
+        startTime: participation.startTime
+      },
+      contest: {
+        id: participation.testSeries.id,
+        title: participation.testSeries.title
+      },
+      questions: questionsWithAnswers
+    });
+  } catch (error) {
+    console.error('Error getting participant answers:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Export contest results as CSV
+export const exportContestResults = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
     const participants = await prisma.participation.findMany({
       where: {
         testSeriesId: Number(id),
@@ -1507,146 +1421,75 @@ export const getDetailedAnalysis = async (req, res) => {
             email: true
           }
         },
-        // We'll get answers separately since they're in StudentActivity
-      }
-    });
-
-    // Get all answers for this contest
-    const allAnswers = await prisma.studentActivity.findMany({
-      where: {
-        testSeriesId: Number(id)
-      },
-      include: {
-        question: {
+        testSeries: {
           select: {
-            id: true,
-            question: true,
-            options: true,
-            correctAns: true,
-            level: true,
-            category: true,
-            subcategory: true
+            title: true,
+            questions: {
+              select: {
+                id: true
+              }
+            }
           }
         }
       }
     });
 
-    // Question Analysis
-    const questionAnalysis = contest.questions.map(question => {
-      const answersForQuestion = allAnswers.filter(a => a.qid === question.id);
-      
-      const correctAnswers = answersForQuestion.filter(a => 
-        a.selectedAnswer === question.correctAns
-      ).length;
-      
-      const successRate = answersForQuestion.length > 0 ? 
-        (correctAnswers / answersForQuestion.length) * 100 : 0;
+    // Get results for all participants
+    const participantsWithResults = await Promise.all(
+      participants.map(async (participation) => {
+        const result = await prisma.result.findFirst({
+          where: { pid: participation.id }
+        });
 
-      return {
-        questionId: question.id,
-        question: question.question,
-        difficulty: question.level || 'medium',
-        category: question.category || 'General',
-        subcategory: question.subcategory || 'General',
-        successRate,
-        totalAttempts: answersForQuestion.length,
-        correctAttempts: correctAnswers
-      };
-    });
+        const totalQuestions = participation.testSeries.questions.length;
+        const correctAnswers = result?.correct || 0;
+        const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
+        const timeTaken = participation.submittedAt && participation.startTime 
+          ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / 1000 / 60)
+          : 0;
 
-    // Performance Metrics
-    const performanceMetrics = {
-      totalParticipants: participants.length,
-      completedParticipants: participants.filter(p => p.submittedAt).length,
-      averageScore: 0,
-      highestScore: 0,
-      lowestScore: 0,
-      standardDeviation: 0
-    };
-
-    if (participants.length > 0) {
-      const scores = participants.map(p => {
-        const participantAnswers = allAnswers.filter(a => a.sid === p.sid);
-        const correctAnswers = participantAnswers.filter(a => 
-          a.selectedAnswer === a.question.correctAns
-        ).length;
-        return correctAnswers;
-      });
-
-      performanceMetrics.averageScore = scores.reduce((a, b) => a + b, 0) / scores.length;
-      performanceMetrics.highestScore = Math.max(...scores);
-      performanceMetrics.lowestScore = Math.min(...scores);
-      
-      const mean = performanceMetrics.averageScore;
-      const variance = scores.reduce((acc, score) => acc + Math.pow(score - mean, 2), 0) / scores.length;
-      performanceMetrics.standardDeviation = Math.sqrt(variance);
-    }
-
-    // Time Analysis
-    const timeAnalysis = {};
-    participants.forEach(participant => {
-      if (participant.startTime && participant.submittedAt) {
-        const timeTaken = Math.round((new Date(participant.submittedAt) - new Date(participant.startTime)) / (1000 * 60));
-        
-        let timeRange;
-        if (timeTaken <= 30) timeRange = '0-30 min';
-        else if (timeTaken <= 60) timeRange = '31-60 min';
-        else if (timeTaken <= 90) timeRange = '61-90 min';
-        else timeRange = '90+ min';
-        
-        timeAnalysis[timeRange] = (timeAnalysis[timeRange] || 0) + 1;
-      }
-    });
-
-    // Category Analysis
-    const categoryAnalysis = {};
-    contest.questions.forEach(question => {
-      const category = question.category || 'General';
-      if (!categoryAnalysis[category]) {
-        categoryAnalysis[category] = {
-          questionCount: 0,
-          totalAttempts: 0,
-          correctAttempts: 0,
-          averageScore: 0,
-          successRate: 0
+        return {
+          name: participation.user.fullName,
+          email: participation.user.email,
+          score: correctAnswers,
+          totalQuestions,
+          percentage,
+          timeTaken: `${timeTaken} minutes`,
+          submittedAt: participation.submittedAt ? new Date(participation.submittedAt).toLocaleString() : 'Not submitted'
         };
-      }
-      
-      categoryAnalysis[category].questionCount++;
-      
-      const answersForQuestion = participants.flatMap(p => 
-        p.answers.filter(a => a.questionId === question.id)
-      );
-      
-      categoryAnalysis[category].totalAttempts += answersForQuestion.length;
-      categoryAnalysis[category].correctAttempts += answersForQuestion.filter(a => 
-        a.selectedAnswer === question.correctAns
-      ).length;
+      })
+    );
+
+    // Sort by score (highest first)
+    participantsWithResults.sort((a, b) => b.score - a.score);
+
+    // Create CSV content
+    const csvHeaders = ['Rank', 'Name', 'Email', 'Score', 'Total Questions', 'Percentage', 'Time Taken', 'Submitted At'];
+    const csvRows = participantsWithResults.map((participant, index) => [
+      index + 1,
+      participant.name,
+      participant.email,
+      participant.score,
+      participant.totalQuestions,
+      `${participant.percentage}%`,
+      participant.timeTaken,
+      participant.submittedAt
+    ]);
+
+    const csvContent = [csvHeaders, ...csvRows]
+      .map(row => row.map(field => `"${field}"`).join(','))
+      .join('\n');
+
+    const contest = await prisma.testSeries.findUnique({
+      where: { id: Number(id) },
+      select: { title: true }
     });
 
-    // Calculate category metrics
-    Object.keys(categoryAnalysis).forEach(category => {
-      const data = categoryAnalysis[category];
-      data.averageScore = data.totalAttempts > 0 ? data.correctAttempts / data.totalAttempts : 0;
-      data.successRate = data.totalAttempts > 0 ? (data.correctAttempts / data.totalAttempts) * 100 : 0;
-    });
-
-    console.log('Detailed analysis completed successfully');
-    res.json({
-      questionAnalysis,
-      performanceMetrics,
-      timeAnalysis,
-      categoryAnalysis,
-      totalQuestions: contest.questions.length
-    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${contest.title}-results.csv"`);
+    res.send(csvContent);
   } catch (error) {
-    console.error('Error getting detailed analysis:', error);
+    console.error('Error exporting contest results:', error);
     res.status(500).json({ message: error.message });
   }
 };
-
-
-
-
-
-

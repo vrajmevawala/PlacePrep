@@ -4,10 +4,11 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from '../lib/utils.js';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
-import nodemailer from 'nodemailer';
+import { sendWelcomeEmail, sendPasswordResetEmail } from '../lib/emailService.js';
 
 export const signup = async (req, res) => {
     const { fullName, email, password, role } = req.body;
+    
     try {
         if (!fullName || !email || !password) {
             return res.status(400).json({ message: "All fields are required" });
@@ -49,11 +50,20 @@ export const signup = async (req, res) => {
             if (notificationService) {
                 try {
                     await notificationService.notifyWelcome(result.id, result);
-                    console.log(`Welcome notification sent to new user: ${result.fullName}`);
                 } catch (error) {
                     console.error('Failed to send welcome notification:', error);
                 }
             }
+
+            // Send welcome email (non-blocking)
+            sendWelcomeEmail(result.email, result.fullName)
+                .then(() => {
+                    console.log(`Welcome email sent to: ${result.email}`);
+                })
+                .catch((error) => {
+                    console.error('Failed to send welcome email:', error);
+                    // Don't block the signup process if email fails
+                });
 
             generateToken(result.id, result.role, res);
             res.status(201).json({
@@ -66,7 +76,7 @@ export const signup = async (req, res) => {
             res.status(400).json({ message: 'Invalid user data' });
         }
     } catch (error) {
-        console.log("Error in signup controller", error.message);
+        console.error("Error in signup controller:", error);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 };
@@ -127,6 +137,16 @@ export const createModerator = async (req, res) => {
                 created_at: true
             }
         });
+        
+        // Send welcome email to new moderator (non-blocking)
+        sendWelcomeEmail(result.email, result.fullName)
+            .then(() => {
+                console.log(`Welcome email sent to new moderator: ${result.email}`);
+            })
+            .catch((error) => {
+                console.error('Failed to send welcome email to moderator:', error);
+            });
+        
         res.status(201).json({
             _id: result.id,
             role: result.role,
@@ -184,6 +204,15 @@ export const googleAuth = async (req, res) => {
                 }
             });
             user = insertResult;
+            
+            // Send welcome email for new Google OAuth users (non-blocking)
+            sendWelcomeEmail(user.email, user.fullName)
+                .then(() => {
+                    console.log(`Welcome email sent to Google OAuth user: ${user.email}`);
+                })
+                .catch((error) => {
+                    console.error('Failed to send welcome email to Google OAuth user:', error);
+                });
         }
         
         const token = jwt.sign(
@@ -225,52 +254,10 @@ export const forgotPassword = async (req, res) => {
             process.env.JWT_SECRET,
             { expiresIn: '1h' }
         );
-        const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS 
-            }
-        });
-
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Reset Your Password - Action Required',
-            html: `
-                <div style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 40px;">
-                    <div style="max-width: 600px; margin: auto; background: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
-                        <h2 style="color: #333333;">Password Reset Request</h2>
-                        <p style="font-size: 16px; color: #555555;">
-                            We received a request to reset your password. If you did not make this request, you can safely ignore this email.
-                        </p>
-                        <p style="font-size: 16px; color: #555555;">
-                            To reset your password, click the button below. This link will expire in <strong>1 hour</strong>.
-                        </p>
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="${resetLink}" style="background-color: #007BFF; color: #ffffff; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
-                                Reset Password
-                            </a>
-                        </div>
-                        <p style="font-size: 14px; color: #999999;">
-                            If the button doesn't work, you can copy and paste the following link into your browser:
-                        </p>
-                        <p style="font-size: 14px; color: #007BFF; word-break: break-all;">
-                            ${resetLink}
-                        </p>
-                        <hr style="margin-top: 40px; border: none; border-top: 1px solid #eeeeee;" />
-                        <p style="font-size: 12px; color: #aaaaaa; text-align: center;">
-                            This email was sent automatically. Please do not reply to this message.
-                        </p>
-                    </div>
-                </div>
-            `
-        };
-
-
-        await transporter.sendMail(mailOptions);
+        await sendPasswordResetEmail(email, resetLink);
         res.status(200).json({ message: 'Password reset link sent to your email.' });
     } catch (error) {
         console.log('Error in forgotPassword controller', error.message);
@@ -452,3 +439,4 @@ export const deleteModerator = async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+

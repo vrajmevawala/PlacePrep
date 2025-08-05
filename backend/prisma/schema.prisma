@@ -36,7 +36,7 @@ model Question {
   visibility        Boolean           @default(true)
   createdBy         Int
   created_at        DateTime          @default(now())
-  author            User              @relation("UserQuestions", fields: [createdBy], references: [id])
+  author            User              @relation("UserQuestions", fields: [createdBy], references: [id], onDelete: Cascade)
   studentActivities StudentActivity[]
   freePractice      freePractice[]    @relation("FreePracticeQuestions")
   testSeries        TestSeries[]      @relation("TestSeriesQuestions")
@@ -53,7 +53,7 @@ model TestSeries {
   contestCode       String?           @unique
   participations    Participation[]   @relation("TestSeriesParticipation")
   studentActivities StudentActivity[] @relation("TestSeriesToStudentActivity")
-  creator           User              @relation("UserTestSeries", fields: [createdBy], references: [id])
+  creator           User              @relation("UserTestSeries", fields: [createdBy], references: [id], onDelete: Cascade)
   questions         Question[]        @relation("TestSeriesQuestions")
   level             Level?            // Made optional
 }
@@ -69,7 +69,7 @@ model freePractice {
   title             String
   participations    Participation[]   @relation("FreePracticeParticipation")
   studentActivities StudentActivity[] @relation("FreePracticeToStudentActivity")
-  creator           User              @relation("UserFreePractice", fields: [createdBy], references: [id])
+  creator           User              @relation("UserFreePractice", fields: [createdBy], references: [id], onDelete: Cascade)
   questions         Question[]        @relation("FreePracticeQuestions")
 }
 
@@ -85,7 +85,7 @@ model Participation {
   submittedAt    DateTime?
   violations     Int           @default(0)
   freePractice   freePractice? @relation("FreePracticeParticipation", fields: [freePracticeId], references: [id])
-  user           User          @relation(fields: [sid], references: [id])
+  user           User          @relation(fields: [sid], references: [id], onDelete: Cascade)
   testSeries     TestSeries?   @relation("TestSeriesParticipation", fields: [testSeriesId], references: [id])
 }
 
@@ -99,7 +99,7 @@ model StudentActivity {
   freePracticeId Int?
   freePractice   freePractice? @relation("FreePracticeToStudentActivity", fields: [freePracticeId], references: [id], onDelete: Cascade)
   question       Question      @relation(fields: [qid], references: [id], onDelete: Cascade)
-  user           User          @relation(fields: [sid], references: [id])
+  user           User          @relation(fields: [sid], references: [id], onDelete: Cascade)
   testSeries     TestSeries?   @relation("TestSeriesToStudentActivity", fields: [testSeriesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
@@ -113,7 +113,7 @@ model Activity {
 
 model Bookmark {
   id         Int       @id @default(autoincrement())
-  user       User      @relation(fields: [userId], references: [id])
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     Int
   question   Question? @relation(fields: [questionId], references: [id])
   questionId Int?
@@ -150,7 +150,7 @@ model Resource {
   videoUrl    String?     // For video resources
   createdBy   Int
   createdAt   DateTime    @default(now())
-  creator     User        @relation("UserResources", fields: [createdBy], references: [id])
+  creator     User        @relation("UserResources", fields: [createdBy], references: [id], onDelete: Cascade)
   bookmarks   Bookmark[]
 }
 

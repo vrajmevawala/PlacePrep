@@ -192,7 +192,17 @@ function App() {
             <Route path="/resources" element={<Resource user={user} />} />
             <Route path="/contests" element={<Contest user={user} />} />
             <Route path="/practice" element={<Practice user={user} />} />
-            <Route path="/results" element={<Result />} />
+            <Route path="/results" element={
+              user ? (
+                user.role === 'admin' || user.role === 'moderator' ? (
+                  <AdminResults user={user} />
+                ) : (
+                  <Result user={user} />
+                )
+              ) : (
+                <Navigate to="/" />
+              )
+            } />
             <Route path="/bookmarks" element={<Bookmark />} />
             <Route path="/create-contest" element={<CreateContest />} />
             <Route path="/edit-contest/:contestId" element={<CreateContest />} />

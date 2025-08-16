@@ -243,7 +243,7 @@ const Result = () => {
     
     // Contest-specific data
     const rank = type === 'contest' ? getContestRank(test.testSeriesId, correctScore) : null;
-    const participants = type === 'contest' ? (stats[test.testSeriesId]?.scores?.length || 0) : null;
+    const participants = type === 'contest' ? (stats[test.testSeriesId]?.totalParticipants || 0) : null;
 
     return (
       <tr className="hover:bg-gray-50 transition-colors">

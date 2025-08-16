@@ -5,6 +5,7 @@ const Bookmark = () => {
   const [bookmarks, setBookmarks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [unbookmarkedItems, setUnbookmarkedItems] = useState(new Set()); // Track unbookmarked items
 
   const [category, setCategory] = useState('all');
   const [subcategory, setSubcategory] = useState('all');
@@ -83,7 +84,43 @@ const Bookmark = () => {
         body: JSON.stringify(body)
       });
       if (!res.ok) throw new Error('Failed to remove bookmark');
-      setBookmarks(prev => prev.filter(b => b.id !== bm.id));
+      
+      // Mark as unbookmarked instead of removing from view
+      setUnbookmarkedItems(prev => new Set(prev).add(bm.id));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleReBookmark = async (bm) => {
+    try {
+      let res;
+      
+      if (bm.questionId) {
+        // Re-bookmark a question
+        res = await fetch('/api/questions/bookmarks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ questionId: bm.questionId })
+        });
+      } else {
+        // Re-bookmark a resource
+        res = await fetch(`/api/resources/bookmark/${bm.resourceId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+      }
+      
+      if (!res.ok) throw new Error('Failed to add bookmark');
+      
+      // Remove from unbookmarked items
+      setUnbookmarkedItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(bm.id);
+        return newSet;
+      });
     } catch (err) {
       setError(err.message);
     }
@@ -142,7 +179,14 @@ const Bookmark = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <h1 className="text-4xl font-extrabold text-center text-black drop-shadow mb-10">Bookmarks</h1>
+      <div className="text-center mb-10">
+        <h1 className="text-4xl font-extrabold text-black drop-shadow mb-2">Bookmarks</h1>
+        {unbookmarkedItems.size > 0 && (
+          <p className="text-sm text-gray-600">
+            {unbookmarkedItems.size} item{unbookmarkedItems.size !== 1 ? 's' : ''} unbookmarked - click "Refresh" to clear
+          </p>
+        )}
+      </div>
 
       <div className="flex flex-col lg:flex-row gap-10 justify-center">
         {/* Filter Panel */}
@@ -210,6 +254,17 @@ const Bookmark = () => {
             >
               Search Now
             </button>
+            {unbookmarkedItems.size > 0 && (
+              <button
+                onClick={() => {
+                  setUnbookmarkedItems(new Set());
+                  fetchBookmarks();
+                }}
+                className="w-full mt-2 px-6 py-2 bg-gray-600 text-white font-bold rounded-sm border border-gray-600 hover:bg-gray-700"
+              >
+                Refresh (Clear Unbookmarked)
+              </button>
+            )}
             {error && <p className="text-sm text-red-500 text-center">{error}</p>}
           </div>
         </div>
@@ -224,10 +279,16 @@ const Bookmark = () => {
                 // Handle question bookmarks
                 if (bm.question) {
                   const q = bm.question;
+                  const isUnbookmarked = unbookmarkedItems.has(bm.id);
+                  
                   return (
                     <div
                       key={bm.id}
-                      className="bg-white rounded-sm shadow p-6 border border-gray-200 hover:shadow-xl transition"
+                      className={`rounded-sm shadow p-6 border transition ${
+                        isUnbookmarked 
+                          ? 'bg-gray-50 border-gray-300 opacity-75' 
+                          : 'bg-white border-gray-200 hover:shadow-xl'
+                      }`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                         <div className="text-lg font-bold text-black">Q{idx + 1}.</div>
@@ -238,11 +299,24 @@ const Bookmark = () => {
                           Category: <span className="font-semibold">{q.category}</span> | Subcategory:{' '}
                           <span className="font-semibold">{q.subcategory}</span>
                         </div>
-                        <BookmarkCheck
-                          className="w-5 h-5 text-yellow-500 cursor-pointer"
-                          title="Remove Bookmark"
-                          onClick={() => handleRemoveBookmark(bm)}
-                        />
+                        {isUnbookmarked ? (
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs text-gray-500 italic">Unbookmarked</span>
+                            <button
+                              onClick={() => handleReBookmark(bm)}
+                              className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                              title="Re-bookmark"
+                            >
+                              Re-bookmark
+                            </button>
+                          </div>
+                        ) : (
+                          <BookmarkCheck
+                            className="w-5 h-5 text-yellow-500 cursor-pointer"
+                            title="Remove Bookmark"
+                            onClick={() => handleRemoveBookmark(bm)}
+                          />
+                        )}
                       </div>
 
                       <div className="mb-4 text-black font-medium text-lg">{q.question}</div>
@@ -287,10 +361,16 @@ const Bookmark = () => {
                 // Handle resource bookmarks
                 if (bm.resource) {
                   const r = bm.resource;
+                  const isUnbookmarked = unbookmarkedItems.has(bm.id);
+                  
                   return (
                     <div
                       key={bm.id}
-                      className="bg-white rounded-sm shadow p-6 border border-gray-200 hover:shadow-xl transition"
+                      className={`rounded-sm shadow p-6 border transition ${
+                        isUnbookmarked 
+                          ? 'bg-gray-50 border-gray-300 opacity-75' 
+                          : 'bg-white border-gray-200 hover:shadow-xl'
+                      }`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                         <div className="flex items-center space-x-3">
@@ -305,11 +385,24 @@ const Bookmark = () => {
                           Category: <span className="font-semibold">{r.category}</span> | Subcategory:{' '}
                           <span className="font-semibold">{r.subcategory}</span>
                         </div>
-                        <BookmarkCheck
-                          className="w-5 h-5 text-yellow-500 cursor-pointer"
-                          title="Remove Bookmark"
-                          onClick={() => handleRemoveBookmark(bm)}
-                        />
+                        {isUnbookmarked ? (
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs text-gray-500 italic">Unbookmarked</span>
+                            <button
+                              onClick={() => handleReBookmark(bm)}
+                              className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                              title="Re-bookmark"
+                            >
+                              Re-bookmark
+                            </button>
+                          </div>
+                        ) : (
+                          <BookmarkCheck
+                            className="w-5 h-5 text-yellow-500 cursor-pointer"
+                            title="Remove Bookmark"
+                            onClick={() => handleRemoveBookmark(bm)}
+                          />
+                        )}
                       </div>
 
                       <div className="mb-4 text-black font-medium text-lg">{r.title}</div>

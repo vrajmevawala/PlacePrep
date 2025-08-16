@@ -4,6 +4,7 @@ import {
   Trophy, 
   CheckCircle, 
   XCircle, 
+  MinusCircle,
   Clock, 
   BarChart3, 
   ArrowLeft, 
@@ -47,6 +48,17 @@ const ContestResults = () => {
         if (resultsResponse.ok) {
           const resultsData = await resultsResponse.json();
           setResults(resultsData);
+          
+          // Also fetch contest info to determine if contest has ended
+          const contestResponse = await fetch(`/api/testseries/${contestId}`, {
+            credentials: 'include'
+          });
+          
+          if (contestResponse.ok) {
+            const contestData = await contestResponse.json();
+            setContest(contestData.testSeries);
+          }
+          
           setLoading(false);
           return;
         } else if (resultsResponse.status === 403) {
@@ -139,10 +151,28 @@ const ContestResults = () => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Check if contest has ended
-  const isContestEnded = contest && new Date() > new Date(contest.endTime);
+  // Check if contest has ended - use UTC comparison to avoid timezone issues
+  const isContestEnded = contest && new Date().getTime() > new Date(contest.endTime).getTime();
   
-  if (!results || !isContestEnded) {
+  // Debug logging for troubleshooting
+  // console.log('Contest ended:', isContestEnded);
+  // console.log('Has results:', !!results);
+  // console.log('Results data:', results);
+  // console.log('Current time (UTC):', new Date().toISOString());
+  // console.log('Contest end time (UTC):', contest?.endTime);
+  // console.log('Contest end time (local):', contest ? new Date(contest.endTime).toLocaleString() : 'N/A');
+  // console.log('hasResultsFromSubmission:', hasResultsFromSubmission);
+  // console.log('hasFetchedResults:', hasFetchedResults);
+  // console.log('shouldShowResults:', shouldShowResults);
+  // console.log('results.hasParticipated:', results?.hasParticipated);
+  // console.log('results.correct:', results?.correct);
+  
+  // Check if we have results from submission or if we have fetched results showing participation
+  const hasResultsFromSubmission = location.state?.results && location.state.submitted;
+  const hasFetchedResults = results && results.hasParticipated;
+  const shouldShowResults = hasResultsFromSubmission || hasFetchedResults;
+  
+  if (!shouldShowResults) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -152,7 +182,7 @@ const ContestResults = () => {
             {contest ? (
               <>
                 Contest: <span className="font-semibold">{contest.title}</span><br />
-                Ends: <span className="font-semibold">{new Date(contest.endTime).toLocaleString()}</span>
+                Ends: <span className="font-semibold">{new Date(contest.endTime).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
               </>
             ) : (
               "Results will be available after the contest ends."
@@ -189,10 +219,17 @@ const ContestResults = () => {
     );
   }
 
-  const score = results.correct || results.correctAnswers || 0;
-  const totalQuestions = results.totalQuestions || 0;
+  // Use results from submission state if available, otherwise use fetched results
+  const finalResults = location.state?.results || results;
+  
+  const score = finalResults.correct || finalResults.correctAnswers || 0;
+  const totalQuestions = finalResults.totalQuestions || 0;
   const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
-  const timeTaken = results.timeTaken || 0;
+  const timeTaken = finalResults.timeTaken || 0;
+  
+  // Debug logging for troubleshooting
+  // console.log('Final results data:', finalResults);
+  // console.log('Score:', score, 'Total:', totalQuestions, 'Percentage:', percentage);
 
   const getPerformanceColor = (percentage) => {
     if (percentage >= 90) return 'text-green-600';
@@ -230,10 +267,10 @@ const ContestResults = () => {
         <div className="bg-white border border-gray-200 p-8 mb-8">
           <h2 className="text-2xl font-bold text-black mb-6 flex items-center">
             <BarChart3 className="w-6 h-6 mr-3 text-black" />
-            {results?.hasParticipated ? 'Performance Summary' : 'Contest Information'}
+            {finalResults?.hasParticipated ? 'Performance Summary' : 'Contest Information'}
           </h2>
           
-          {results?.hasParticipated ? (
+          {finalResults?.hasParticipated ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {/* Score */}
               <div className="text-center p-6 bg-gray-50 border border-gray-200">
@@ -284,18 +321,18 @@ const ContestResults = () => {
           )}
 
           {/* Violation Information - Only show for participants */}
-          {results?.hasParticipated && results.violations > 0 && (
+          {finalResults?.hasParticipated && finalResults.violations > 0 && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center space-x-2 mb-2">
                 <AlertTriangle className="w-5 h-5 text-red-600" />
                 <h4 className="text-lg font-semibold text-red-800">Security Violations</h4>
               </div>
               <p className="text-red-700">
-                {results.violations === 1 
+                {finalResults.violations === 1 
                   ? '1 security violation was recorded during this contest.'
-                  : `${results.violations} security violations were recorded during this contest.`
+                  : `${finalResults.violations} security violations were recorded during this contest.`
                 }
-                {results.autoSubmitted && ' Contest was automatically submitted due to multiple violations.'}
+                {finalResults.autoSubmitted && ' Contest was automatically submitted due to multiple violations.'}
               </p>
             </div>
           )}
@@ -303,12 +340,12 @@ const ContestResults = () => {
           {/* Performance Message */}
           <div className="text-center p-6 bg-gray-50 border border-gray-200">
             <div className="text-lg font-semibold text-black mb-2">
-              {results?.hasParticipated ? getPerformanceMessage(percentage) : 'Contest has been completed'}
+              {finalResults?.hasParticipated ? getPerformanceMessage(percentage) : 'Contest has been completed'}
             </div>
             <div className="text-sm text-gray-600">
               Contest: {contest?.title}
             </div>
-            {!results?.hasParticipated && (
+            {!finalResults?.hasParticipated && (
               <div className="text-sm text-gray-500 mt-2">
                 You did not participate in this contest
               </div>
@@ -316,60 +353,129 @@ const ContestResults = () => {
           </div>
         </div>
 
-        {/* Detailed Results - Only show for participants */}
-        {results?.hasParticipated && (results.questionResults || results.details) && (results.questionResults || results.details).length > 0 && (
+
+
+                {/* Detailed Results - Only show for participants */}
+        {finalResults?.hasParticipated && (
           <div className="bg-white border border-gray-200 p-8 mb-8">
             <h3 className="text-xl font-bold text-black mb-6 flex items-center">
               <Target className="w-5 h-5 mr-3 text-black" />
               Question Analysis
             </h3>
             
-            <div className="space-y-4">
-              {(results.questionResults || results.details).map((result, index) => (
-                <div
-                  key={index}
-                  className={`p-4 border ${
-                    result.isCorrect 
-                      ? 'border-green-200 bg-green-50' 
-                      : 'border-red-200 bg-red-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-sm font-semibold text-black">
-                          Question ID: {result.questionId}
+            {(finalResults.questionResults || finalResults.details) && (finalResults.questionResults || finalResults.details).length > 0 ? (
+              <div className="space-y-6">
+              {(finalResults.questionResults || finalResults.details).map((result, index) => {
+                const userAnswer = result.userAnswer || result.selected;
+                const correctAnswer = result.correctAnswer || result.correct;
+                const options = result.options || {};
+                const isAttempted = result.isAttempted || userAnswer;
+                
+                return (
+                  <div
+                    key={index}
+                    className={`p-6 border rounded-lg ${
+                      result.isCorrect 
+                        ? 'border-green-200 bg-green-50' 
+                        : result.isAttempted || userAnswer
+                        ? 'border-red-200 bg-red-50'
+                        : 'border-gray-200 bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-lg font-semibold text-black">
+                          Question {index + 1}
                         </span>
                         {result.isCorrect ? (
-                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Correct
+                          </span>
+                        ) : isAttempted ? (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                            <XCircle className="w-4 h-4 mr-1" />
+                            Wrong
+                          </span>
                         ) : (
-                          <XCircle className="w-4 h-4 text-red-600" />
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                            <MinusCircle className="w-4 h-4 mr-1" />
+                            Not Attempted
+                          </span>
                         )}
-                      </div>
-                      <p className="text-gray-700 mb-2">{result.question}</p>
-                      <div className="text-sm space-y-1">
-                        <p className="text-gray-600">
-                          Your Answer: <span className="font-medium">{result.userAnswer || result.selected || 'Not answered'}</span>
-                        </p>
-                        {!result.isCorrect && (
-                          <p className="text-green-600">
-                            Correct Answer: <span className="font-medium">{result.correctAnswer || result.correct}</span>
-                          </p>
-                        )}
-                        <p className="text-gray-500">
-                          Status: <span className="font-medium">{result.isAttempted ? 'Attempted' : 'Not Attempted'}</span>
-                        </p>
                       </div>
                     </div>
+                    
+                    <div className="mb-4">
+                      <p className="text-lg text-gray-900 font-medium mb-4">{result.question}</p>
+                      
+                      <div className="space-y-2">
+                        {Object.entries(options).map(([key, value]) => {
+                          const isCorrect = key === correctAnswer;
+                          const isSelected = key === userAnswer;
+                          const isWrongSelection = isSelected && !isCorrect;
+                          
+                          return (
+                            <div
+                              key={key}
+                              className={`p-3 border rounded-lg ${
+                                isCorrect 
+                                  ? 'border-green-500 bg-green-100 text-green-800' 
+                                  : isWrongSelection
+                                  ? 'border-red-500 bg-red-100 text-red-800'
+                                  : 'border-gray-200 bg-white text-gray-700'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
+                                  isCorrect 
+                                    ? 'bg-green-500 text-white' 
+                                    : isWrongSelection
+                                    ? 'bg-red-500 text-white'
+                                    : 'bg-gray-200 text-gray-600'
+                                }`}>
+                                  {key.toUpperCase()}
+                                </span>
+                                <span className="flex-1">{value}</span>
+                                {isCorrect && (
+                                  <CheckCircle className="w-5 h-5 text-green-600" />
+                                )}
+                                {isWrongSelection && (
+                                  <XCircle className="w-5 h-5 text-red-600" />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    
+                    <div className="text-sm space-y-2 text-gray-600">
+                      {isAttempted && (
+                        <p>
+                          <span className="font-medium">Your Answer:</span> {userAnswer ? `${userAnswer.toUpperCase()}. ${options[userAnswer]}` : 'Not answered'}
+                        </p>
+                      )}
+                      {!result.isCorrect && isAttempted && (
+                        <p>
+                          <span className="font-medium text-green-600">Correct Answer:</span> {correctAnswer ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer]}` : 'Not available'}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No question details available
+            </div>
+          )}
           </div>
         )}
 
         {/* Contest Questions - Show for non-participants */}
-        {!results?.hasParticipated && (results.questionResults || results.details) && (results.questionResults || results.details).length > 0 && (
+        {!finalResults?.hasParticipated && (finalResults.questionResults || finalResults.details) && (finalResults.questionResults || finalResults.details).length > 0 && (
           <div className="bg-white border border-gray-200 p-8 mb-8">
             <h3 className="text-xl font-bold text-black mb-6 flex items-center">
               <Target className="w-5 h-5 mr-3 text-black" />
@@ -381,27 +487,70 @@ const ContestResults = () => {
               </p>
             </div>
             
-            <div className="space-y-4">
-              {(results.questionResults || results.details).map((result, index) => (
-                <div
-                  key={index}
-                  className="p-4 border border-gray-200 bg-gray-50"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span className="text-sm font-semibold text-black">
-                        Question {index + 1}
-                      </span>
+            <div className="space-y-6">
+              {(finalResults.questionResults || finalResults.details).map((result, index) => {
+                const options = result.options || {};
+                const correctAnswer = result.correctAnswer || result.correct;
+                
+                return (
+                  <div
+                    key={index}
+                    className="p-6 border border-gray-200 bg-gray-50 rounded-lg"
+                  >
+                    <div className="mb-4">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <span className="text-lg font-semibold text-black">
+                          Question {index + 1}
+                        </span>
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                          Contest Question
+                        </span>
+                      </div>
+                      
+                      <p className="text-lg text-gray-900 font-medium mb-4">{result.question}</p>
+                      
+                      <div className="space-y-2">
+                        {Object.entries(options).map(([key, value]) => {
+                          const isCorrect = key === correctAnswer;
+                          
+                          return (
+                            <div
+                              key={key}
+                              className={`p-3 border rounded-lg ${
+                                isCorrect 
+                                  ? 'border-green-500 bg-green-100 text-green-800' 
+                                  : 'border-gray-200 bg-white text-gray-700'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
+                                  isCorrect 
+                                    ? 'bg-green-500 text-white' 
+                                    : 'bg-gray-200 text-gray-600'
+                                }`}>
+                                  {key.toUpperCase()}
+                                </span>
+                                <span className="flex-1">{value}</span>
+                                {isCorrect && (
+                                  <CheckCircle className="w-5 h-5 text-green-600" />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <p className="text-gray-700 mb-2">{result.question}</p>
-                    <div className="text-sm space-y-1">
-                      <p className="text-gray-500">
-                        Options: {Object.keys(result.options || {}).map(key => `${key.toUpperCase()}. ${result.options[key]}`).join(', ')}
-                      </p>
-                    </div>
+                    
+                    {correctAnswer && (
+                      <div className="text-sm text-gray-600">
+                        <p>
+                          <span className="font-medium text-green-600">Correct Answer:</span> {correctAnswer ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer]}` : 'Not available'}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

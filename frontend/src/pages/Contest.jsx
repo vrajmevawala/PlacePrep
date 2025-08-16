@@ -58,9 +58,9 @@ const Contest = ({ user }) => {
 
   const now = new Date().getTime();
   const getContestStatus = (contest) => {
-    const now = new Date();
-    const start = new Date(contest.startTime);
-    const end = new Date(contest.endTime);
+    const now = new Date().getTime();
+    const start = new Date(contest.startTime).getTime();
+    const end = new Date(contest.endTime).getTime();
     if (now < start) return 'upcoming';
     if (now >= start && now <= end) return 'live';
     return 'completed';
@@ -93,10 +93,10 @@ const Contest = ({ user }) => {
   };
 
   const isContestCompletedMoreThanOneDay = (contest) => {
-    const now = new Date();
-    const end = new Date(contest.endTime);
+    const now = new Date().getTime();
+    const end = new Date(contest.endTime).getTime();
     const oneDayInMs = 24 * 60 * 60 * 1000;
-    return now.getTime() - end.getTime() > oneDayInMs;
+    return now - end > oneDayInMs;
   };
 
   const canCreateContest = user && (user.role === 'admin' || user.role === 'moderator');

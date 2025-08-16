@@ -313,14 +313,19 @@ export const submitTestSeriesAnswers = async (req, res) => {
     }
 
     // Update participation (set endTime, submittedAt, and violations)
+    const endTime = new Date();
     await prisma.participation.updateMany({
       where: { sid: userId, testSeriesId: Number(id) },
       data: { 
-        endTime: new Date(),
-        submittedAt: new Date(),
+        endTime: endTime,
+        submittedAt: endTime,
         violations: currentViolations
       }
     });
+    
+    // Calculate time taken in minutes
+    const timeTaken = participation.startTime ? 
+      Math.round((endTime.getTime() - new Date(participation.startTime).getTime()) / (1000 * 60)) : 0;
     
     // Log student activity for each question (create a new record for every answer)
     const now = new Date();
@@ -356,6 +361,7 @@ export const submitTestSeriesAnswers = async (req, res) => {
       correct: score, // Add this for consistency
       total: testSeries.questions.length,
       attempted,
+      timeTaken: timeTaken, // Add time taken to top level
       autoSubmitted,
       violations: currentViolations,
       results: {
@@ -363,7 +369,7 @@ export const submitTestSeriesAnswers = async (req, res) => {
         correct: score, // Add this for consistency
         totalQuestions: testSeries.questions.length,
         attemptedQuestions: attempted,
-        timeTaken: 0, // You can calculate this from start/end time if needed
+        timeTaken: timeTaken, // Calculate time taken in minutes
         questionResults
       }
     });
@@ -467,6 +473,12 @@ export const getUserContestResult = async (req, res) => {
     let attempted = 0;
     const questionResults = [];
     
+    // Calculate time taken if participation exists
+    let timeTaken = 0;
+    if (participation && participation.startTime && participation.endTime) {
+      timeTaken = Math.round((new Date(participation.endTime).getTime() - new Date(participation.startTime).getTime()) / (1000 * 60));
+    }
+    
     // Process each question
     contest.questions.forEach(question => {
       const activity = activities.find(act => act.qid === question.id);
@@ -497,12 +509,206 @@ export const getUserContestResult = async (req, res) => {
       attempted,
       correct,
       correctAnswers: correct, // Add this for consistency
+      timeTaken: timeTaken,
       violations: participation?.violations || 0,
       autoSubmitted: participation?.violations >= 2,
       hasParticipated: !!participation,
       questionResults
     });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get contest leaderboard
+export const getContestLeaderboard = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get all participations for this contest with user details
+    const participations = await prisma.participation.findMany({
+      where: { testSeriesId: Number(id) },
+      select: {
+        sid: true,
+        startTime: true,
+        endTime: true,
+        submittedAt: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true
+          }
+        }
+      },
+      orderBy: {
+        submittedAt: 'asc' // First to submit gets higher rank in case of tie
+      }
+    });
+    
+    console.log('Raw participations data:', JSON.stringify(participations, null, 2));
+
+    // Get all users' StudentActivity for this contest
+    const allActivities = await prisma.studentActivity.findMany({
+      where: { testSeriesId: Number(id) }
+    });
+
+    // Get correct answers for all questions in this contest
+    const contest = await prisma.testSeries.findUnique({
+      where: { id: Number(id) },
+      select: { 
+        startTime: true,
+        endTime: true,
+        questions: { 
+          select: { 
+            id: true, 
+            correctAns: true
+          } 
+        } 
+      }
+    });
+
+    if (!contest) {
+      return res.status(404).json({ message: 'Contest not found.' });
+    }
+
+    const correctMap = {};
+    contest.questions.forEach(q => { correctMap[q.id] = q.correctAns; });
+    const totalQuestions = contest.questions.length;
+
+    // Calculate scores for each user
+    const userScores = {};
+    allActivities.forEach(act => {
+      if (!userScores[act.sid]) userScores[act.sid] = { correct: 0, attempted: 0 };
+      const hasAnswer = act.selectedAnswer && act.selectedAnswer.trim() !== '' && act.selectedAnswer !== 'null';
+      if (hasAnswer) userScores[act.sid].attempted++;
+      if (hasAnswer && correctMap[act.qid] === act.selectedAnswer) userScores[act.sid].correct++;
+    });
+
+    // Create leaderboard entries
+    const leaderboard = participations.map(participation => {
+      const userScore = userScores[participation.sid] || { correct: 0, attempted: 0 };
+      const percentage = totalQuestions > 0 ? (userScore.correct / totalQuestions) * 100 : 0;
+      const accuracy = userScore.attempted > 0 ? (userScore.correct / userScore.attempted) * 100 : 0;
+      
+      // Debug logging for time calculation
+      console.log(`=== Time calculation for ${participation.user.fullName} ===`);
+      console.log('Participation data:', {
+        startTime: participation.startTime,
+        endTime: participation.endTime,
+        submittedAt: participation.submittedAt
+      });
+      console.log('Contest data:', {
+        startTime: contest.startTime,
+        endTime: contest.endTime
+      });
+      
+      let timeTaken = 0;
+      
+      // Method 1: Use participation startTime and endTime
+      if (participation.startTime && participation.endTime) {
+        const startTime = new Date(participation.startTime);
+        const endTime = new Date(participation.endTime);
+        
+        // Validate dates
+        if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+          console.log('Invalid dates detected:', { startTime: participation.startTime, endTime: participation.endTime });
+        } else {
+          timeTaken = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+          console.log('Method 1 (startTime-endTime):', timeTaken, 'minutes');
+          console.log('Start time:', startTime.toISOString());
+          console.log('End time:', endTime.toISOString());
+        }
+      }
+      // Method 2: Use participation startTime and submittedAt
+      else if (participation.startTime && participation.submittedAt) {
+        const startTime = new Date(participation.startTime);
+        const submittedAt = new Date(participation.submittedAt);
+        
+        // Validate dates
+        if (isNaN(startTime.getTime()) || isNaN(submittedAt.getTime())) {
+          console.log('Invalid dates detected:', { startTime: participation.startTime, submittedAt: participation.submittedAt });
+        } else {
+          timeTaken = Math.round((submittedAt.getTime() - startTime.getTime()) / (1000 * 60));
+          console.log('Method 2 (startTime-submittedAt):', timeTaken, 'minutes');
+          console.log('Start time:', startTime.toISOString());
+          console.log('Submitted at:', submittedAt.toISOString());
+        }
+      }
+      // Method 2.5: Use contest startTime and participation submittedAt (fallback for missing participation startTime)
+      else if (contest.startTime && participation.submittedAt) {
+        const startTime = new Date(contest.startTime);
+        const submittedAt = new Date(participation.submittedAt);
+        
+        // Validate dates
+        if (isNaN(startTime.getTime()) || isNaN(submittedAt.getTime())) {
+          console.log('Invalid dates detected:', { startTime: contest.startTime, submittedAt: participation.submittedAt });
+        } else {
+          timeTaken = Math.round((submittedAt.getTime() - startTime.getTime()) / (1000 * 60));
+          console.log('Method 2.5 (contest startTime-submittedAt):', timeTaken, 'minutes');
+          console.log('Contest start time:', startTime.toISOString());
+          console.log('Submitted at:', submittedAt.toISOString());
+        }
+      }
+      // Method 3: Use contest startTime and endTime
+      else if (contest.startTime && contest.endTime) {
+        const startTime = new Date(contest.startTime);
+        const endTime = new Date(contest.endTime);
+        
+        // Validate dates
+        if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+          console.log('Invalid contest dates detected:', { startTime: contest.startTime, endTime: contest.endTime });
+        } else {
+          timeTaken = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+          console.log('Method 3 (contest duration):', timeTaken, 'minutes');
+          console.log('Contest start time:', startTime.toISOString());
+          console.log('Contest end time:', endTime.toISOString());
+        }
+      }
+      else {
+        console.log('No time data available, using 0');
+      }
+      
+      console.log('Final timeTaken:', timeTaken, 'minutes');
+      console.log('=====================================');
+      
+      return {
+        rank: 0, // Will be calculated below
+        userId: participation.sid,
+        userName: participation.user.fullName,
+        userEmail: participation.user.email,
+        correct: userScore.correct,
+        attempted: userScore.attempted,
+        totalQuestions: totalQuestions,
+        percentage: Math.round(percentage * 100) / 100,
+        accuracy: Math.round(accuracy * 100) / 100,
+        submittedAt: participation.submittedAt,
+        timeTaken: timeTaken
+      };
+    });
+
+    // Sort by score (descending), then by submission time (ascending for tie-break)
+    leaderboard.sort((a, b) => {
+      if (b.correct !== a.correct) return b.correct - a.correct;
+      if (a.submittedAt && b.submittedAt) {
+        return new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime();
+      }
+      return 0;
+    });
+
+    // Assign ranks
+    leaderboard.forEach((entry, index) => {
+      entry.rank = index + 1;
+    });
+
+    res.json({
+      contestId: Number(id),
+      totalParticipants: leaderboard.length,
+      totalQuestions: totalQuestions,
+      leaderboard: leaderboard
+    });
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error);
     res.status(500).json({ message: error.message });
   }
 };

@@ -463,14 +463,29 @@ router.get('/ai/test', authMiddleware, async (req, res) => {
 // AI Assistant Chat
 router.post('/ai/chat', authMiddleware, async (req, res) => {
   try {
-    const { message, context } = req.body;
+    const { message, context, mode = 'concise', history = [] } = req.body;
     
     if (!message) {
       return res.status(400).json({ message: 'Message is required' });
     }
 
-    // Create a more intelligent prompt based on context
-    let systemPrompt = `You are an AI study assistant for a placement preparation platform. You help students with:
+    // Configure response length
+    const normalizedMode = ['concise', 'balanced', 'detailed'].includes((mode || '').toLowerCase())
+      ? (mode || '').toLowerCase()
+      : 'concise';
+    const modeToTokens = {
+      concise: 200,
+      balanced: 350,
+      detailed: 700
+    };
+    const brevityGuidelines = {
+      concise: 'Keep the answer under 120 words. Prefer 3-5 short bullet points or a tight paragraph. Avoid fluff.',
+      balanced: 'Keep the answer under 250 words. Be clear and structured with brief bullets where helpful.',
+      detailed: 'You may be thorough but stay within 500 words. Use clear sections and bullets as needed.'
+    };
+
+    // Create a more intelligent prompt based on context and chat history
+    const systemPrompt = `You are an AI study assistant for a placement preparation platform. You help students with:
 
 1. Aptitude questions and problem-solving techniques
 2. DSA (Data Structures and Algorithms) concepts and implementations
@@ -479,17 +494,37 @@ router.post('/ai/chat', authMiddleware, async (req, res) => {
 
 Current context: ${context || 'General study assistance'}
 
-Please provide helpful, accurate, and educational responses. If you're not sure about something, say so rather than guessing.`;
+Style constraints: ${brevityGuidelines[normalizedMode]}
+If you are not sure, say so rather than guessing. Prefer direct, actionable answers.`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    // Prepare recent chat history (last 10 messages max)
+    const recentHistory = Array.isArray(history) ? history.slice(-10) : [];
+    const historyText = recentHistory
+      .map((h) => {
+        const role = h.type === 'user' ? 'User' : 'Assistant';
+        const content = (h.message || '').toString();
+        return `${role}: ${content}`;
+      })
+      .join('\n');
+
+    const historyBlock = historyText ? `\n\nChat history (most recent first):\n${historyText}\n\n` : '\n\n';
+
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.0-flash",
+      generationConfig: {
+        maxOutputTokens: modeToTokens[normalizedMode],
+        temperature: 0.7,
+      }
+    });
     
-    const result = await model.generateContent([systemPrompt, message]);
+    const result = await model.generateContent([systemPrompt, `${historyBlock}User: ${message}\nAssistant:`]);
     const response = await result.response;
     const text = response.text();
 
     res.json({ 
       message: text,
-      timestamp: new Date()
+      timestamp: new Date(),
+      mode: normalizedMode
     });
   } catch (error) {
     console.error('Error in AI chat:', error);

@@ -696,7 +696,7 @@ export const getUserContestResult = async (req, res) => {
       timeTaken: timeTaken,
       violations: participation?.violations || 0,
       autoSubmitted: participation?.violations >= 2 || isTimeBasedAutoSubmit,
-      timeTaken: isTimeBasedAutoSubmit ? 'Auto-submitted (time expired)' : 'N/A',
+      autoSubmitNote: isTimeBasedAutoSubmit ? 'Auto-submitted (time expired)' : null,
       hasParticipated: !!participation,
       questionResults
     });

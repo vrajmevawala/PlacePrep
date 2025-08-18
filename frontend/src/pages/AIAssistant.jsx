@@ -1,4 +1,66 @@
 import React, { useState, useEffect, useRef } from 'react';
+
+// Lightweight markdown rendering for bold, inline code, and lists
+const escapeHtml = (str) => {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
+const applyInlineFormatting = (str) => {
+  const escaped = escapeHtml(str);
+  // Inline code first to prevent formatting inside code
+  const withCode = escaped.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Bold
+  const withBold = withCode.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  return withBold;
+};
+
+const parseMarkdownToHtml = (md) => {
+  const lines = (md || '').split('\n');
+  let html = '';
+  let inUl = false;
+  let inOl = false;
+
+  const closeLists = () => {
+    if (inUl) { html += '</ul>'; inUl = false; }
+    if (inOl) { html += '</ol>'; inOl = false; }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine || '';
+    let match;
+    if ((match = line.match(/^\s*[-*]\s+(.*)$/))) {
+      if (!inUl) {
+        if (inOl) { html += '</ol>'; inOl = false; }
+        html += '<ul>';
+        inUl = true;
+      }
+      html += `<li>${applyInlineFormatting(match[1])}</li>`;
+      continue;
+    }
+    if ((match = line.match(/^\s*\d+\.\s+(.*)$/))) {
+      if (!inOl) {
+        if (inUl) { html += '</ul>'; inUl = false; }
+        html += '<ol>';
+        inOl = true;
+      }
+      html += `<li>${applyInlineFormatting(match[1])}</li>`;
+      continue;
+    }
+    // Paragraph
+    closeLists();
+    if (line.trim() === '') {
+      continue;
+    }
+    html += `<p>${applyInlineFormatting(line)}</p>`;
+  }
+  closeLists();
+  return html;
+};
 import { 
   Brain, 
   Send, 
@@ -15,16 +77,24 @@ import {
 
 const AIAssistant = ({ user }) => {
   // AI Chat State
-  const [chatMessages, setChatMessages] = useState([
-    {
+  const [chatMessages, setChatMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ai_chat_messages');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+      }
+    } catch {}
+    return [{
       id: 1,
       type: 'bot',
-      message: "Hi! I'm your AI study assistant powered by Gemini. I can help you with:\n• Solving MCQs and explaining concepts\n• Aptitude and DSA problem-solving\n• Technical interview preparation\n• Analyzing PDFs and images\n• Study tips and strategies\n\nWhat would you like help with today?",
+      message: "Hi! I'm your AI study assistant. Ask me anything about aptitude, DSA, or interviews.",
       timestamp: new Date()
-    }
-  ]);
+    }];
+  });
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [responseMode, setResponseMode] = useState(() => localStorage.getItem('ai_response_mode') || 'concise');
 
   // File Analysis State
   const [selectedAnalysisFile, setSelectedAnalysisFile] = useState(null);
@@ -40,6 +110,19 @@ const AIAssistant = ({ user }) => {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [chatMessages]);
+
+  // Persist chat history
+  useEffect(() => {
+    try {
+      const serializable = chatMessages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() }));
+      localStorage.setItem('ai_chat_messages', JSON.stringify(serializable));
+    } catch {}
+  }, [chatMessages]);
+
+  // Persist mode
+  useEffect(() => {
+    localStorage.setItem('ai_response_mode', responseMode);
+  }, [responseMode]);
 
   // Handle file selection for analysis
   const handleAnalysisFileSelect = (event) => {
@@ -132,7 +215,9 @@ const AIAssistant = ({ user }) => {
         credentials: 'include',
         body: JSON.stringify({
           message: newMessage,
-          context: 'AI Assistant - General study help'
+          context: 'AI Assistant - General study help',
+          mode: responseMode,
+          history: chatMessages.slice(-10).map(m => ({ type: m.type, message: m.message }))
         })
       });
 
@@ -167,6 +252,17 @@ const AIAssistant = ({ user }) => {
     } finally {
       setIsTyping(false);
     }
+  };
+
+  const handleClearChat = () => {
+    setChatMessages([
+      {
+        id: Date.now(),
+        type: 'bot',
+        message: "Chat cleared. How can I help you next?",
+        timestamp: new Date()
+      }
+    ]);
   };
 
   return (
@@ -206,10 +302,17 @@ const AIAssistant = ({ user }) => {
                           className={`max-w-xs px-4 py-3 rounded-2xl ${
                             message.type === 'user'
                               ? 'bg-black text-white'
-                              : 'bg-green-100 text-gray-800 shadow-sm border border-green-200'
+                              : 'bg-white text-gray-900 shadow-sm border border-gray-200'
                           }`}
                         >
-                          <p className="text-sm whitespace-pre-line">{message.message}</p>
+                          {message.type === 'bot' ? (
+                            <div
+                              className="prose prose-sm max-w-none text-gray-900"
+                              dangerouslySetInnerHTML={{ __html: parseMarkdownToHtml(message.message) }}
+                            />
+                          ) : (
+                            <p className="text-sm whitespace-pre-line">{message.message}</p>
+                          )}
                           <p className="text-xs opacity-70 mt-2">
                             {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </p>
@@ -230,7 +333,18 @@ const AIAssistant = ({ user }) => {
                   </div>
 
                   {/* Message Input */}
-                  <div className="flex space-x-3">
+                  <div className="flex items-center space-x-3">
+                    {/* Mode selector */}
+                    <select
+                      value={responseMode}
+                      onChange={(e) => setResponseMode(e.target.value)}
+                      className="px-2 py-2 border border-gray-300 rounded-lg text-xs text-gray-700"
+                      title="Response length"
+                    >
+                      <option value="concise">Concise</option>
+                      <option value="balanced">Balanced</option>
+                      <option value="detailed">Detailed</option>
+                    </select>
                     <input
                       type="text"
                       value={newMessage}
@@ -245,6 +359,12 @@ const AIAssistant = ({ user }) => {
                       className="bg-black text-white p-3 rounded-xl hover:bg-gray-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Send className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={handleClearChat}
+                      className="px-3 py-2 text-xs border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                    >
+                      Clear
                     </button>
                   </div>
                 </div>

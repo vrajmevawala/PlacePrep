@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import footerlogo from "../../assests/footerlogo.png";
 
-const Footer = () => {
+const Footer = ({ user, onOpenAuthModal }) => {
   const quickLinks = [
     { name: "Home", path: "/" },
     { name: "Practice", path: "/practice" },
@@ -29,6 +29,13 @@ const Footer = () => {
     { icon: BarChart3, name: "Analytics", desc: "Performance tracking" },
     { icon: BookOpen, name: "Resources", desc: "Study materials" },
   ];
+
+  const handleGuardedClick = (e) => {
+    if (!user) {
+      e.preventDefault();
+      if (typeof onOpenAuthModal === 'function') onOpenAuthModal('login');
+    }
+  };
 
   return (
     <footer className="bg-gray-900 text-white">
@@ -54,11 +61,7 @@ const Footer = () => {
             <div className="space-y-3">
               <div className="flex items-center space-x-3 text-gray-300">
                 <Mail className="w-4 h-4 text-gray-400" />
-                <span className="text-sm">support@placeprep.com</span>
-              </div>
-              <div className="flex items-center space-x-3 text-gray-300">
-                <Phone className="w-4 h-4 text-gray-400" />
-                <span className="text-sm">+1 (555) 123-4567</span>
+                <span className="text-sm">team.placeprep@gmail.com</span>
               </div>
             </div>
           </div>
@@ -73,6 +76,7 @@ const Footer = () => {
                 <Link
                   key={index}
                   to={link.path}
+                  onClick={handleGuardedClick}
                   className="block text-gray-300 hover:text-white transition-colors duration-300 text-sm group"
                 >
                   <span className="flex items-center">
@@ -120,24 +124,26 @@ const Footer = () => {
                 &copy; {new Date().getFullYear()} PlacePrep. All rights
                 reserved.
               </span>
-              <span className="hidden md:inline">•</span>
             </div>
 
             <div className="flex items-center space-x-6 text-sm">
               <Link
                 to="/privacy"
+                onClick={handleGuardedClick}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 Privacy Policy
               </Link>
               <Link
                 to="/terms"
+                onClick={handleGuardedClick}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 Terms of Service
               </Link>
               <Link
                 to="/contact"
+                onClick={handleGuardedClick}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 Contact Us

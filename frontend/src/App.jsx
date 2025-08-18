@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import { toast } from 'react-toastify';
+import { motion, AnimatePresence } from 'framer-motion';
 import 'react-toastify/dist/ReactToastify.css';
 
 // Components
@@ -178,16 +179,26 @@ function App() {
 
   return (
     <NotificationProvider user={user}>
-      <div className="min-h-screen bg-white text-black">
+      <motion.div 
+        className="min-h-screen bg-white text-black"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
         <Navigation 
           user={user} 
           onLogout={handleLogout}
           isContestMode={isContestMode}
           onOpenAuthModal={openAuthModal}
         />
-        <main className="pt-16">
+        <motion.main 
+          className="pt-16"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
           <Routes>
-            <Route path="/" element={<Home onOpenAuthModal={openAuthModal} />} />
+            <Route path="/" element={<Home user={user} onOpenAuthModal={openAuthModal} />} />
             <Route path="/why-choose-us" element={<WhyChooseUs />} />
             <Route path="/resources" element={<Resource user={user} />} />
             <Route path="/contests" element={<Contest user={user} />} />
@@ -231,8 +242,8 @@ function App() {
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
           <ToastContainer position="top-right" autoClose={3000} />
-        </main>
-        <Footer />
+        </motion.main>
+        <Footer user={user} onOpenAuthModal={openAuthModal} />
 
         {/* Auth Modal */}
         {showAuthModal && (
@@ -264,7 +275,7 @@ function App() {
             )}
           </Modal>
         )}
-      </div>
+      </motion.div>
     </NotificationProvider>
   );
 }

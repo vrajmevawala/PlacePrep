@@ -1497,6 +1497,7 @@ export const downloadContestResultsExcel = async (req, res) => {
     const { id } = req.params;
     
     console.log('Downloading Excel for contest ID:', id);
+    console.log('User making request:', req.user);
     
     // Get contest details
     const contest = await prisma.testSeries.findUnique({
@@ -1535,10 +1536,11 @@ export const downloadContestResultsExcel = async (req, res) => {
             fullName: true,
             email: true
           }
-        },
-        result: true
+        }
       }
     });
+
+    console.log('Found participants:', participants.length);
 
     // Get detailed answers for each participant
     const participantsWithAnswers = await Promise.all(
@@ -1651,6 +1653,7 @@ export const downloadContestResultsExcel = async (req, res) => {
     XLSX.utils.book_append_sheet(workbook, questionsSheet, 'Questions');
 
     // Generate Excel file
+    console.log('Generating Excel buffer...');
     const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
     // Set response headers
@@ -1660,6 +1663,7 @@ export const downloadContestResultsExcel = async (req, res) => {
     res.setHeader('Content-Length', excelBuffer.length);
 
     console.log('Excel file generated successfully, size:', excelBuffer.length, 'bytes');
+    console.log('Sending file:', fileName);
     res.send(excelBuffer);
   } catch (error) {
     console.error('Error downloading contest results Excel:', error);

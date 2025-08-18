@@ -1,8 +1,9 @@
 import React from 'react';
 import { ArrowRight, Target, BookOpen, Trophy, BarChart3, Users, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
-const Home = ({ onOpenAuthModal }) => {
+const Home = ({ user, onOpenAuthModal }) => {
   const navigate = useNavigate();
   const features = [
     {
@@ -27,17 +28,27 @@ const Home = ({ onOpenAuthModal }) => {
     }
   ];
 
-  const stats = [
-    { number: '10K+', label: 'Students' },
-    { number: '500+', label: 'Questions' },
-    { number: '50+', label: 'Companies' },
-    { number: '95%', label: 'Success Rate' }
-  ];
+  // const stats = [
+  //   { number: '10K+', label: 'Students' },
+  //   { number: '500+', label: 'Questions' },
+  //   { number: '50+', label: 'Companies' },
+  //   { number: '95%', label: 'Success Rate' }
+  // ];
 
   return (
-    <div className="min-h-screen">
+    <motion.div 
+      className="min-h-screen"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+    >
       {/* Hero Section */}
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
+      <motion.section 
+        className="px-4 py-20 sm:px-6 lg:px-8"
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.8, delay: 0.2 }}
+      >
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
             Prepare for Your
@@ -47,40 +58,66 @@ const Home = ({ onOpenAuthModal }) => {
             Master aptitude, technical, and DSA skills with our comprehensive platform. 
             Get placement-ready with expert-curated content and real-time assessments.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
+          <motion.div 
+            className="flex flex-col sm:flex-row gap-4 justify-center"
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.6 }}
+          >
+            <motion.button
               onClick={() => onOpenAuthModal('signup')}
               className="bg-black text-white px-8 py-3 rounded-sm font-medium hover:bg-gray-800 transition-colors flex items-center justify-center space-x-2"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
               <span>Get Started</span>
               <ArrowRight className="w-5 h-5" />
-            </button>
-            <button
+            </motion.button>
+            <motion.button
               onClick={() => onOpenAuthModal('login')}
               className="border border-black text-black px-8 py-3 rounded-sm font-medium hover:bg-gray-50 transition-colors"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
               Login
-            </button>
-          </div>
+            </motion.button>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Stats Section */}
-      <section className="py-16 bg-gray-50">
+      {/* <motion.section 
+        className="py-16 bg-gray-50"
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.8, delay: 0.4 }}
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
-              <div key={index} className="text-center">
+              <motion.div 
+                key={index} 
+                className="text-center"
+                initial={{ y: 30, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.6 + index * 0.1 }}
+                whileHover={{ scale: 1.05 }}
+              >
                 <div className="text-3xl md:text-4xl font-bold mb-2">{stat.number}</div>
                 <div className="text-gray-600">{stat.label}</div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
-      </section>
+      </motion.section> */}
 
       {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <motion.section 
+        className="py-20 px-4 sm:px-6 lg:px-8"
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.8, delay: 0.6 }}
+      >
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -92,47 +129,96 @@ const Home = ({ onOpenAuthModal }) => {
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="text-center group cursor-pointer" onClick={() => navigate('/practice')}>
-              <div className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors">
+            <motion.div 
+              className="text-center group cursor-pointer" 
+              onClick={() => { if (user) { navigate('/practice'); } else { onOpenAuthModal('login'); } }}
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.8 }}
+              whileHover={{ scale: 1.05, y: -5 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.div 
+                className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors"
+                whileHover={{ rotate: 5 }}
+              >
                 <Target className="w-8 h-8 text-white" />
-              </div>
+              </motion.div>
               <h3 className="text-xl font-semibold mb-2">Practice Tests</h3>
               <p className="text-gray-600">Comprehensive aptitude, technical, and DSA questions</p>
-            </div>
-            <div className="text-center group cursor-pointer" onClick={() => navigate('/contests')}>
-              <div className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors">
+            </motion.div>
+            <motion.div 
+              className="text-center group cursor-pointer" 
+              onClick={() => { if (user) { navigate('/contests'); } else { onOpenAuthModal('login'); } }}
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.9 }}
+              whileHover={{ scale: 1.05, y: -5 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.div 
+                className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors"
+                whileHover={{ rotate: 5 }}
+              >
                 <Trophy className="w-8 h-8 text-white" />
-              </div>
+              </motion.div>
               <h3 className="text-xl font-semibold mb-2">Live Contests</h3>
               <p className="text-gray-600">Compete with peers in real-time coding challenges</p>
-            </div>
-            <div className="text-center group cursor-pointer" onClick={() => navigate('/results')}>
-              <div className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors">
+            </motion.div>
+            <motion.div 
+              className="text-center group cursor-pointer" 
+              onClick={() => { if (user) { navigate('/results'); } else { onOpenAuthModal('login'); } }}
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.6, delay: 1.0 }}
+              whileHover={{ scale: 1.05, y: -5 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.div 
+                className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors"
+                whileHover={{ rotate: 5 }}
+              >
                 <BarChart3 className="w-8 h-8 text-white" />
-              </div>
+              </motion.div>
               <h3 className="text-xl font-semibold mb-2">Analytics</h3>
               <p className="text-gray-600">Detailed performance tracking and insights</p>
-            </div>
-            <div className="text-center group cursor-pointer" onClick={() => navigate('/resources')}>
-              <div className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors">
+            </motion.div>
+            <motion.div 
+              className="text-center group cursor-pointer" 
+              onClick={() => { if (user) { navigate('/resources'); } else { onOpenAuthModal('login'); } }}
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.6, delay: 1.1 }}
+              whileHover={{ scale: 1.05, y: -5 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.div 
+                className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors"
+                whileHover={{ rotate: 5 }}
+              >
                 <BookOpen className="w-8 h-8 text-white" />
-              </div>
+              </motion.div>
               <h3 className="text-xl font-semibold mb-2">Resources</h3>
               <p className="text-gray-600">Curated learning materials and study guides</p>
-            </div>
+            </motion.div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Why Choose Us Section */}
-      <section className="py-20 bg-gray-50">
+      <motion.section 
+        className="py-20 bg-gray-50"
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.8, delay: 0.8 }}
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               Why Choose PlacePrep?
             </h2>
             <button
-              onClick={() => navigate('/why-choose-us')}
+              onClick={() => { if (user) { navigate('/why-choose-us'); } else { onOpenAuthModal('login'); } }}
               className="mt-4 bg-black text-white px-6 py-2 rounded-sm font-medium hover:bg-gray-800 transition-colors"
             >
               Learn More
@@ -140,41 +226,73 @@ const Home = ({ onOpenAuthModal }) => {
           </div>
           
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-black rounded-sm flex items-center justify-center mx-auto mb-4">
+            <motion.div 
+              className="text-center"
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.6, delay: 1.0 }}
+              whileHover={{ scale: 1.05, y: -5 }}
+            >
+              <motion.div 
+                className="w-12 h-12 bg-black rounded-sm flex items-center justify-center mx-auto mb-4"
+                whileHover={{ rotate: 5 }}
+              >
                 <Users className="w-6 h-6 text-white" />
-              </div>
+              </motion.div>
               <h3 className="text-xl font-semibold mb-2">Expert Moderation</h3>
               <p className="text-gray-600">
                 Questions curated by industry experts and experienced professionals
               </p>
-            </div>
+            </motion.div>
             
-            <div className="text-center">
-              <div className="w-12 h-12 bg-black rounded-sm flex items-center justify-center mx-auto mb-4">
+            <motion.div 
+              className="text-center"
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.6, delay: 1.1 }}
+              whileHover={{ scale: 1.05, y: -5 }}
+            >
+              <motion.div 
+                className="w-12 h-12 bg-black rounded-sm flex items-center justify-center mx-auto mb-4"
+                whileHover={{ rotate: 5 }}
+              >
                 <BarChart3 className="w-6 h-6 text-white" />
-              </div>
+              </motion.div>
               <h3 className="text-xl font-semibold mb-2">Detailed Analytics</h3>
               <p className="text-gray-600">
                 Comprehensive analysis of your performance with actionable insights
               </p>
-            </div>
+            </motion.div>
             
-            <div className="text-center">
-              <div className="w-12 h-12 bg-black rounded-sm flex items-center justify-center mx-auto mb-4">
+            <motion.div 
+              className="text-center"
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.6, delay: 1.2 }}
+              whileHover={{ scale: 1.05, y: -5 }}
+            >
+              <motion.div 
+                className="w-12 h-12 bg-black rounded-sm flex items-center justify-center mx-auto mb-4"
+                whileHover={{ rotate: 5 }}
+              >
                 <Shield className="w-6 h-6 text-white" />
-              </div>
+              </motion.div>
               <h3 className="text-xl font-semibold mb-2">Secure Platform</h3>
               <p className="text-gray-600">
                 Safe and reliable environment for your preparation journey
               </p>
-            </div>
+            </motion.div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <motion.section 
+        className="py-20 px-4 sm:px-6 lg:px-8"
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.8, delay: 1.0 }}
+      >
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Ready to Start Your Journey?
@@ -182,15 +300,17 @@ const Home = ({ onOpenAuthModal }) => {
           <p className="text-gray-600 text-lg mb-8">
             Join thousands of students who have successfully prepared with PlacePrep
           </p>
-          <button
-            onClick={() => navigate('/signup')}
+          <motion.button
+            onClick={() => onOpenAuthModal('signup')}
             className="bg-black text-white px-8 py-3 rounded-sm font-medium hover:bg-gray-800 transition-colors"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
             Get Started Today
-          </button>
+          </motion.button>
         </div>
-      </section>
-    </div>
+      </motion.section>
+    </motion.div>
   );
 };
 

@@ -162,6 +162,8 @@ const AdminResults = ({ user }) => {
   const downloadExcel = async (contestId, contestTitle) => {
     try {
       setDownloadingExcel(true);
+      console.log('Starting Excel download for contest:', contestId, contestTitle);
+      
       const response = await fetch(`/api/testseries/${contestId}/download-results`, {
         method: 'POST',
         credentials: 'include',
@@ -170,8 +172,13 @@ const AdminResults = ({ user }) => {
         }
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
       if (response.ok) {
         const blob = await response.blob();
+        console.log('Blob received, size:', blob.size, 'type:', blob.type);
+        
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -180,12 +187,15 @@ const AdminResults = ({ user }) => {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+        console.log('Excel download completed successfully');
       } else {
-        alert('Failed to download results');
+        const errorText = await response.text();
+        console.error('Server error response:', errorText);
+        alert(`Failed to download results: ${response.status} - ${errorText}`);
       }
     } catch (error) {
       console.error('Error downloading Excel:', error);
-      alert('Error downloading results');
+      alert(`Error downloading results: ${error.message}`);
     } finally {
       setDownloadingExcel(false);
     }

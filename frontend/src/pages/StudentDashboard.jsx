@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Target, BookOpen, Trophy, BarChart3, Clock, CheckCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const StudentDashboard = ({ user }) => {
   const [stats, setStats] = useState([]);
@@ -146,15 +147,30 @@ const StudentDashboard = ({ user }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <motion.div 
+      className="min-h-screen bg-gray-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
+        <motion.div 
+          className="mb-8"
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
           <h1 className="text-3xl font-bold">Welcome back, {user.fullName}!</h1>
           <p className="text-gray-600 mt-2">Track your progress and continue your preparation</p>
-        </div>
+        </motion.div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+        >
           {stats.map((stat, index) => {
             const Icon = {
               'Tests Taken': Target,
@@ -163,7 +179,14 @@ const StudentDashboard = ({ user }) => {
               'Completed': CheckCircle
             }[stat.label] || Target;
             return (
-              <div key={index} className="bg-white rounded-sm p-6 border border-gray-200">
+              <motion.div 
+                key={index} 
+                className="bg-white rounded-sm p-6 border border-gray-200"
+                initial={{ y: 30, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.6 + index * 0.1 }}
+                whileHover={{ scale: 1.02, y: -2 }}
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">{stat.label}</p>
@@ -171,10 +194,10 @@ const StudentDashboard = ({ user }) => {
                   </div>
                   <Icon className="w-8 h-8 text-gray-400" />
                 </div>
-              </div>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -312,7 +335,7 @@ const StudentDashboard = ({ user }) => {
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

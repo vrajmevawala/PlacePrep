@@ -4,7 +4,7 @@ import {
   Loader2, BarChart3, Trophy, Target, Clock, TrendingUp, Award, Users, 
   Calendar, Filter, Eye, Download, Medal, CheckCircle, XCircle, MinusCircle 
 } from 'lucide-react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart, BarChart, Bar, PieChart, Pie, Cell, Label } from 'recharts';
 
 const Result = () => {
   const [participations, setParticipations] = useState([]);
@@ -198,6 +198,39 @@ const Result = () => {
         name: p._type === 'contest' ? (p.testSeries?.title || 'Contest') : (p.freePractice?.title || 'Practice')
       };
     });
+
+  // Overview: completion and highlights calculations
+  const totalTests = practiceTests.length + contestTests.length;
+  const totalCompleted = completedPractice.length + completedContests.length;
+  const totalPending = Math.max(totalTests - totalCompleted, 0);
+  const completionData = [
+    { name: 'Completed', value: totalCompleted },
+    { name: 'Pending', value: totalPending }
+  ];
+  const COMPLETION_COLORS = ['#111827', '#E5E7EB'];
+
+  const highestPercentage = (() => {
+    const values = scoreTrendData.map(d => d.score);
+    return values.length ? Math.max(...values).toFixed(1) : '0';
+  })();
+
+  const lastActivity = participations[0];
+  const lastResult = lastActivity ? results[lastActivity.pid] : null;
+  const lastCorrect = lastResult?.correct ?? lastResult?.correctAnswers ?? 0;
+  const lastTotal = lastResult?.totalQuestions ?? 0;
+  const lastPercentage = lastTotal > 0 ? ((lastCorrect / lastTotal) * 100).toFixed(1) : '0';
+
+  const bestContestRank = (() => {
+    const ranks = completedContests.map(p => {
+      const userScore = (results[p.pid]?.correct ?? results[p.pid]?.correctAnswers ?? 0);
+      return getContestRank(p.testSeriesId, userScore);
+    });
+    const numericRanks = ranks
+      .filter(r => r !== '-' && r !== null && r !== undefined)
+      .map(r => Number(r))
+      .filter(n => Number.isFinite(n));
+    return numericRanks.length ? Math.min(...numericRanks) : null;
+  })();
 
   const TabButton = ({ id, label, icon: Icon, count }) => (
     <button
@@ -454,136 +487,86 @@ const Result = () => {
               </div>
             )}
 
-                         {/* Enhanced Recent Activity */}
-             <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-               <div className="p-6 border-b border-gray-200">
-                 <div className="flex items-center justify-between">
-                   <h3 className="text-xl font-semibold text-gray-900">Recent Activity</h3>
-                   <span className="text-sm text-gray-500">
-                     Last {Math.min(participations.length, 5)} activities
-                   </span>
-                 </div>
-               </div>
-               <div className="p-6">
-                 {participations.slice(0, 5).map((p, index) => {
-                   const result = results[p.pid];
-                   const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
-                   const totalQuestions = result?.totalQuestions ?? 0;
-                   const percentage = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
-                   
-                   // Calculate rank for contests
-                   const rank = p._type === 'contest' ? getContestRank(p.testSeriesId, correctScore) : null;
-                   
-                   // Performance indicator
-                   const getPerformanceColor = (percent) => {
-                     const num = parseFloat(percent);
-                     if (num >= 80) return 'text-green-600 bg-green-50 border-green-200';
-                     if (num >= 60) return 'text-blue-600 bg-blue-50 border-blue-200';
-                     if (num >= 40) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-                     return 'text-red-600 bg-red-50 border-red-200';
-                   };
-                   
-                   const getPerformanceIcon = (percent) => {
-                     const num = parseFloat(percent);
-                     if (num >= 80) return '🏆';
-                     if (num >= 60) return '👍';
-                     if (num >= 40) return '📈';
-                     return '📉';
-                   };
-                   
-                   return (
-                     <div key={p.pid} className="group relative flex items-center justify-between py-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-all duration-200 rounded-lg px-3 -mx-3">
-                       <div className="flex items-center space-x-4">
-                         <div className={`relative w-12 h-12 rounded-full flex items-center justify-center ${
-                           p._type === 'contest' ? 'bg-gradient-to-br from-yellow-100 to-yellow-200' : 'bg-gradient-to-br from-blue-100 to-blue-200'
-                         }`}>
-                           {p._type === 'contest' ? (
-                             <Trophy className="w-6 h-6 text-yellow-600" />
-                           ) : (
-                             <Target className="w-6 h-6 text-blue-600" />
-                           )}
-                           {/* Performance indicator badge */}
-                           <div className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm">
-                             <span className="text-xs">{getPerformanceIcon(percentage)}</span>
-                           </div>
-                         </div>
-                         <div className="flex-1">
-                           <div className="flex items-center space-x-2">
-                             <p className="font-semibold text-gray-900">
-                               {p._type === 'contest' ? (p.testSeries?.title || 'Contest') : (p.freePractice?.title || 'Practice')}
-                             </p>
-                             {p._type === 'contest' && rank !== '-' && (
-                               <div className="flex items-center space-x-1 px-2 py-1 bg-yellow-100 rounded-full">
-                                 <Medal className="w-3 h-3 text-yellow-600" />
-                                 <span className="text-xs font-medium text-yellow-800">#{rank}</span>
-                               </div>
-                             )}
-                           </div>
-                           <div className="flex items-center space-x-3 mt-1">
-                             <div className="flex items-center space-x-1 text-sm text-gray-500">
-                               <Calendar className="w-3 h-3" />
-                               <span>{p.startTime ? new Date(p.startTime).toLocaleDateString() : '-'}</span>
-                             </div>
-                             <div className="flex items-center space-x-1 text-sm text-gray-500">
-                               <Clock className="w-3 h-3" />
-                               <span>{p.startTime ? new Date(p.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</span>
-                             </div>
-                           </div>
-                         </div>
-                       </div>
-                       
-                       <div className="flex items-center space-x-4">
-                         {/* Score display with visual indicator */}
-                         <div className={`text-right px-4 py-2 rounded-lg border ${getPerformanceColor(percentage)}`}>
-                           <div className="flex items-center space-x-2">
-                             <span className="text-2xl font-bold">{percentage}%</span>
-                             <span className="text-lg">{getPerformanceIcon(percentage)}</span>
-                           </div>
-                           <p className="text-sm font-medium">
-                             {correctScore}/{totalQuestions} correct
-                           </p>
-                         </div>
-                         
-                         {/* Action buttons */}
-                         <div className="flex space-x-2">
-                           <button
-                             onClick={() => setSelectedTest({ test: p, result, type: p._type })}
-                             className="inline-flex items-center px-4 py-2 bg-black hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-                           >
-                             <Eye className="w-4 h-4 mr-2" />
-                             Details
-                           </button>
-                           {p._type === 'contest' && (
-                             <button
-                               onClick={() => {
-                                 setSelectedTest({ test: p, result, type: p._type, showLeaderboard: true });
-                                 fetchLeaderboard(p.testSeriesId);
-                               }}
-                               className="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-                             >
-                               <Trophy className="w-4 h-4 mr-2" />
-                               Leaderboard
-                             </button>
-                           )}
-                         </div>
-                       </div>
-                     </div>
-                   );
-                 })}
-                 
-                 {/* Show more activities link if there are more than 5 */}
-                 {participations.length > 5 && (
-                   <div className="mt-4 pt-4 border-t border-gray-200">
-                     <button 
-                       onClick={() => setActiveTab('contest')}
-                       className="w-full py-3 text-center text-gray-600 hover:text-gray-900 font-medium transition-colors"
-                     >
-                       View all {participations.length} activities →
-                     </button>
-                   </div>
-                 )}
-               </div>
-             </div>
+            {/* Completion and Highlights */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Completion Donut */}
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-gray-900">Completion Overview</h3>
+                  <span className="text-sm text-gray-500">{totalCompleted}/{totalTests} completed</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-full">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <PieChart>
+                        <Pie
+                          data={completionData}
+                          innerRadius={70}
+                          outerRadius={100}
+                          paddingAngle={2}
+                          dataKey="value"
+                        >
+                          {completionData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COMPLETION_COLORS[index % COMPLETION_COLORS.length]} />
+                          ))}
+                          <Label
+                            value={`${totalTests > 0 ? Math.round((totalCompleted / totalTests) * 100) : 0}%`}
+                            position="center"
+                            fill="#111827"
+                            fontSize={20}
+                          />
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                          formatter={(val, name) => [val, name]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center space-x-6">
+                  <div className="flex items-center space-x-2">
+                    <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: '#111827' }} />
+                    <span className="text-sm text-gray-700">Completed</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: '#E5E7EB' }} />
+                    <span className="text-sm text-gray-700">Pending</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Highlights */}
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <h3 className="text-xl font-semibold text-gray-900 mb-6">Highlights</h3>
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between p-4 rounded-lg bg-gray-50 border border-gray-200">
+                    <div>
+                      <p className="text-sm text-gray-600">Highest Percentage</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{highestPercentage}%</p>
+                    </div>
+                    <Award className="w-6 h-6 text-black" />
+                  </div>
+                  <div className="flex items-start justify-between p-4 rounded-lg bg-gray-50 border border-gray-200">
+                    <div>
+                      <p className="text-sm text-gray-600">Best Contest Rank</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{bestContestRank ? `#${bestContestRank}` : '-'}</p>
+                    </div>
+                    <Trophy className="w-6 h-6 text-black" />
+                  </div>
+                  <div className="flex items-start justify-between p-4 rounded-lg bg-gray-50 border border-gray-200">
+                    <div>
+                      <p className="text-sm text-gray-600">Last Activity</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{lastPercentage}%</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {lastActivity?.startTime ? new Date(lastActivity.startTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '-'}
+                      </p>
+                    </div>
+                    <TrendingUp className="w-6 h-6 text-black" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

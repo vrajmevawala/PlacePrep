@@ -153,24 +153,11 @@ const ContestResults = () => {
 
   // Check if contest has ended - use UTC comparison to avoid timezone issues
   const isContestEnded = contest && new Date().getTime() > new Date(contest.endTime).getTime();
-  
-  // Debug logging for troubleshooting
-  // console.log('Contest ended:', isContestEnded);
-  // console.log('Has results:', !!results);
-  // console.log('Results data:', results);
-  // console.log('Current time (UTC):', new Date().toISOString());
-  // console.log('Contest end time (UTC):', contest?.endTime);
-  // console.log('Contest end time (local):', contest ? new Date(contest.endTime).toLocaleString() : 'N/A');
-  // console.log('hasResultsFromSubmission:', hasResultsFromSubmission);
-  // console.log('hasFetchedResults:', hasFetchedResults);
-  // console.log('shouldShowResults:', shouldShowResults);
-  // console.log('results.hasParticipated:', results?.hasParticipated);
-  // console.log('results.correct:', results?.correct);
-  
+ 
   // Check if we have results from submission or if we have fetched results showing participation
   const hasResultsFromSubmission = location.state?.results && location.state.submitted;
   const hasFetchedResults = results && results.hasParticipated;
-  const shouldShowResults = hasResultsFromSubmission || hasFetchedResults;
+  const shouldShowResults = isContestEnded && (hasResultsFromSubmission || hasFetchedResults);
   
   if (!shouldShowResults) {
     return (

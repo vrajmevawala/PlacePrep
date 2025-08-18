@@ -112,7 +112,7 @@ const ModeratorDashboard = ({ user }) => {
             id: c.id,
             title: c.title,
             startTime: c.startTime,
-            isUpcoming: new Date(c.startTime) > new Date()
+            isUpcoming: new Date(c.startTime).getTime() > new Date().getTime()
           })));
         })
         .catch(error => {

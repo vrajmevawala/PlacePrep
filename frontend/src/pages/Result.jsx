@@ -15,6 +15,8 @@ const Result = () => {
   const [showDetails, setShowDetails] = useState(null);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'practice', 'contest'
   const [selectedTest, setSelectedTest] = useState(null);
+  const [leaderboardData, setLeaderboardData] = useState(null);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const chartRef = useRef({});
 
   useEffect(() => {
@@ -96,6 +98,29 @@ const Result = () => {
 
     fetchParticipations();
   }, []);
+
+  // Fetch leaderboard data
+  const fetchLeaderboard = async (contestId) => {
+    setLoadingLeaderboard(true);
+    try {
+      const response = await fetch(`/api/testseries/${contestId}/leaderboard`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setLeaderboardData(data);
+      } else {
+        console.error('Failed to fetch leaderboard');
+        setLeaderboardData(null);
+      }
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+      setLeaderboardData(null);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  };
 
   // Calculate performance metrics
   const practiceTests = participations.filter(p => p._type === 'practice');
@@ -218,7 +243,7 @@ const Result = () => {
     
     // Contest-specific data
     const rank = type === 'contest' ? getContestRank(test.testSeriesId, correctScore) : null;
-    const participants = type === 'contest' ? (stats[test.testSeriesId]?.scores?.length || 0) : null;
+    const participants = type === 'contest' ? (stats[test.testSeriesId]?.totalParticipants || 0) : null;
 
     return (
       <tr className="hover:bg-gray-50 transition-colors">
@@ -277,13 +302,16 @@ const Result = () => {
               Details
             </button>
             {type === 'contest' && (
-              <button
-                onClick={() => setSelectedTest({ test, result, type, showLeaderboard: true })}
-                className="inline-flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                <Trophy className="w-4 h-4 mr-1" />
-                Leaderboard
-              </button>
+                          <button
+              onClick={() => {
+                setSelectedTest({ test, result, type, showLeaderboard: true });
+                fetchLeaderboard(test.testSeriesId);
+              }}
+              className="inline-flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <Trophy className="w-4 h-4 mr-1" />
+              Leaderboard
+            </button>
             )}
           </div>
         </td>
@@ -426,50 +454,136 @@ const Result = () => {
               </div>
             )}
 
-            {/* Recent Activity */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-xl font-semibold text-gray-900">Recent Activity</h3>
-              </div>
-              <div className="p-6">
-                {participations.slice(0, 5).map((p, index) => {
-                  const result = results[p.pid];
-                  const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
-                  const totalQuestions = result?.totalQuestions ?? 0;
-                  const percentage = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
-                  
-                  return (
-                    <div key={p.pid} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          p._type === 'contest' ? 'bg-yellow-100' : 'bg-blue-100'
-                        }`}>
-                          {p._type === 'contest' ? (
-                            <Trophy className="w-5 h-5 text-yellow-600" />
-                          ) : (
-                            <Target className="w-5 h-5 text-blue-600" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {p._type === 'contest' ? (p.testSeries?.title || 'Contest') : (p.freePractice?.title || 'Practice')}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {p.startTime ? new Date(p.startTime).toLocaleDateString() : '-'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-gray-900">{percentage}%</p>
-                        <p className="text-sm text-gray-500">
-                          {correctScore}/{totalQuestions}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                         {/* Enhanced Recent Activity */}
+             <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+               <div className="p-6 border-b border-gray-200">
+                 <div className="flex items-center justify-between">
+                   <h3 className="text-xl font-semibold text-gray-900">Recent Activity</h3>
+                   <span className="text-sm text-gray-500">
+                     Last {Math.min(participations.length, 5)} activities
+                   </span>
+                 </div>
+               </div>
+               <div className="p-6">
+                 {participations.slice(0, 5).map((p, index) => {
+                   const result = results[p.pid];
+                   const correctScore = result?.correct ?? result?.correctAnswers ?? 0;
+                   const totalQuestions = result?.totalQuestions ?? 0;
+                   const percentage = totalQuestions > 0 ? ((correctScore / totalQuestions) * 100).toFixed(1) : '0';
+                   
+                   // Calculate rank for contests
+                   const rank = p._type === 'contest' ? getContestRank(p.testSeriesId, correctScore) : null;
+                   
+                   // Performance indicator
+                   const getPerformanceColor = (percent) => {
+                     const num = parseFloat(percent);
+                     if (num >= 80) return 'text-green-600 bg-green-50 border-green-200';
+                     if (num >= 60) return 'text-blue-600 bg-blue-50 border-blue-200';
+                     if (num >= 40) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+                     return 'text-red-600 bg-red-50 border-red-200';
+                   };
+                   
+                   const getPerformanceIcon = (percent) => {
+                     const num = parseFloat(percent);
+                     if (num >= 80) return '🏆';
+                     if (num >= 60) return '👍';
+                     if (num >= 40) return '📈';
+                     return '📉';
+                   };
+                   
+                   return (
+                     <div key={p.pid} className="group relative flex items-center justify-between py-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-all duration-200 rounded-lg px-3 -mx-3">
+                       <div className="flex items-center space-x-4">
+                         <div className={`relative w-12 h-12 rounded-full flex items-center justify-center ${
+                           p._type === 'contest' ? 'bg-gradient-to-br from-yellow-100 to-yellow-200' : 'bg-gradient-to-br from-blue-100 to-blue-200'
+                         }`}>
+                           {p._type === 'contest' ? (
+                             <Trophy className="w-6 h-6 text-yellow-600" />
+                           ) : (
+                             <Target className="w-6 h-6 text-blue-600" />
+                           )}
+                           {/* Performance indicator badge */}
+                           <div className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm">
+                             <span className="text-xs">{getPerformanceIcon(percentage)}</span>
+                           </div>
+                         </div>
+                         <div className="flex-1">
+                           <div className="flex items-center space-x-2">
+                             <p className="font-semibold text-gray-900">
+                               {p._type === 'contest' ? (p.testSeries?.title || 'Contest') : (p.freePractice?.title || 'Practice')}
+                             </p>
+                             {p._type === 'contest' && rank !== '-' && (
+                               <div className="flex items-center space-x-1 px-2 py-1 bg-yellow-100 rounded-full">
+                                 <Medal className="w-3 h-3 text-yellow-600" />
+                                 <span className="text-xs font-medium text-yellow-800">#{rank}</span>
+                               </div>
+                             )}
+                           </div>
+                           <div className="flex items-center space-x-3 mt-1">
+                             <div className="flex items-center space-x-1 text-sm text-gray-500">
+                               <Calendar className="w-3 h-3" />
+                               <span>{p.startTime ? new Date(p.startTime).toLocaleDateString() : '-'}</span>
+                             </div>
+                             <div className="flex items-center space-x-1 text-sm text-gray-500">
+                               <Clock className="w-3 h-3" />
+                               <span>{p.startTime ? new Date(p.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</span>
+                             </div>
+                           </div>
+                         </div>
+                       </div>
+                       
+                       <div className="flex items-center space-x-4">
+                         {/* Score display with visual indicator */}
+                         <div className={`text-right px-4 py-2 rounded-lg border ${getPerformanceColor(percentage)}`}>
+                           <div className="flex items-center space-x-2">
+                             <span className="text-2xl font-bold">{percentage}%</span>
+                             <span className="text-lg">{getPerformanceIcon(percentage)}</span>
+                           </div>
+                           <p className="text-sm font-medium">
+                             {correctScore}/{totalQuestions} correct
+                           </p>
+                         </div>
+                         
+                         {/* Action buttons */}
+                         <div className="flex space-x-2">
+                           <button
+                             onClick={() => setSelectedTest({ test: p, result, type: p._type })}
+                             className="inline-flex items-center px-4 py-2 bg-black hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                           >
+                             <Eye className="w-4 h-4 mr-2" />
+                             Details
+                           </button>
+                           {p._type === 'contest' && (
+                             <button
+                               onClick={() => {
+                                 setSelectedTest({ test: p, result, type: p._type, showLeaderboard: true });
+                                 fetchLeaderboard(p.testSeriesId);
+                               }}
+                               className="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                             >
+                               <Trophy className="w-4 h-4 mr-2" />
+                               Leaderboard
+                             </button>
+                           )}
+                         </div>
+                       </div>
+                     </div>
+                   );
+                 })}
+                 
+                 {/* Show more activities link if there are more than 5 */}
+                 {participations.length > 5 && (
+                   <div className="mt-4 pt-4 border-t border-gray-200">
+                     <button 
+                       onClick={() => setActiveTab('contest')}
+                       className="w-full py-3 text-center text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                     >
+                       View all {participations.length} activities →
+                     </button>
+                   </div>
+                 )}
+               </div>
+             </div>
           </div>
         )}
 
@@ -629,7 +743,10 @@ const Result = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
             <div className="bg-white rounded-xl p-6 sm:p-8 w-full max-w-6xl max-h-[95vh] overflow-auto relative shadow-lg">
               <button 
-                onClick={() => setSelectedTest(null)} 
+                onClick={() => {
+                  setSelectedTest(null);
+                  setLeaderboardData(null);
+                }} 
                 className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl font-bold"
               >
                 ×
@@ -640,7 +757,7 @@ const Result = () => {
                   {selectedTest.type === 'contest' 
                     ? (selectedTest.test.testSeries?.title || 'Contest') 
                     : (selectedTest.test.freePractice?.title || 'Practice Test')
-                  } - Detailed Results
+                  } - {selectedTest.showLeaderboard ? 'Leaderboard' : 'Detailed Results'}
                 </h2>
                 <p className="text-gray-600">
                   {selectedTest.test.startTime ? new Date(selectedTest.test.startTime).toLocaleDateString() : '-'}
@@ -648,7 +765,8 @@ const Result = () => {
               </div>
 
               {/* Summary Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              {!selectedTest.showLeaderboard && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-gray-50 rounded-lg p-4 text-center">
                   <div className="text-2xl font-bold text-gray-900">
                     {selectedTest.result?.correct ?? selectedTest.result?.correctAnswers ?? 0}
@@ -677,65 +795,193 @@ const Result = () => {
                   <div className="text-sm text-gray-600">Type</div>
                   </div>
                 </div>
+              )}
                 
-              {/* Question-by-Question Breakdown */}
-              {selectedTest.result?.details && selectedTest.result.details.length > 0 && (
+              {/* Leaderboard Display */}
+              {selectedTest.showLeaderboard && (
+                <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
+                  <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Contest Leaderboard</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    {loadingLeaderboard ? (
+                      <div className="p-6 text-center">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-gray-600" />
+                        <p className="text-gray-600">Loading leaderboard...</p>
+                      </div>
+                    ) : leaderboardData ? (
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-white border-b border-gray-200">
+                            <th className="px-6 py-3 text-left font-semibold text-gray-900">Rank</th>
+                            <th className="px-6 py-3 text-left font-semibold text-gray-900">Participant</th>
+                            <th className="px-6 py-3 text-left font-semibold text-gray-900">Score</th>
+                            <th className="px-6 py-3 text-left font-semibold text-gray-900">Percentage</th>
+                            <th className="px-6 py-3 text-left font-semibold text-gray-900">Accuracy</th>
+                            <th className="px-6 py-3 text-left font-semibold text-gray-900">Time (min)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {leaderboardData.leaderboard.map((entry, index) => (
+                            <tr key={entry.userId} className={`border-b border-gray-100 hover:bg-gray-50 ${entry.rank === 1 ? 'bg-yellow-50' : entry.rank === 2 ? 'bg-gray-50' : entry.rank === 3 ? 'bg-orange-50' : ''}`}>
+                              <td className="px-6 py-4 font-medium text-gray-900">
+                                {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
+                              </td>
+                              <td className="px-6 py-4">
+                                <div>
+                                  <div className="font-medium text-gray-900">{entry.userName}</div>
+                                  <div className="text-sm text-gray-500">{entry.userEmail}</div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 font-medium text-gray-900">
+                                {entry.correct}/{entry.totalQuestions}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={`font-medium ${entry.percentage >= 90 ? 'text-green-600' : entry.percentage >= 70 ? 'text-blue-600' : entry.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {entry.percentage}%
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={`font-medium ${entry.accuracy >= 90 ? 'text-green-600' : entry.accuracy >= 70 ? 'text-blue-600' : entry.accuracy >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {entry.accuracy}%
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-gray-600">
+                                {entry.timeTaken}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="p-6 text-center text-gray-500">
+                        No leaderboard data available
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Enhanced Question-by-Question Breakdown */}
+              {selectedTest.result?.questionResults && selectedTest.result.questionResults.length > 0 && !selectedTest.showLeaderboard && (
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                   <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                     <h3 className="text-lg font-semibold text-gray-900">Question-by-Question Breakdown</h3>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="bg-white border-b border-gray-200">
-                          <th className="px-6 py-3 text-left font-semibold text-gray-900">Question ID</th>
-                          <th className="px-6 py-3 text-left font-semibold text-gray-900">Your Answer</th>
-                          <th className="px-6 py-3 text-left font-semibold text-gray-900">Correct Answer</th>
-                          <th className="px-6 py-3 text-left font-semibold text-gray-900">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedTest.result.details.map((detail, index) => (
-                          <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="px-6 py-4 font-medium text-gray-900">
-                              {detail.questionId || `Q${index + 1}`}
-                            </td>
-                            <td className="px-6 py-4">
-                              {detail.selected || detail.userAnswer || (
-                                <span className="text-gray-400 italic">Not attempted</span>
+                  <div className="p-6">
+                    <div className="space-y-6">
+                      {selectedTest.result.questionResults.map((detail, index) => {
+                        const userAnswer = detail.userAnswer || detail.selected;
+                        const correctAnswer = detail.correctAnswer || detail.correct;
+                        const options = detail.options || {};
+                        const isAttempted = detail.isAttempted || userAnswer;
+                        
+                        return (
+                          <div
+                            key={index}
+                            className={`p-6 border rounded-lg ${
+                              detail.isCorrect 
+                                ? 'border-green-200 bg-green-50' 
+                                : isAttempted
+                                ? 'border-red-200 bg-red-50'
+                                : 'border-gray-200 bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center space-x-3">
+                                <span className="text-lg font-semibold text-black">
+                                  Question {index + 1}
+                                </span>
+                                {detail.isCorrect ? (
+                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                    <CheckCircle className="w-4 h-4 mr-1" />
+                                    Correct
+                                  </span>
+                                ) : isAttempted ? (
+                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                    <XCircle className="w-4 h-4 mr-1" />
+                                    Wrong
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                                    <MinusCircle className="w-4 h-4 mr-1" />
+                                    Not Attempted
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="mb-4">
+                              <p className="text-lg text-gray-900 font-medium mb-4">{detail.question}</p>
+                              
+                              {Object.keys(options).length > 0 && (
+                                <div className="space-y-2">
+                                  {Object.entries(options).map(([key, value]) => {
+                                    const isCorrect = key === correctAnswer;
+                                    const isSelected = key === userAnswer;
+                                    const isWrongSelection = isSelected && !isCorrect;
+                                    
+                                    return (
+                                      <div
+                                        key={key}
+                                        className={`p-3 border rounded-lg ${
+                                          isCorrect 
+                                            ? 'border-green-500 bg-green-100 text-green-800' 
+                                            : isWrongSelection
+                                            ? 'border-red-500 bg-red-100 text-red-800'
+                                            : 'border-gray-200 bg-white text-gray-700'
+                                        }`}
+                                      >
+                                        <div className="flex items-center space-x-3">
+                                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
+                                            isCorrect 
+                                              ? 'bg-green-500 text-white' 
+                                              : isWrongSelection
+                                              ? 'bg-red-500 text-white'
+                                              : 'bg-gray-200 text-gray-600'
+                                          }`}>
+                                            {key.toUpperCase()}
+                                          </span>
+                                          <span className="flex-1">{value}</span>
+                                          {isCorrect && (
+                                            <CheckCircle className="w-5 h-5 text-green-600" />
+                                          )}
+                                          {isWrongSelection && (
+                                            <XCircle className="w-5 h-5 text-red-600" />
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               )}
-                            </td>
-                            <td className="px-6 py-4 font-medium text-gray-900">
-                              {detail.correct || detail.correctAnswer || '-'}
-                            </td>
-                            <td className="px-6 py-4">
-                              {!detail.selected && !detail.userAnswer ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
-                                  <MinusCircle className="w-4 h-4 mr-1" />
-                                  Not Attempted
-                                </span>
-                              ) : detail.isCorrect ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                                  <CheckCircle className="w-4 h-4 mr-1" />
-                                  Correct
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                                  <XCircle className="w-4 h-4 mr-1" />
-                                  Wrong
-                                </span>
+                            </div>
+                            
+                            <div className="text-sm space-y-2 text-gray-600">
+                              {isAttempted && (
+                                <p>
+                                  <span className="font-medium">Your Answer:</span> {userAnswer ? `${userAnswer.toUpperCase()}. ${options[userAnswer] || userAnswer}` : 'Not answered'}
+                                </p>
                               )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                              {!detail.isCorrect && isAttempted && (
+                                <p>
+                                  <span className="font-medium text-green-600">Correct Answer:</span> {correctAnswer ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer] || correctAnswer}` : 'Not available'}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  </div>
-                )}
+                </div>
+              )}
                 
                             <button 
-                onClick={() => setSelectedTest(null)} 
+                onClick={() => {
+                  setSelectedTest(null);
+                  setLeaderboardData(null);
+                }} 
                 className="mt-6 w-full py-3 bg-black hover:bg-gray-800 text-white rounded-lg font-semibold transition-colors"
               >
                   Close

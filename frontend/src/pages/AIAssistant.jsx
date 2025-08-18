@@ -206,7 +206,7 @@ const AIAssistant = ({ user }) => {
                           className={`max-w-xs px-4 py-3 rounded-2xl ${
                             message.type === 'user'
                               ? 'bg-black text-white'
-                              : 'bg-white text-gray-800 shadow-sm border border-gray-200'
+                              : 'bg-green-100 text-gray-800 shadow-sm border border-green-200'
                           }`}
                         >
                           <p className="text-sm whitespace-pre-line">{message.message}</p>
@@ -218,11 +218,11 @@ const AIAssistant = ({ user }) => {
                     ))}
                     {isTyping && (
                       <div className="flex justify-start">
-                        <div className="bg-white text-gray-800 px-4 py-3 rounded-2xl shadow-sm border border-gray-200">
+                        <div className="bg-green-100 text-gray-800 px-4 py-3 rounded-2xl shadow-sm border border-green-200">
                           <div className="flex space-x-1">
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                           </div>
                         </div>
                       </div>

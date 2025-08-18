@@ -141,7 +141,7 @@ const TakeContest = () => {
       return;
     }
     
-    // Check if contest is still active
+    // Check if contest is still active - use UTC comparison to avoid timezone issues
     const now = new Date();
     const contestEndTime = new Date(contest.endTime);
     
@@ -192,14 +192,28 @@ const TakeContest = () => {
 
       if (response.ok) {
         const data = await response.json();
+        
         // Mark as submitted in localStorage and set global flag
         localStorage.setItem(`contest_${contestId}_submitted`, 'true');
         setHasSubmitted(true);
         submissionAttemptedRef.current = true; // Set global flag
         exitFullscreen();
+        // Combine the results data properly
+        const resultsData = {
+          correctAnswers: data.correct || data.results.correctAnswers,
+          correct: data.correct || data.results.correct,
+          totalQuestions: data.total || data.results.totalQuestions,
+          attemptedQuestions: data.attempted || data.results.attemptedQuestions,
+          timeTaken: data.results.timeTaken || 0,
+          questionResults: data.results.questionResults || [],
+          hasParticipated: true,
+          violations: data.violations || 0,
+          autoSubmitted: data.autoSubmitted || false
+        };
+        
         navigate(`/contest-results/${contestId}?fromSubmission=true`, { 
           state: { 
-            results: data.results,
+            results: resultsData,
             contest: contest,
             submitted: true 
           }
@@ -563,9 +577,13 @@ const TakeContest = () => {
 
 
 
-
+  // Check if contest has started (UTC comparison)
+  const isContestStarted = contest && new Date().getTime() >= new Date(contest.startTime).getTime();
   // Handler for user gesture to start contest and enter fullscreen
   const handleStartContest = () => {
+    if (contest && !isContestStarted) {
+    return; // Do nothing if contest hasn't started
+  }
     if (hasSubmitted) return; // Prevent starting if already submitted
     
     // Always try to enter fullscreen when starting the contest

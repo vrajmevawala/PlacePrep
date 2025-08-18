@@ -300,6 +300,19 @@ const ContestResults = () => {
             </div>
           )}
 
+          {/* Time-based Auto-submission Warning */}
+          {results?.hasParticipated && results?.autoSubmitted && results?.timeTaken === 'Auto-submitted (time expired)' && (
+            <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="flex items-center space-x-2 mb-2">
+                <Clock className="w-5 h-5 text-orange-600" />
+                <h4 className="text-lg font-semibold text-orange-800">Auto-Submission</h4>
+              </div>
+              <p className="text-orange-700">
+                This contest was automatically submitted when the time limit expired. Your answers were saved and scored.
+              </p>
+            </div>
+          )}
+
           {/* Performance Message */}
           <div className="text-center p-6 bg-gray-50 border border-gray-200">
             <div className="text-lg font-semibold text-black mb-2">

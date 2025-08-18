@@ -16,6 +16,7 @@ import resourceRoutes from './routes/resource.routes.js';
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import NotificationService from './lib/notificationService.js';
+import { sendContestReminderEmail } from './lib/emailService.js';
 const prisma = new PrismaClient();
 
 dotenv.config();
@@ -83,6 +84,10 @@ cron.schedule('*/5 * * * *', async () => { // every 5 minutes
   const now = new Date();
   
   try {
+    // Auto-submit expired contests
+    const { autoSubmitExpiredContests } = await import('./controllers/testSeries.controller.js');
+    await autoSubmitExpiredContests();
+    
     // Find all test series that have ended but whose questions are still hidden
     const endedSeries = await prisma.testSeries.findMany({
       where: {
@@ -155,6 +160,52 @@ cron.schedule('*/5 * * * *', async () => { // every 5 minutes
 
     for (const series of endingSoonSeries) {
       await notificationService.notifyContestEndingSoon(series, 30);
+    }
+
+    // Check for contests starting in 1 hour (for email reminders)
+    const startingInOneHour = await prisma.testSeries.findMany({
+      where: {
+        startTime: {
+          gte: new Date(now.getTime() + 60 * 60 * 1000), // 1 hour from now
+          lte: new Date(now.getTime() + 65 * 60 * 1000)  // 1 hour 5 minutes from now
+        }
+      }
+    });
+
+    for (const series of startingInOneHour) {
+      try {
+        // Get all users who have joined this contest
+        const participants = await prisma.participation.findMany({
+          where: { testSeriesId: series.id },
+          include: {
+            user: {
+              select: { email: true, fullName: true }
+            }
+          }
+        });
+
+        // Send reminder emails to all participants
+        for (const participant of participants) {
+          if (participant.user && participant.user.email) {
+            const contestDetails = {
+              id: series.id,
+              title: series.title,
+              startTime: series.startTime,
+              duration: Math.round((new Date(series.endTime) - new Date(series.startTime)) / (1000 * 60)), // duration in minutes
+              questionCount: series.questions?.length || 0
+            };
+
+            await sendContestReminderEmail(
+              participant.user.email, 
+              participant.user.fullName, 
+              contestDetails
+            );
+            console.log(`Contest reminder email sent to: ${participant.user.email} for contest: ${series.title}`);
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to send contest reminder emails for contest ${series.id}:`, error);
+      }
     }
 
   } catch (error) {

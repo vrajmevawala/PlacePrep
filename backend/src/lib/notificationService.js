@@ -263,6 +263,24 @@ class NotificationService {
 
     return await this.sendToUser(userId, notification);
   }
+
+  async notifyAutoSubmission(userId, contestData, score, totalQuestions) {
+    const percentage = Math.round((score / totalQuestions) * 100);
+    const notification = {
+      title: '⏰ Contest Auto-Submitted',
+      message: `Your contest "${contestData.title}" was automatically submitted when time expired. You scored ${score}/${totalQuestions} (${percentage}%). Check your results!`,
+      type: 'AUTO_SUBMISSION',
+      data: { 
+        contestId: contestData.id,
+        contestTitle: contestData.title,
+        score,
+        totalQuestions,
+        percentage
+      }
+    };
+
+    return await this.sendToUser(userId, notification);
+  }
 }
 
 export default NotificationService; 

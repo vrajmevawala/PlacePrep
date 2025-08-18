@@ -257,3 +257,52 @@ For support, please contact the development team or create an issue in the repos
 ---
 
 **Note**: Make sure to update the environment variables with your actual values before running the application. 
+
+## Auto-Submission Feature
+
+The platform now includes automatic submission functionality for contests:
+
+### How it Works
+
+1. **Time-based Auto-Submission**: When a contest's time limit expires, all unsubmitted participations are automatically submitted with the answers the user has provided.
+
+2. **Cron Job**: A background process runs every 5 minutes to check for expired contests and auto-submit them.
+
+3. **User Notifications**: Users receive:
+   - Email notification with their results
+   - In-app notification about auto-submission
+   - Clear indication in results page
+
+4. **Results Display**: Auto-submitted contests show:
+   - Orange warning banner indicating auto-submission
+   - "Auto-submitted (time expired)" in time taken field
+   - All user answers preserved and scored
+
+### Testing Auto-Submission
+
+To test the auto-submission feature:
+
+1. **Create a short contest** (e.g., 2-3 minutes duration)
+2. **Join the contest** and answer some questions
+3. **Let the time expire** without manually submitting
+4. **Check the results** - they should be automatically available
+
+### Manual Trigger (Admin Only)
+
+Admins can manually trigger auto-submission for testing:
+
+```bash
+POST /api/testseries/auto-submit-expired
+```
+
+This endpoint requires admin or moderator privileges.
+
+### Configuration
+
+The auto-submission cron job runs every 5 minutes. You can modify this in `backend/src/server.js`:
+
+```javascript
+cron.schedule('*/5 * * * *', async () => {
+  // Auto-submission logic
+});
+``` 

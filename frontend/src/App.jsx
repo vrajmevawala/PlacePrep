@@ -99,9 +99,16 @@ function App() {
           if (window.location.pathname === '/') {
             navigate('/dashboard');
           }
+        } else if (res.status === 401) {
+          // User is not authenticated, clear any stale data
+          setUser(null);
+          localStorage.removeItem('jwt');
         }
       } catch (error) {
         console.warn('Session check failed:', error);
+        // Clear user data on network errors
+        setUser(null);
+        localStorage.removeItem('jwt');
       }
     };
     

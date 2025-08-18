@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import XLSX from 'xlsx';
+import { sendContestReminderEmail, sendResultNotificationEmail } from '../lib/emailService.js';
 const prisma = new PrismaClient();
 
 // Get notification service from app
@@ -351,6 +352,33 @@ export const submitTestSeriesAnswers = async (req, res) => {
       }
     }
 
+    // Send result notification email
+    try {
+      // Get user details for email
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, fullName: true }
+      });
+
+      if (user) {
+        const resultDetails = {
+          contestId: testSeries.id,
+          contestTitle: testSeries.title,
+          score: score,
+          totalScore: testSeries.questions.length,
+          completedAt: new Date(),
+          timeTaken: 'N/A', // You can calculate this if needed
+          rank: 'N/A' // You can calculate rank if needed
+        };
+
+        await sendResultNotificationEmail(user.email, user.fullName, resultDetails);
+        console.log(`Result notification email sent to: ${user.email}`);
+      }
+    } catch (error) {
+      console.error('Failed to send result notification email:', error);
+      // Don't fail the request if email fails
+    }
+
     res.json({ 
       score, 
       correct: score, // Add this for consistency
@@ -369,6 +397,157 @@ export const submitTestSeriesAnswers = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const autoSubmitExpiredContests = async () => {
+  try {
+    const now = new Date();
+    
+    // Find all test series that have ended
+    const expiredSeries = await prisma.testSeries.findMany({
+      where: {
+        endTime: { lt: now }
+      },
+      include: {
+        questions: {
+          select: { 
+            id: true, 
+            correctAns: true,
+            question: true,
+            options: true
+          }
+        },
+        participations: {
+          where: {
+            submittedAt: null, // Only get participations that haven't been submitted
+            endTime: null
+          },
+          include: {
+            user: {
+              select: { id: true, email: true, fullName: true }
+            }
+          }
+        }
+      }
+    });
+
+    for (const series of expiredSeries) {
+      if (series.participations.length === 0) continue;
+
+      console.log(`Auto-submitting ${series.participations.length} participations for contest: ${series.title}`);
+
+      for (const participation of series.participations) {
+        try {
+          // Get user's answers from student activity
+          const userAnswers = await prisma.studentActivity.findMany({
+            where: {
+              sid: participation.sid,
+              testSeriesId: series.id
+            },
+            orderBy: {
+              time: 'desc'
+            }
+          });
+
+          // Create a map of the latest answer for each question
+          const answerMap = {};
+          userAnswers.forEach(activity => {
+            if (!answerMap[activity.qid]) {
+              answerMap[activity.qid] = activity.selectedAnswer;
+            }
+          });
+
+          // Create answers array in the format expected by submitTestSeriesAnswers
+          const answers = series.questions.map(question => ({
+            questionId: question.id,
+            selectedOption: answerMap[question.id] || ''
+          }));
+
+          // Calculate score
+          let score = 0;
+          let attempted = 0;
+          const questionResults = [];
+
+          answers.forEach(ans => {
+            const hasAnswer = ans.selectedOption && ans.selectedOption.trim() !== '' && ans.selectedOption !== 'null';
+            
+            if (hasAnswer) {
+              attempted++;
+              const question = series.questions.find(q => q.id === ans.questionId);
+              if (question && question.correctAns === ans.selectedOption) {
+                score++;
+              }
+            }
+            
+            // Create result object for each question
+            const question = series.questions.find(q => q.id === ans.questionId);
+            questionResults.push({
+              questionId: ans.questionId,
+              question: question?.question || '',
+              options: question?.options || {},
+              userAnswer: ans.selectedOption || '',
+              correctAnswer: question?.correctAns || '',
+              isCorrect: hasAnswer && question?.correctAns === ans.selectedOption,
+              isAttempted: hasAnswer
+            });
+          });
+
+          // Update participation
+          await prisma.participation.update({
+            where: { pid: participation.pid },
+            data: { 
+              endTime: now,
+              submittedAt: now
+            }
+          });
+
+          // Send result notification email for auto-submitted contests
+          try {
+            const resultDetails = {
+              contestId: series.id,
+              contestTitle: series.title,
+              score: score,
+              totalScore: series.questions.length,
+              completedAt: now,
+              timeTaken: 'Auto-submitted (time expired)',
+              rank: 'N/A'
+            };
+
+            await sendResultNotificationEmail(participation.user.email, participation.user.fullName, resultDetails);
+            console.log(`Auto-submit result notification email sent to: ${participation.user.email}`);
+          } catch (error) {
+            console.error('Failed to send auto-submit result notification email:', error);
+          }
+
+          // Send in-app notification for auto-submission
+          try {
+            // Import notification service dynamically
+            const { default: NotificationService } = await import('../lib/notificationService.js');
+            const notificationService = new NotificationService();
+            await notificationService.notifyAutoSubmission(
+              participation.sid, 
+              series, 
+              score, 
+              series.questions.length
+            );
+            console.log(`Auto-submit notification sent to user ${participation.sid}`);
+          } catch (error) {
+            console.error('Failed to send auto-submit notification:', error);
+          }
+
+          console.log(`Auto-submitted contest for user ${participation.user.email}: ${score}/${series.questions.length} correct`);
+
+        } catch (error) {
+          console.error(`Failed to auto-submit contest for user ${participation.sid}:`, error);
+        }
+      }
+    }
+
+    return { success: true, message: 'Auto-submission process completed' };
+  } catch (error) {
+    console.error('Auto-submit error:', error);
+    return { success: false, message: error.message };
   }
 };
 
@@ -492,13 +671,19 @@ export const getUserContestResult = async (req, res) => {
     
 
 
+    // Check if this was auto-submitted due to time expiration
+    const isTimeBasedAutoSubmit = participation?.submittedAt && 
+      participation.submittedAt > contestEndTime && 
+      participation.violations < 2;
+
     res.json({
       totalQuestions: contest.questions.length,
       attempted,
       correct,
       correctAnswers: correct, // Add this for consistency
       violations: participation?.violations || 0,
-      autoSubmitted: participation?.violations >= 2,
+      autoSubmitted: participation?.violations >= 2 || isTimeBasedAutoSubmit,
+      timeTaken: isTimeBasedAutoSubmit ? 'Auto-submitted (time expired)' : 'N/A',
       hasParticipated: !!participation,
       questionResults
     });

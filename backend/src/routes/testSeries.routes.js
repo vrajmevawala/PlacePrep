@@ -1,5 +1,5 @@
 import express from 'express';
-import { createTestSeries, getAllTestSeries, getTestSeriesById, getTestSeriesQuestions, submitTestSeriesAnswers, joinTestSeries, getUserContestResult, getContestStats, getAllContestStats, getUserParticipations, getUpcomingContests, joinContestByCode, updateTestSeries, recordViolation, getContestParticipants, getParticipantAnswers, exportContestResults, downloadContestResultsExcel, getDetailedAnalysis } from '../controllers/testSeries.controller.js';
+import { createTestSeries, getAllTestSeries, getTestSeriesById, getTestSeriesQuestions, submitTestSeriesAnswers, joinTestSeries, getUserContestResult, getContestStats, getAllContestStats, getUserParticipations, getUpcomingContests, joinContestByCode, updateTestSeries, recordViolation, getContestParticipants, getParticipantAnswers, exportContestResults, downloadContestResultsExcel, getDetailedAnalysis, autoSubmitExpiredContests } from '../controllers/testSeries.controller.js';
 import authMiddleware from '../middleware/auth.middleware.js';
 import { requireAdminOrModerator } from '../middleware/role.middleware.js';
 
@@ -28,5 +28,13 @@ router.post('/:id/join', joinTestSeries);
 router.post('/join-by-code', joinContestByCode);
 router.put('/:id', requireAdminOrModerator, updateTestSeries);
 router.get('/:id', getTestSeriesById);
+router.post('/auto-submit-expired', requireAdminOrModerator, async (req, res) => {
+  try {
+    const result = await autoSubmitExpiredContests();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 export default router;                                                                  

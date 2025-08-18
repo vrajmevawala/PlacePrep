@@ -676,13 +676,19 @@ const TakeContest = () => {
           <div className="flex items-center space-x-4">
             {/* Timer */}
             <div className={`flex items-center space-x-2 px-3 py-2 border ${
+              timeLeft < 60000 ? 'border-red-500 bg-red-100 animate-pulse' : 
               timeLeft < 300000 ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-gray-50'
             }`}>
               <Clock className={`w-4 h-4 ${timeLeft < 300000 ? 'text-red-600' : 'text-gray-600'}`} />
               <span className={`font-mono font-semibold ${timeLeft < 300000 ? 'text-red-600' : 'text-gray-900'}`}>
                   {formatTime(timeLeft)}
                 </span>
-              </div>
+              {timeLeft < 60000 && (
+                <span className="text-xs text-red-700 font-bold ml-2">
+                  TIME EXPIRING!
+                </span>
+              )}
+            </div>
               
             {/* Progress */}
             <div className="text-sm text-gray-600">

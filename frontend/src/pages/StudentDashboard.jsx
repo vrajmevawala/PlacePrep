@@ -148,7 +148,7 @@ const StudentDashboard = ({ user }) => {
 
   return (
     <motion.div 
-      className="min-h-screen bg-gray-50"
+      className="page"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6 }}

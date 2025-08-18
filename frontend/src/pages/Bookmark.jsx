@@ -178,7 +178,7 @@ const Bookmark = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="page py-12 px-4">
       <div className="text-center mb-10">
         <h1 className="text-4xl font-extrabold text-black drop-shadow mb-2">Bookmarks</h1>
         {unbookmarkedItems.size > 0 && (

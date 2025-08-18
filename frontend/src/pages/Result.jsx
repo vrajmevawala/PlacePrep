@@ -122,6 +122,58 @@ const Result = () => {
     }
   };
 
+  // Ensure practice details are available when opening details
+  useEffect(() => {
+    const fetchPracticeDetailsIfNeeded = async () => {
+      if (!selectedTest || selectedTest.type !== 'practice') return;
+      // Enrich if we do not already have question text/options
+      const hasQuestionResultsWithOptions = Array.isArray(selectedTest.result?.questionResults)
+        && selectedTest.result.questionResults.length > 0
+        && !!selectedTest.result.questionResults[0]?.options
+        && Object.keys(selectedTest.result.questionResults[0].options || {}).length > 0;
+      if (hasQuestionResultsWithOptions) return;
+      try {
+        const pid = selectedTest.test?.pid;
+        if (!pid) return;
+        // Fetch result skeleton (attempted/correct/details without question text)
+        const res = await fetch(`/api/free-practice/result?pid=${pid}`, { credentials: 'include' });
+        let data = null;
+        if (res.ok) {
+          data = await res.json();
+        }
+        // Enrich with questions/options from the user's free practices
+        const freePracticeId = selectedTest.test?.freePracticeId || selectedTest.test?.freePractice?.id;
+        let enriched = data;
+        if (freePracticeId) {
+          const fpRes = await fetch('/api/free-practice', { credentials: 'include' });
+          if (fpRes.ok) {
+            const fpData = await fpRes.json();
+            const found = (fpData.freePractices || []).find(fp => fp.id === freePracticeId);
+            if (found && found.questions && data && Array.isArray(data.details)) {
+              const qidToQuestion = new Map(found.questions.map(q => [q.id, q]));
+              const questionResults = data.details.map(d => {
+                const q = qidToQuestion.get(d.questionId) || {};
+                return {
+                  question: q.question,
+                  options: q.options || {},
+                  userAnswer: d.selected,
+                  correctAnswer: d.correct,
+                  isCorrect: d.isCorrect,
+                  isAttempted: d.selected != null
+                };
+              });
+              enriched = { ...data, questionResults };
+            }
+          }
+        }
+        if (enriched) {
+          setSelectedTest(prev => prev ? { ...prev, result: { ...prev.result, ...enriched } } : prev);
+        }
+      } catch {}
+    };
+    fetchPracticeDetailsIfNeeded();
+  }, [selectedTest]);
+
   // Calculate performance metrics
   const practiceTests = participations.filter(p => p._type === 'practice');
   const contestTests = participations.filter(p => p._type === 'contest');
@@ -207,7 +259,7 @@ const Result = () => {
     { name: 'Completed', value: totalCompleted },
     { name: 'Pending', value: totalPending }
   ];
-  const COMPLETION_COLORS = ['#111827', '#E5E7EB'];
+  const COMPLETION_COLORS = ['#2563eb', '#a78bfa'];
 
   const highestPercentage = (() => {
     const values = scoreTrendData.map(d => d.score);
@@ -292,7 +344,7 @@ const Result = () => {
           <td className="py-4 px-6">
             {rank !== '-' ? (
               <div className="flex items-center space-x-2">
-                <Medal className="w-4 h-4 text-yellow-500" />
+                <Medal className="w-4 h-4 text-gray-900" />
                 <span className="font-semibold text-gray-900">{rank}</span>
               </div>
             ) : (
@@ -308,12 +360,7 @@ const Result = () => {
           </div>
         </td>
         <td className="py-4 px-6">
-          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-            parseFloat(percentage) >= 80 ? 'bg-green-100 text-green-800' :
-            parseFloat(percentage) >= 60 ? 'bg-yellow-100 text-yellow-800' :
-            parseFloat(percentage) >= 40 ? 'bg-orange-100 text-orange-800' :
-            'bg-red-100 text-red-800'
-          }`}>
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-900 text-white`}>
             {percentage}%
           </span>
         </td>
@@ -354,7 +401,7 @@ const Result = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="page flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-600" />
           <p className="text-gray-600">Loading your results...</p>
@@ -365,16 +412,16 @@ const Result = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="page flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-600 font-medium">{error}</div>
+          <div className="text-black font-medium">{error}</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="page">
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -576,7 +623,7 @@ const Result = () => {
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-                  <Target className="w-6 h-6 text-blue-600" />
+                  <Target className="w-6 h-6 text-black" />
                   <h2 className="text-xl font-semibold text-gray-900">Practice Test Results</h2>
             </div>
                 <span className="text-sm text-gray-500">
@@ -633,12 +680,7 @@ const Result = () => {
                             </div>
                         </td>
                         <td className="py-4 px-6">
-                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                                parseFloat(percentage) >= 80 ? 'bg-green-100 text-green-800' :
-                                parseFloat(percentage) >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                                parseFloat(percentage) >= 40 ? 'bg-orange-100 text-orange-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-900 text-white`}>
                                 {percentage}%
                             </span>
                         </td>
@@ -676,7 +718,7 @@ const Result = () => {
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <Trophy className="w-6 h-6 text-yellow-600" />
+                  <Trophy className="w-6 h-6 text-black" />
                   <h2 className="text-xl font-semibold text-gray-900">Contest Results</h2>
                 </div>
                 <span className="text-sm text-gray-500">
@@ -806,7 +848,7 @@ const Result = () => {
                         </thead>
                         <tbody>
                           {leaderboardData.leaderboard.map((entry, index) => (
-                            <tr key={entry.userId} className={`border-b border-gray-100 hover:bg-gray-50 ${entry.rank === 1 ? 'bg-yellow-50' : entry.rank === 2 ? 'bg-gray-50' : entry.rank === 3 ? 'bg-orange-50' : ''}`}>
+                            <tr key={entry.userId} className={`border-b border-gray-100 hover:bg-gray-50`}>
                               <td className="px-6 py-4 font-medium text-gray-900">
                                 {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
                               </td>
@@ -820,12 +862,12 @@ const Result = () => {
                                 {entry.correct}/{entry.totalQuestions}
                               </td>
                               <td className="px-6 py-4">
-                                <span className={`font-medium ${entry.percentage >= 90 ? 'text-green-600' : entry.percentage >= 70 ? 'text-blue-600' : entry.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                <span className={`font-medium text-gray-900`}>
                                   {entry.percentage}%
                                 </span>
                               </td>
                               <td className="px-6 py-4">
-                                <span className={`font-medium ${entry.accuracy >= 90 ? 'text-green-600' : entry.accuracy >= 70 ? 'text-blue-600' : entry.accuracy >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                <span className={`font-medium text-gray-900`}>
                                   {entry.accuracy}%
                                 </span>
                               </td>
@@ -846,14 +888,17 @@ const Result = () => {
               )}
 
               {/* Enhanced Question-by-Question Breakdown */}
-              {selectedTest.result?.questionResults && selectedTest.result.questionResults.length > 0 && !selectedTest.showLeaderboard && (
+              {(() => {
+                const questionItems = (selectedTest.result?.questionResults || selectedTest.result?.details) || [];
+                if (selectedTest.showLeaderboard || questionItems.length === 0) return null;
+                return (
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                   <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                     <h3 className="text-lg font-semibold text-gray-900">Question-by-Question Breakdown</h3>
                   </div>
                   <div className="p-6">
                     <div className="space-y-6">
-                      {selectedTest.result.questionResults.map((detail, index) => {
+                      {questionItems.map((detail, index) => {
                         const userAnswer = detail.userAnswer || detail.selected;
                         const correctAnswer = detail.correctAnswer || detail.correct;
                         const options = detail.options || {};
@@ -864,9 +909,9 @@ const Result = () => {
                             key={index}
                             className={`p-6 border rounded-lg ${
                               detail.isCorrect 
-                                ? 'border-green-200 bg-green-50' 
+                                ? 'border-gray-900 bg-white' 
                                 : isAttempted
-                                ? 'border-red-200 bg-red-50'
+                                ? 'border-gray-300 bg-white'
                                 : 'border-gray-200 bg-gray-50'
                             }`}
                           >
@@ -876,17 +921,17 @@ const Result = () => {
                                   Question {index + 1}
                                 </span>
                                 {detail.isCorrect ? (
-                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-900 text-white">
                                     <CheckCircle className="w-4 h-4 mr-1" />
                                     Correct
                                   </span>
                                 ) : isAttempted ? (
-                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-300 text-gray-900">
                                     <XCircle className="w-4 h-4 mr-1" />
                                     Wrong
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white text-gray-900 border border-gray-300">
                                     <MinusCircle className="w-4 h-4 mr-1" />
                                     Not Attempted
                                   </span>
@@ -909,28 +954,28 @@ const Result = () => {
                                         key={key}
                                         className={`p-3 border rounded-lg ${
                                           isCorrect 
-                                            ? 'border-green-500 bg-green-100 text-green-800' 
+                                            ? 'border-gray-900 bg-gray-900 text-white' 
                                             : isWrongSelection
-                                            ? 'border-red-500 bg-red-100 text-red-800'
+                                            ? 'border-gray-300 bg-gray-300 text-gray-900'
                                             : 'border-gray-200 bg-white text-gray-700'
                                         }`}
                                       >
                                         <div className="flex items-center space-x-3">
                                           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
                                             isCorrect 
-                                              ? 'bg-green-500 text-white' 
+                                              ? 'bg-gray-900 text-white' 
                                               : isWrongSelection
-                                              ? 'bg-red-500 text-white'
+                                              ? 'bg-gray-300 text-gray-900'
                                               : 'bg-gray-200 text-gray-600'
                                           }`}>
                                             {key.toUpperCase()}
                                           </span>
                                           <span className="flex-1">{value}</span>
                                           {isCorrect && (
-                                            <CheckCircle className="w-5 h-5 text-green-600" />
+                                            <CheckCircle className="w-5 h-5 text-gray-900" />
                                           )}
                                           {isWrongSelection && (
-                                            <XCircle className="w-5 h-5 text-red-600" />
+                                            <XCircle className="w-5 h-5 text-gray-900" />
                                           )}
                                         </div>
                                       </div>
@@ -948,7 +993,7 @@ const Result = () => {
                               )}
                               {!detail.isCorrect && isAttempted && (
                                 <p>
-                                  <span className="font-medium text-green-600">Correct Answer:</span> {correctAnswer ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer] || correctAnswer}` : 'Not available'}
+                                  <span className="font-medium text-gray-900">Correct Answer:</span> {correctAnswer ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer] || correctAnswer}` : 'Not available'}
                                 </p>
                               )}
                             </div>
@@ -958,7 +1003,8 @@ const Result = () => {
                     </div>
                   </div>
                 </div>
-              )}
+                );
+              })()}
                 
                             <button 
                 onClick={() => {

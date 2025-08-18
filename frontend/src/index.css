@@ -1,3 +1,21 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .page {
+    @apply min-h-screen bg-gray-50;
+  }
+  .card {
+    @apply bg-white border border-gray-200;
+  }
+  .card-rounded {
+    @apply bg-white border border-gray-200 rounded-lg;
+  }
+  .btn-primary {
+    @apply bg-black text-white hover:bg-gray-800;
+  }
+  .btn-secondary {
+    @apply border border-gray-300 text-gray-700 hover:bg-gray-50;
+  }
+}

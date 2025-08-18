@@ -170,7 +170,7 @@ const AIAssistant = ({ user }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-10">
+    <div className="page pt-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-4">
         {/* Header */}
         <div className="mb-8">

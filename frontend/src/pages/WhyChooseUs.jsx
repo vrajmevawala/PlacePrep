@@ -42,7 +42,7 @@ const features = [
 
 const WhyChooseUs = () => {
   return (
-    <div className="min-h-screen bg-white py-12 px-4">
+    <div className="page py-12 px-4">
       <div className="max-w-4xl mx-auto text-center">
         <h1 className="text-4xl font-extrabold text-black mb-4 tracking-tight">
           Why Choose <span className="text-black">PlacePrep</span>?

@@ -52,8 +52,11 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
 
 
   const handleNavigationClick = (e, path) => {
-    // Restrict all navigation from home when not logged in
+    // Allow public pages without login, even from home
     if (!user && location.pathname === '/') {
+      if (path === '/why-choose-us') {
+        return true;
+      }
       e.preventDefault();
       if (typeof onOpenAuthModal === 'function') onOpenAuthModal('login');
       return false;

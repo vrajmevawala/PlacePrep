@@ -180,7 +180,7 @@ function App() {
   return (
     <NotificationProvider user={user}>
       <motion.div 
-        className="min-h-screen bg-white text-black"
+        className="page text-black"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}

@@ -600,7 +600,7 @@ const TakeContest = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="page flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-3"></div>
           <p className="text-gray-600">Loading contest...</p>
@@ -611,7 +611,7 @@ const TakeContest = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="page flex items-center justify-center">
         <div className="text-center">
           <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
           <p className="text-red-600 font-medium">{error}</p>
@@ -631,7 +631,7 @@ const TakeContest = () => {
     // If already submitted, redirect to results
     if (hasSubmitted) {
       return (
-        <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="page flex items-center justify-center">
           <div className="text-center">
             <Trophy className="w-16 h-16 mx-auto mb-6 text-black" />
             <h2 className="text-2xl font-bold mb-4">Contest Already Submitted</h2>
@@ -643,7 +643,7 @@ const TakeContest = () => {
     }
     
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="page flex items-center justify-center">
         <div className="text-center">
           <Trophy className="w-16 h-16 mx-auto mb-6 text-black" />
           <h2 className="text-2xl font-bold mb-4">Ready to Start?</h2>
@@ -668,7 +668,7 @@ const TakeContest = () => {
   const answeredCount = Object.values(answers).filter(answer => answer !== '').length;
 
   return (
-    <div className="min-h-screen bg-white contest-container">
+    <div className="page contest-container">
 
 
       {/* Header */}

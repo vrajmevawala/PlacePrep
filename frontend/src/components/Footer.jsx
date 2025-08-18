@@ -143,7 +143,9 @@ const Footer = ({ user, onOpenAuthModal }) => {
               </Link>
               <Link
                 to="/contact"
-                onClick={handleGuardedClick}
+                onClick={() => {
+                  window.open('mailto:team.placeprep@gmail.com', '_blank');
+                }}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 Contact Us

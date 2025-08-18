@@ -116,7 +116,7 @@ const ContestResults = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="page flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-3"></div>
           <p className="text-gray-600">Loading results...</p>
@@ -127,7 +127,7 @@ const ContestResults = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="page flex items-center justify-center">
         <div className="text-center">
           <XCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
           <p className="text-red-600 font-medium">{error}</p>
@@ -161,7 +161,7 @@ const ContestResults = () => {
   
   if (!shouldShowResults) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="page flex items-center justify-center">
         <div className="text-center">
           <Trophy className="w-16 h-16 text-gray-400 mx-auto mb-6" />
           <h2 className="text-2xl font-bold text-black mb-4">Results Coming Soon!</h2>
@@ -235,7 +235,7 @@ const ContestResults = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="page">
       <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-12">

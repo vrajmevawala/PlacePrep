@@ -128,7 +128,7 @@ const JoinContest = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="page">
       <div className="max-w-4xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-12">

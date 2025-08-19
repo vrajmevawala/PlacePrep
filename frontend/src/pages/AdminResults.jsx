@@ -1,4 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { Bar, Pie } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
+} from 'chart.js';
 import { useNavigate } from 'react-router-dom';
 import { 
   BarChart3,
@@ -19,18 +30,14 @@ import {
   XCircle,
   Minus,
   TrendingUp,
-  TrendingDown,
   Activity,
   PieChart,
-  BarChart,
-  LineChart,
-  Percent,
-  Timer,
-  Star,
-  AlertTriangle
+ 
 } from 'lucide-react';
 
-const AdminResults = ({ user }) => {
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
+
+const AdminResults = ({ user, embedded = false }) => {
   const navigate = useNavigate();
   const [contests, setContests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,8 +59,10 @@ const AdminResults = ({ user }) => {
   const [analysisTab, setAnalysisTab] = useState('overview');
   const [questionAnalysis, setQuestionAnalysis] = useState([]);
   const [performanceMetrics, setPerformanceMetrics] = useState({});
-  const [timeAnalysis, setTimeAnalysis] = useState({});
   const [categoryAnalysis, setCategoryAnalysis] = useState({});
+  const [showParticipantModal, setShowParticipantModal] = useState(false);
+  const [participantDetails, setParticipantDetails] = useState(null);
+  const [loadingParticipant, setLoadingParticipant] = useState(false);
 
   const itemsPerPage = 10;
 
@@ -131,11 +140,6 @@ const AdminResults = ({ user }) => {
           setPerformanceMetrics(data.performanceMetrics);
         }
         
-        // Process time analysis
-        if (data.timeAnalysis) {
-          setTimeAnalysis(data.timeAnalysis);
-        }
-        
         // Process category analysis
         if (data.categoryAnalysis) {
           setCategoryAnalysis(data.categoryAnalysis);
@@ -145,6 +149,26 @@ const AdminResults = ({ user }) => {
       console.error('Error fetching detailed analysis:', error);
     } finally {
       setLoadingAnalysis(false);
+    }
+  };
+
+  const fetchParticipantAnswers = async (contestId, participantId) => {
+    try {
+      setLoadingParticipant(true);
+      const response = await fetch(`/api/testseries/${contestId}/participant/${participantId}/answers`, { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setParticipantDetails(data);
+        setShowParticipantModal(true);
+      } else {
+        const err = await response.text();
+        alert(`Failed to load participant answers: ${response.status} - ${err}`);
+      }
+    } catch (error) {
+      console.error('Error fetching participant answers:', error);
+      alert(`Error fetching participant answers: ${error.message}`);
+    } finally {
+      setLoadingParticipant(false);
     }
   };
 
@@ -236,19 +260,34 @@ const AdminResults = ({ user }) => {
   };
 
   const calculatePerformanceMetrics = (results) => {
-    if (!results || results.length === 0) return {};
+    if (!results || results.length === 0) {
+      return {
+        averageScore: 0,
+        highestScore: 0,
+        lowestScore: 0,
+        medianScore: 0,
+        completionRate: 0,
+        standardDeviation: 0,
+        averageTime: 0
+      };
+    }
     
     const scores = results.map(r => r.score || 0);
     const totalParticipants = results.length;
     const completedParticipants = results.filter(r => r.submittedAt).length;
+    const totalScore = scores.reduce((a, b) => a + b, 0);
+    const meanScore = totalScore / totalParticipants;
+    const timeValues = results.map(r => typeof r.timeTaken === 'number' ? r.timeTaken : 0).filter(n => n > 0);
+    const averageTime = timeValues.length ? Math.round(timeValues.reduce((a, b) => a + b, 0) / timeValues.length) : 0;
     
     return {
-      averageScore: scores.reduce((a, b) => a + b, 0) / totalParticipants,
+      averageScore: meanScore,
       highestScore: Math.max(...scores),
       lowestScore: Math.min(...scores),
       medianScore: scores.sort((a, b) => a - b)[Math.floor(scores.length / 2)],
       completionRate: (completedParticipants / totalParticipants) * 100,
-      standardDeviation: Math.sqrt(scores.reduce((sq, n) => sq + Math.pow(n - (scores.reduce((a, b) => a + b, 0) / totalParticipants), 2), 0) / totalParticipants)
+      standardDeviation: Math.sqrt(scores.reduce((sq, n) => sq + Math.pow(n - meanScore, 2), 0) / totalParticipants),
+      averageTime
     };
   };
 
@@ -367,31 +406,33 @@ const AdminResults = ({ user }) => {
   }
 
   return (
-    <div className="page">
-      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <div className={embedded ? '' : 'page'}>
+      <div className={embedded ? '' : 'max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8'}>
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => navigate(-1)}
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Contest Results</h1>
-                <p className="text-gray-600 mt-1">View and manage contest results and statistics</p>
+        {!embedded && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => navigate(-1)}
+                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Contest Results</h1>
+                  <p className="text-gray-600 mt-1">View and manage contest results and statistics</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <BarChart3 className="w-8 h-8 text-gray-400" />
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <BarChart3 className="w-8 h-8 text-gray-400" />
-            </div>
           </div>
-        </div>
+        )}
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 p-2 gap-4 mb-4">
           <div className="bg-white p-6 border border-gray-200 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
@@ -434,8 +475,7 @@ const AdminResults = ({ user }) => {
         </div>
 
         {/* Filters and Search */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 p-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
@@ -475,11 +515,10 @@ const AdminResults = ({ user }) => {
               <Filter className="w-4 h-4" />
               <span>{sortOrder === 'asc' ? 'Ascending' : 'Descending'}</span>
             </button>
-          </div>
         </div>
 
         {/* Contests List */}
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden p-2">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-bold text-black">All Contests</h2>
           </div>
@@ -544,7 +583,7 @@ const AdminResults = ({ user }) => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div className="flex items-center space-x-1">
                             <Users className="w-4 h-4" />
-                            <span>{contest.participantsCount || 0}</span>
+                            <span>{contest.participantsCount ?? contest.participants?.length ?? 0}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -619,7 +658,6 @@ const AdminResults = ({ user }) => {
                     { id: 'overview', label: 'Overview', icon: BarChart3 },
                     { id: 'performance', label: 'Performance', icon: TrendingUp },
                     { id: 'questions', label: 'Question Analysis', icon: PieChart },
-                    { id: 'time', label: 'Time Analysis', icon: Timer },
                     { id: 'categories', label: 'Categories', icon: Activity },
                     { id: 'results', label: 'Results', icon: FileText }
                   ].map((tab) => {
@@ -653,6 +691,7 @@ const AdminResults = ({ user }) => {
                   {/* Overview Tab */}
                   {analysisTab === 'overview' && contestStats && (
                     <div className="space-y-6">
+                      {(() => { const perf = calculatePerformanceMetrics(contestResults); return (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div className="bg-gray-50 p-4 rounded-lg">
                           <div className="flex items-center space-x-2">
@@ -667,7 +706,7 @@ const AdminResults = ({ user }) => {
                             <Trophy className="w-5 h-5 text-yellow-600" />
                             <span className="text-sm font-medium text-gray-600">Average Score</span>
                           </div>
-                          <p className="text-2xl font-bold text-gray-900 mt-2">{contestStats.averageScore?.toFixed(2) || '0.00'}</p>
+                          <p className="text-2xl font-bold text-gray-900 mt-2">{perf.averageScore.toFixed(2)}</p>
                         </div>
                         
                         <div className="bg-gray-50 p-4 rounded-lg">
@@ -675,7 +714,7 @@ const AdminResults = ({ user }) => {
                             <Target className="w-5 h-5 text-green-600" />
                             <span className="text-sm font-medium text-gray-600">Highest Score</span>
                           </div>
-                          <p className="text-2xl font-bold text-gray-900 mt-2">{contestStats.highestScore || 0}</p>
+                          <p className="text-2xl font-bold text-gray-900 mt-2">{perf.highestScore}</p>
                         </div>
                         
                         <div className="bg-gray-50 p-4 rounded-lg">
@@ -683,7 +722,7 @@ const AdminResults = ({ user }) => {
                             <Calendar className="w-5 h-5 text-purple-600" />
                             <span className="text-sm font-medium text-gray-600">Completion Rate</span>
                           </div>
-                          <p className="text-2xl font-bold text-gray-900 mt-2">{contestStats.completionRate?.toFixed(1) || '0'}%</p>
+                          <p className="text-2xl font-bold text-gray-900 mt-2">{perf.completionRate.toFixed(1)}%</p>
                         </div>
                         
                         <div className="bg-gray-50 p-4 rounded-lg">
@@ -691,7 +730,7 @@ const AdminResults = ({ user }) => {
                             <Clock className="w-5 h-5 text-red-600" />
                             <span className="text-sm font-medium text-gray-600">Average Time</span>
                           </div>
-                          <p className="text-2xl font-bold text-gray-900 mt-2">{contestStats.averageTime || 0} min</p>
+                          <p className="text-2xl font-bold text-gray-900 mt-2">{perf.averageTime} min</p>
                         </div>
                         
                         <div className="bg-gray-50 p-4 rounded-lg">
@@ -702,6 +741,7 @@ const AdminResults = ({ user }) => {
                           <p className="text-2xl font-bold text-gray-900 mt-2">{contestStats.totalQuestions || 0}</p>
                         </div>
                       </div>
+                      ); })()}
 
                       {/* Performance Distribution */}
                       {contestResults.length > 0 && (
@@ -739,10 +779,10 @@ const AdminResults = ({ user }) => {
                   {/* Performance Tab */}
                   {analysisTab === 'performance' && (
                     <div className="space-y-6">
-                      {contestResults.length > 0 ? (
+                      {contestResults.length > 0 ? (() => { const perf = calculatePerformanceMetrics(contestResults); return (
                         <>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {Object.entries(calculatePerformanceMetrics(contestResults)).map(([key, value]) => (
+                            {Object.entries(perf).map(([key, value]) => (
                               <div key={key} className="bg-gray-50 p-4 rounded-lg">
                                 <div className="flex items-center space-x-2">
                                   <TrendingUp className="w-5 h-5 text-blue-600" />
@@ -790,7 +830,7 @@ const AdminResults = ({ user }) => {
                             </div>
                           </div>
                         </>
-                      ) : (
+                      ); })() : (
                         <div className="text-center py-8">
                           <TrendingUp className="w-16 h-16 mx-auto mb-4 text-gray-400" />
                           <p className="text-gray-600">No performance data available.</p>
@@ -799,7 +839,8 @@ const AdminResults = ({ user }) => {
                     </div>
                   )}
 
-                  {/* Question Analysis Tab */}
+                  {/* Question Analysis Tab */
+                  }
                   {analysisTab === 'questions' && (
                     <div className="space-y-6">
                       {questionAnalysis.length > 0 ? (
@@ -812,6 +853,7 @@ const AdminResults = ({ user }) => {
                               <thead className="bg-gray-50">
                                 <tr>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Question</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Options & Selections</th>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Difficulty</th>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Success Rate</th>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
@@ -824,6 +866,23 @@ const AdminResults = ({ user }) => {
                                     <td className="px-6 py-4">
                                       <div className="text-sm font-medium text-gray-900">Q{index + 1}</div>
                                       <div className="text-sm text-gray-500 truncate max-w-xs">{question.question}</div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                      <div className="space-y-2">
+                                        {['a','b','c','d'].map((optKey) => (
+                                          <div key={optKey} className="flex items-start justify-between">
+                                            <div className="text-sm text-gray-700 pr-4">
+                                              <span className="font-medium uppercase">{optKey}) </span>
+                                              {question.options?.[optKey] || '-'}
+                                            </div>
+                                            <span className="ml-2 text-xs text-gray-600">selected: {question.optionCounts?.[optKey] || 0}</span>
+                                          </div>
+                                        ))}
+                                        <div className="flex items-center justify-between text-xs text-gray-500">
+                                          <span>Not attempted</span>
+                                          <span>{question.optionCounts?.notAttempted || 0}</span>
+                                        </div>
+                                      </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getDifficultyColor(question.difficulty)}`}>
@@ -871,63 +930,7 @@ const AdminResults = ({ user }) => {
                     </div>
                   )}
 
-                  {/* Time Analysis Tab */}
-                  {analysisTab === 'time' && (
-                    <div className="space-y-6">
-                      {timeAnalysis && Object.keys(timeAnalysis).length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="bg-white border border-gray-200 rounded-lg p-6">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Time Distribution</h4>
-                            <div className="space-y-4">
-                              {Object.entries(timeAnalysis).map(([range, count]) => (
-                                <div key={range} className="flex items-center justify-between">
-                                  <span className="text-sm text-gray-600">{range}</span>
-                                  <div className="flex items-center space-x-2">
-                                    <div className="w-20 bg-gray-200 rounded-full h-2">
-                                      <div 
-                                        className="bg-blue-500 h-2 rounded-full"
-                                        style={{ width: `${(count / contestResults.length) * 100}%` }}
-                                      ></div>
-                                    </div>
-                                    <span className="text-sm font-medium text-gray-900">{count}</span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          <div className="bg-white border border-gray-200 rounded-lg p-6">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Time vs Performance</h4>
-                            <div className="space-y-4">
-                              {contestResults
-                                .filter(result => result.timeTaken)
-                                .sort((a, b) => (a.timeTaken || 0) - (b.timeTaken || 0))
-                                .slice(0, 5)
-                                .map((result, index) => {
-                                  const percentage = result.percentage || 0;
-                                  return (
-                                    <div key={result.id} className="flex items-center justify-between">
-                                      <div>
-                                        <p className="text-sm font-medium text-gray-900">{result.name || 'Unknown'}</p>
-                                        <p className="text-xs text-gray-500">{Math.round((result.timeTaken || 0) / 60)} min</p>
-                                      </div>
-                                      <span className={`text-sm font-medium ${getPerformanceColor(percentage)}`}>
-                                        {percentage.toFixed(1)}%
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <Timer className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                          <p className="text-gray-600">No time analysis data available.</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  
 
                   {/* Categories Tab */}
                   {analysisTab === 'categories' && (
@@ -978,82 +981,107 @@ const AdminResults = ({ user }) => {
                           <p className="mt-4 text-gray-600">Loading results...</p>
                         </div>
                       ) : contestResults.length > 0 ? (
-                        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                          <div className="px-6 py-4 border-b border-gray-200">
-                            <h4 className="text-lg font-semibold text-gray-900">Contest Results</h4>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Rank
-                                  </th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Participant
-                                  </th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Score
-                                  </th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Time Taken
-                                  </th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Completed
-                                  </th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white divide-y divide-gray-200">
-                                {contestResults.map((result, index) => (
-                                  <tr key={result.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <div className="flex items-center">
-                                        {index === 0 && <Trophy className="w-4 h-4 text-yellow-500 mr-2" />}
-                                        {index === 1 && <Award className="w-4 h-4 text-gray-400 mr-2" />}
-                                        {index === 2 && <Award className="w-4 h-4 text-orange-400 mr-2" />}
-                                        <span className="text-sm font-medium text-gray-900">#{index + 1}</span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <div>
-                                        <div className="text-sm font-medium text-gray-900">{result.name || 'Unknown'}</div>
-                                        <div className="text-sm text-gray-500">{result.email || 'No email'}</div>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <div className="text-sm font-medium text-gray-900">{result.score || 0}</div>
-                                      <div className="text-sm text-gray-500">
-                                        {contestStats?.totalQuestions ? `${((result.score || 0) / contestStats.totalQuestions * 100).toFixed(1)}%` : '0%'}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                      {result.timeTaken ? `${Math.round(result.timeTaken / 60)} min` : 'N/A'}
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                        result.submittedAt ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                      }`}>
-                                        {result.submittedAt ? 'Yes' : 'No'}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                      <button
-                                        onClick={() => {/* TODO: View detailed answers */}}
-                                        className="text-black hover:text-gray-700 flex items-center space-x-1"
-                                      >
-                                        <FileText className="w-4 h-4" />
-                                        <span>View Answers</span>
-                                      </button>
-                                    </td>
+                        <>
+                          {/* Charts Section */}
+                          {contestStats?.questionStats && contestStats.questionStats.length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col items-center">
+                                <h4 className="font-semibold text-gray-900 mb-3">Question-wise Attempts</h4>
+                                <Bar
+                                  data={{
+                                    labels: contestStats.questionStats.map((q, i) => `Q${i + 1}`),
+                                    datasets: [
+                                      { label: 'Correct', data: contestStats.questionStats.map(q => q.correctAttempts), backgroundColor: '#22c55e' },
+                                      { label: 'Incorrect', data: contestStats.questionStats.map(q => q.incorrectAttempts), backgroundColor: '#ef4444' },
+                                      { label: 'Not Attempted', data: contestStats.questionStats.map(q => q.notAttempted), backgroundColor: '#f59e0b' }
+                                    ]
+                                  }}
+                                  options={{ responsive: true, plugins: { legend: { position: 'top' }, title: { display: false } } }}
+                                  height={180}
+                                />
+                              </div>
+                              <div className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col items-center">
+                                <h4 className="font-semibold text-gray-900 mb-3">Overall Answer Distribution</h4>
+                                <Pie
+                                  data={{
+                                    labels: ['Correct', 'Incorrect', 'Not Attempted'],
+                                    datasets: [
+                                      {
+                                        data: [
+                                          contestStats.questionStats.reduce((a, q) => a + q.correctAttempts, 0),
+                                          contestStats.questionStats.reduce((a, q) => a + q.incorrectAttempts, 0),
+                                          contestStats.questionStats.reduce((a, q) => a + q.notAttempted, 0)
+                                        ],
+                                        backgroundColor: ['#22c55e', '#ef4444', '#f59e0b']
+                                      }
+                                    ]
+                                  }}
+                                  options={{ plugins: { legend: { position: 'top' } } }}
+                                  height={180}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Results Table */}
+                          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            <div className="px-6 py-4 border-b border-gray-200">
+                              <h4 className="text-lg font-semibold text-gray-900">Contest Results</h4>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Participant</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time Taken</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                  {contestResults.map((result, index) => (
+                                    <tr key={result.id} className="hover:bg-gray-50">
+                                      <td className="px-4 py-4 whitespace-nowrap">
+                                        <div className="flex items-center">
+                                          {index === 0 && <Trophy className="w-4 h-4 text-yellow-500 mr-2" />}
+                                          {index === 1 && <Award className="w-4 h-4 text-gray-400 mr-2" />}
+                                          {index === 2 && <Award className="w-4 h-4 text-orange-400 mr-2" />}
+                                          <span className="text-sm font-medium text-gray-900">#{index + 1}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-4 whitespace-nowrap">
+                                        <div>
+                                          <div className="text-sm font-medium text-gray-900">{result.name || 'Unknown'}</div>
+                                          <div className="text-sm text-gray-500">{result.email || 'No email'}</div>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-4 whitespace-nowrap">
+                                        <div className="text-sm font-medium text-gray-900">{result.score || 0}</div>
+                                        <div className="text-sm text-gray-500">
+                                          {contestStats?.totalQuestions ? `${((result.score || 0) / contestStats.totalQuestions * 100).toFixed(1)}%` : '0%'}
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{result.timeTaken ? `${result.timeTaken} min` : 'N/A'}</td>
+                                      <td className="px-4 py-4 whitespace-nowrap">
+                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${result.submittedAt ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                          {result.submittedAt ? 'Yes' : 'No'}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                        <button onClick={() => fetchParticipantAnswers(selectedContest.id, result.id)} className="text-black hover:text-gray-700 flex items-center space-x-1">
+                                          <FileText className="w-4 h-4" />
+                                          <span>View Answers</span>
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
-                        </div>
+                        </>
                       ) : (
                         <div className="text-center py-8">
                           <FileText className="w-16 h-16 mx-auto mb-4 text-gray-400" />
@@ -1064,6 +1092,80 @@ const AdminResults = ({ user }) => {
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Participant Answers Modal */}
+      {showParticipantModal && participantDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-black">Participant Answers</h3>
+                <p className="text-gray-600 mt-1">{participantDetails.participant?.name} • {participantDetails.participant?.email}</p>
+              </div>
+              <button onClick={() => setShowParticipantModal(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gray-50 p-3 rounded">
+                  <div className="text-xs text-gray-500">Score</div>
+                  <div className="text-lg font-semibold">{participantDetails.participant?.score}/{participantDetails.participant?.totalQuestions}</div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded">
+                  <div className="text-xs text-gray-500">Percentage</div>
+                  <div className="text-lg font-semibold">{participantDetails.participant?.percentage?.toFixed ? participantDetails.participant.percentage.toFixed(1) : participantDetails.participant?.percentage}%</div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded">
+                  <div className="text-xs text-gray-500">Time Taken</div>
+                  <div className="text-lg font-semibold">{participantDetails.participant?.timeTaken} min</div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded">
+                  <div className="text-xs text-gray-500">Submitted</div>
+                  <div className="text-lg font-semibold">{participantDetails.participant?.submittedAt ? 'Yes' : 'No'}</div>
+                </div>
+              </div>
+
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h4 className="text-lg font-semibold text-gray-900">Answers</h4>
+                </div>
+                <div className="divide-y">
+                  {participantDetails.questions?.map((q, idx) => (
+                    <div key={q.id} className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="pr-4">
+                          <div className="text-sm font-medium text-gray-900">Q{idx + 1}. {q.question}</div>
+                          <div className="mt-2 space-y-1 text-sm text-gray-700">
+                            {['a','b','c','d'].map(key => (
+                              <div key={key} className={`flex items-center ${q.correctAnswer === key ? 'font-semibold text-green-700' : ''}`}>
+                                <span className="uppercase mr-2">{key})</span>
+                                <span>{q.options?.[key]}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="min-w-[160px] text-right">
+                          <div className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${q.isCorrect ? 'bg-green-100 text-green-800' : q.userAnswer ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>{q.isCorrect ? 'Correct' : q.userAnswer ? 'Incorrect' : 'Not answered'}</div>
+                          <div className="text-xs text-gray-600 mt-2">Your answer: {q.userAnswer || '-'}</div>
+                          <div className="text-xs text-gray-600">Correct: {q.correctAnswer}</div>
+                        </div>
+                      </div>
+                      {q.explanation && (
+                        <div className="mt-3 text-sm text-gray-600">
+                          <span className="font-medium text-gray-800">Explanation: </span>{q.explanation}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>

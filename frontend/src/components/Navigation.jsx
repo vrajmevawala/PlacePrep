@@ -126,9 +126,32 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
               <>
                 {privateNavItems.map((item) => {
                   const Icon = item.icon;
+                  const isAdmin = user?.role === 'admin' || user?.role === 'moderator';
+
+                  // Map admin nav items to AdminDashboard tabs
+                  const getAdminTabForItem = (name) => {
+                    switch (name) {
+                      case 'Dashboard':
+                        return 'overview';
+                      case 'Resource':
+                        return 'resources';
+                      case 'Contest':
+                        return 'contests';
+                      case 'Result':
+                        return 'results';
+                      default:
+                        return null;
+                    }
+                  };
+                  const adminTab = isAdmin ? getAdminTabForItem(item.name) : null;
+                  const adminTabHref = adminTab ? `/dashboard?tab=${adminTab}` : null;
+                  const isAdminTabActive = adminTab
+                    ? (location.pathname === '/dashboard' && new URLSearchParams(location.search).get('tab') === adminTab)
+                    : false;
                   
                   // Special handling for Practice dropdown
                   if (item.name === 'Practice') {
+                    if (isAdmin) return null; // hide Practice for admins/moderators
                     return (
                       <div
                         key={item.path}
@@ -187,6 +210,28 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                   }
                   
                   // Regular navigation items
+                  // For admins, route to AdminDashboard tabs (except AI Assistant)
+                  if (isAdmin && adminTab && item.name !== 'AI Assistant') {
+                    return (
+                      <Link
+                        key={item.path}
+                        to={adminTabHref}
+                        className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
+                          isAdminTabActive
+                            ? 'text-black border-b-2 border-black'
+                            : isContestMode 
+                              ? 'text-gray-400 cursor-not-allowed'
+                              : 'text-gray-600 hover:text-black'
+                        }`}
+                        onClick={(e) => handleNavigationClick(e, adminTabHref)}
+                      >
+                        {Icon && <Icon className="w-4 h-4" />}
+                        <span>{item.name}</span>
+                      </Link>
+                    );
+                  }
+
+                  // Default behavior
                   return (
                     <Link
                       key={item.path}

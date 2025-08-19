@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import AdminResults from './AdminResults';
 import { Users, UserPlus, Activity, BarChart3, Eye, Plus, Settings, Trophy, Users as UsersIcon, FileText, Tag, Edit, Trash2, Video, X, Upload } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Bar, Pie } from 'react-chartjs-2';
@@ -983,28 +984,28 @@ const AdminDashboard = ({ user, onNavigate }) => {
         <p className="text-gray-600 mt-2">Manage moderators and monitor system performance</p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-          <div className="bg-white p-6 border rounded-sm flex justify-between items-center">
+          <div className="bg-white p-6 border border-gray-200 rounded-lg flex justify-between items-center">
               <div>
               <p className="text-sm text-gray-500">Total Users</p>
                 <p className="text-2xl font-bold">{stats ? stats.totalUsers : '...'}</p>
               </div>
               <Users className="w-8 h-8 text-gray-400" />
           </div>
-          <div className="bg-white p-6 border rounded-sm flex justify-between items-center">
+          <div className="bg-white p-6 border border-gray-200 rounded-lg flex justify-between items-center">
                   <div>
               <p className="text-sm text-gray-500">Active Moderators</p>
                 <p className="text-2xl font-bold">{stats ? stats.totalModerators : '...'}</p>
                   </div>
               <UserPlus className="w-8 h-8 text-gray-400" />
             </div>
-          <div className="bg-white p-6 border rounded-sm flex justify-between items-center">
+          <div className="bg-white p-6 border border-gray-200 rounded-lg flex justify-between items-center">
                   <div>
               <p className="text-sm text-gray-500">Tests Conducted</p>
                 <p className="text-2xl font-bold">{stats ? stats.totalTests : '...'}</p>
                   </div>
               <Activity className="w-8 h-8 text-gray-400" />
             </div>
-          <div className="bg-white p-6 border rounded-sm flex justify-between items-center">
+          <div className="bg-white p-6 border border-gray-200 rounded-lg flex justify-between items-center">
                 <div>
               <p className="text-sm text-gray-500">Success Rate</p>
                 <p className="text-2xl font-bold">{stats ? stats.successRate + '%' : '...'}</p>
@@ -1035,9 +1036,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
 
         {selectedTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-white rounded-sm border border-gray-200">
+            <div className="bg-white rounded-lg border border-gray-200">
               <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold">Recent Activity</h2>
+                <h2 className="text-xl font-semibold text-black">Recent Activity</h2>
               </div>
               <div className="divide-y divide-gray-200">
                 {userResults.length === 0 ? (
@@ -1047,7 +1048,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   <div key={index} className="p-6">
                     <div className="flex justify-between items-start">
                     <div>
-                          <p className="font-medium">{result.user}</p>
+                          <p className="font-medium">{typeof result.user === 'object' ? (result.user?.fullName || result.user?.email || 'User') : result.user}</p>
                           <p className="text-sm text-gray-600">{result.action}</p>
                           <p className="text-xs text-gray-500">{result.timestamp}</p>
                     </div>
@@ -1063,21 +1064,21 @@ const AdminDashboard = ({ user, onNavigate }) => {
               </div>
             </div>
 
-          <div className="bg-white rounded-sm border border-gray-200">
+          <div className="bg-white rounded-lg border border-gray-200">
               <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold">Quick Actions</h2>
+                <h2 className="text-xl font-semibold text-black">Quick Actions</h2>
               </div>
               <div className="p-6 space-y-4">
               <button
                 onClick={() => navigate('/dashboard?tab=resources')}
-                className="w-full flex items-center justify-center space-x-2 bg-black text-white px-4 py-3 rounded-sm hover:bg-gray-800"
+                className="w-full flex items-center justify-center space-x-2 bg-black text-white px-4 py-3 rounded-md hover:bg-gray-800"
               >
                 <Plus className="w-5 h-5" />
                 <span>Add Resource</span>
               </button>
               <button
                 onClick={() => navigate('/create-contest')}
-                className="w-full flex items-center justify-center space-x-2 border border-gray-300 px-4 py-3 rounded-sm hover:bg-gray-50"
+                className="w-full flex items-center justify-center space-x-2 border border-gray-300 px-4 py-3 rounded-md hover:bg-gray-50"
               >
                 <Trophy className="w-5 h-5" />
                 <span>Create Contest</span>
@@ -1088,12 +1089,12 @@ const AdminDashboard = ({ user, onNavigate }) => {
         )}
 
         {selectedTab === 'moderators' && (
-          <div className="bg-white rounded-sm border border-gray-200">
+          <div className="bg-white rounded-lg border border-gray-200">
             <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Moderators</h2>
+              <h2 className="text-xl font-semibold text-black">Moderators</h2>
               <button
                 onClick={() => setShowCreateModerator(true)}
-                className="flex items-center space-x-2 bg-black text-white px-4 py-2 rounded-sm hover:bg-gray-800"
+                className="flex items-center space-x-2 bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800"
               >
                 <Plus className="w-4 h-4" />
                 <span>Create Moderator</span>
@@ -1167,9 +1168,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
         )}
 
         {selectedTab === 'users' && (
-          <div className="bg-white rounded-sm border border-gray-200">
+          <div className="bg-white rounded-lg border border-gray-200">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold">User Analytics</h2>
+              <h2 className="text-xl font-semibold text-black">User Analytics</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -1223,9 +1224,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
         )}
 
         {selectedTab === 'resources' && (
-          <div className="bg-white rounded-sm border border-gray-200">
+          <div className="bg-white rounded-lg border border-gray-200">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold mb-4">Resource Management</h2>
+              <h2 className="text-xl font-semibold text-black mb-4">Resource Management</h2>
               
               {/* Add Resource Buttons */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -1254,19 +1255,28 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 </button>
               </div>
 
-              {/* Excel Upload UI */}
-              <form className="mb-4 flex flex-col md:flex-row gap-2 items-start md:items-center" onSubmit={handleExcelUpload}>
-                <input type="file" accept=".xlsx, .xls" ref={fileInputRef} className="border rounded px-2 py-1" />
-                <button type="submit" className="bg-black text-white px-4 py-2 rounded hover:bg-gray-900 border border-black">Upload Excel</button>
-                {excelUploadStatus && <span className="ml-2 text-sm text-gray-700">{excelUploadStatus}</span>}
-              </form>
-              
-              {/* JSON Upload UI */}
-              <form className="mb-6 flex flex-col md:flex-row gap-2 items-start md:items-center" onSubmit={handleJsonUpload}>
-                <input type="file" accept=".json" ref={jsonFileInputRef} className="border rounded px-2 py-1" />
-                <button type="submit" className="bg-white text-black px-4 py-2 rounded hover:bg-gray-100 border border-black">Upload JSON</button>
-                {jsonUploadStatus && <span className="ml-2 text-sm text-gray-700">{jsonUploadStatus}</span>}
-              </form>
+              {/* Bulk Upload */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {/* Excel Card */}
+                <form className="bg-gray-50 border border-gray-200 rounded-lg p-4" onSubmit={handleExcelUpload}>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Upload Questions (Excel)</label>
+                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <input type="file" accept=".xlsx, .xls" ref={fileInputRef} className="border rounded px-3 py-2 w-full sm:w-auto" />
+                    <button type="submit" className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 border border-black">Upload</button>
+                  </div>
+                  {excelUploadStatus && <p className="mt-2 text-sm text-gray-600">{excelUploadStatus}</p>}
+                </form>
+
+                {/* JSON Card */}
+                <form className="bg-gray-50 border border-gray-200 rounded-lg p-4" onSubmit={handleJsonUpload}>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Upload Questions (JSON)</label>
+                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <input type="file" accept=".json" ref={jsonFileInputRef} className="border rounded px-3 py-2 w-full sm:w-auto" />
+                    <button type="submit" className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 border border-black">Upload</button>
+                  </div>
+                  {jsonUploadStatus && <p className="mt-2 text-sm text-gray-600">{jsonUploadStatus}</p>}
+                </form>
+              </div>
             </div>
             
             <div className="overflow-x-auto">
@@ -1333,9 +1343,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
         )}
 
         {selectedTab === 'contests' && (
-          <div className="bg-white rounded-sm border border-gray-200">
+          <div className="bg-white rounded-lg border border-gray-200">
             <div className="p-6 border-b border-gray-200 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-              <h2 className="text-xl font-semibold">All Contests</h2>
+              <h2 className="text-xl font-semibold text-black">All Contests</h2>
               <div className="flex flex-wrap gap-2 items-center">
                 <label className="text-sm">Sort by:</label>
                 <select value={contestSort.field} onChange={e => setContestSort(s => ({ ...s, field: e.target.value }))} className="border rounded px-2 py-1">
@@ -1361,7 +1371,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 </select>
                 <button
                   onClick={() => navigate('/create-contest')}
-                  className="flex items-center space-x-2 bg-black text-white px-4 py-2 rounded-sm hover:bg-gray-800"
+                  className="flex items-center space-x-2 bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Create Contest</span>
@@ -1425,65 +1435,13 @@ const AdminDashboard = ({ user, onNavigate }) => {
         )}
 
         {selectedTab === 'results' && (
-          <div className="bg-white rounded-sm border border-gray-200">
+          <div className="bg-white rounded-lg border border-gray-200">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold mb-4">Contest Statistics</h2>
-              <p className="text-gray-600 mb-4">Detailed analytics for all contests including average scores, percentages, and question-wise performance</p>
+              <h2 className="text-xl font-semibold text-black">Contest Results</h2>
             </div>
-            
-            {contestStats.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-gray-500">No contest statistics available.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-gray-100 border-b border-gray-200">
-                      <th className="py-4 px-6 font-medium text-gray-900">Contest Name</th>
-                      <th className="py-4 px-6 font-medium text-gray-900">Status</th>
-                      <th className="py-4 px-6 font-medium text-gray-900">Participants</th>
-                      <th className="py-4 px-6 font-medium text-gray-900">Questions</th>
-                      <th className="py-4 px-6 font-medium text-gray-900">Avg Score</th>
-                      <th className="py-4 px-6 font-medium text-gray-900">Avg %</th>
-                      <th className="py-4 px-6 font-medium text-gray-900">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {contestStats.map((stat, idx) => (
-                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                        <td className="py-4 px-6 font-medium text-black">{stat.contestTitle}</td>
-                        <td className="py-4 px-6">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            stat.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            stat.status === 'live' ? 'bg-green-100 text-green-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {stat.status.charAt(0).toUpperCase() + stat.status.slice(1)}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-gray-700">{stat.totalParticipants}</td>
-                        <td className="py-4 px-6 text-gray-700">{stat.totalQuestions}</td>
-                        <td className="py-4 px-6 font-semibold text-gray-900">
-                          {stat.averageScore.toFixed(2)}
-                        </td>
-                        <td className="py-4 px-6 font-semibold text-gray-900">
-                          {stat.averagePercentage.toFixed(1)}%
-                        </td>
-                        <td className="py-4 px-6">
-                          <button
-                            onClick={() => handleViewContestStats({ id: stat.contestId, title: stat.contestTitle })}
-                            className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800 text-sm font-semibold transition-colors"
-                          >
-                            View Details
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <div className="p-0">
+              <AdminResults user={user} embedded />
+            </div>
           </div>
         )}
 
@@ -1791,7 +1749,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   {userActivities.map((activity, index) => (
                     <tr key={index}>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium">{activity.user}</div>
+                        <div className="font-medium">{typeof activity.user === 'object' ? (activity.user?.fullName || activity.user?.email || 'User') : activity.user}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-gray-600">{activity.action}</div>

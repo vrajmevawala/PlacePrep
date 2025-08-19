@@ -309,10 +309,32 @@ export const me = async (req, res) => {
 
 export const getAllUsers = async (req, res) => {
   try {
+    // Base users
     const users = await prisma.user.findMany({
       select: { id: true, fullName: true, email: true, role: true }
     });
-    res.json({ users });
+
+    // Build per-user accuracy from StudentActivity
+    const activities = await prisma.studentActivity.findMany({
+      where: { selectedAnswer: { not: null } },
+      include: { question: { select: { correctAns: true } } }
+    });
+
+    const userStats = new Map();
+    activities.forEach(a => {
+      if (!userStats.has(a.sid)) userStats.set(a.sid, { attempted: 0, correct: 0 });
+      const stats = userStats.get(a.sid);
+      stats.attempted += 1;
+      if (a.selectedAnswer === a.question.correctAns) stats.correct += 1;
+    });
+
+    const usersWithScore = users.map(u => {
+      const stats = userStats.get(u.id);
+      const score = stats && stats.attempted > 0 ? Math.round((stats.correct / stats.attempted) * 100) : null;
+      return { ...u, score };
+    });
+
+    res.json({ users: usersWithScore });
   } catch (error) {
     res.status(500).json({ message: 'Internal Server Error' });
   }
@@ -323,21 +345,27 @@ export const getAdminStats = async (req, res) => {
     const totalUsers = await prisma.user.count({ where: { role: 'user' } });
     const totalModerators = await prisma.user.count({ where: { role: 'moderator' } });
     const totalTests = await prisma.testSeries.count();
-    // Calculate success rate (example: average score from Activity logs)
-    const scores = await prisma.Activity.findMany({
-      where: { score: { not: null } },
-      select: { score: true }
+
+    // Success rate: average user accuracy from StudentActivity
+    const activities = await prisma.studentActivity.findMany({
+      where: { selectedAnswer: { not: null } },
+      include: { question: { select: { correctAns: true } } }
     });
-    const successRate = scores.length
-      ? Math.round(scores.reduce((sum, s) => sum + s.score, 0) / scores.length)
+
+    const userStats = new Map();
+    activities.forEach(a => {
+      if (!userStats.has(a.sid)) userStats.set(a.sid, { attempted: 0, correct: 0 });
+      const stats = userStats.get(a.sid);
+      stats.attempted += 1;
+      if (a.selectedAnswer === a.question.correctAns) stats.correct += 1;
+    });
+
+    const userAccuracies = Array.from(userStats.values()).map(s => (s.attempted > 0 ? (s.correct / s.attempted) * 100 : 0));
+    const successRate = userAccuracies.length
+      ? Math.round(userAccuracies.reduce((sum, v) => sum + v, 0) / userAccuracies.length)
       : 0;
 
-    res.json({
-      totalUsers,
-      totalModerators,
-      totalTests,
-      successRate
-    });
+    res.json({ totalUsers, totalModerators, totalTests, successRate });
   } catch (error) {
     res.status(500).json({ message: 'Internal Server Error' });
   }
@@ -402,7 +430,7 @@ export const getUserAnalytics = async (req, res) => {
 
 export const getActivityLogs = async (req, res) => {
   try {
-    const logs = await prisma.Activity.findMany({
+    const logs = await prisma.activity.findMany({
       orderBy: { timestamp: 'desc' },
       take: 100
     });

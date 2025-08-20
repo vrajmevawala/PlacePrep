@@ -6,6 +6,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.routes.js';
 import freePracticeRoutes from './routes/freePractice.routes.js';
 import testSeriesRoutes from './routes/testSeries.routes.js';
@@ -31,6 +33,10 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT;
 
+// Resolve __dirname for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(cookieParser());
@@ -50,6 +56,22 @@ app.use('/api/resources', resourceRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));
+
+// Serve frontend build (SPA)
+const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+// Health and root endpoints
+// Note: When the frontend build exists, '/' will be served by express.static above
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
+// SPA fallback for client-side routes (must be after /api/* and other static routes)
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
+});
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

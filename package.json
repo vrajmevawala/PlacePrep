@@ -8,25 +8,7 @@
     "build": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
     "start": "npm run start --prefix backend"
   },
-  
-  "dependencies": {
-    "@fontsource/inter": "^5.2.6",
-    "@fontsource/nunito": "^5.2.6",
-    "@google/generative-ai": "^0.24.1",
-    "@phosphor-icons/react": "^2.1.10",
-    "@shadcn/ui": "^0.0.4",
-    "autoprefixer": "^10.4.21",
-    "framer-motion": "^12.23.9",
-    "gsap": "^3.13.0",
-    "lucide-react": "^0.525.0",
-    "multer": "^2.0.2",
-    "postcss": "^8.5.6",
-    "react-icons": "^5.5.0",
-    "react-router-dom": "^6.30.1",
-    "recharts": "^3.1.0",
-    "tailwindcss": "^4.1.11",
-    "xlsx": "^0.18.5"
-  }
+  "dependencies": {}
 }
 
 

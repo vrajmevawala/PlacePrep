@@ -1,4 +1,14 @@
 {
+  "name": "PlacePlep",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+
+  "scripts": {
+    "build": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
+    "start": "npm run start --prefix backend"
+  },
+  
   "dependencies": {
     "@fontsource/inter": "^5.2.6",
     "@fontsource/nunito": "^5.2.6",
@@ -18,3 +28,5 @@
     "xlsx": "^0.18.5"
   }
 }
+
+

@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import multer from 'multer';
-import xlsx from 'xlsx';
+import ExcelJS from 'exceljs';
 
 const prisma = new PrismaClient();
 
@@ -53,11 +53,42 @@ export const addQuestionsFromExcel = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded.' });
     }
-    // Parse Excel file
-    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const rows = xlsx.utils.sheet_to_json(worksheet);
+    // Parse Excel file using exceljs
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.file.buffer);
+    const worksheet = workbook.worksheets[0];
+    const rows = [];
+    // Read header row to map columns
+    const headerRow = worksheet.getRow(1);
+    const headers = headerRow.values.map(v => (typeof v === 'string' ? v.trim() : v));
+    const headerIndexMap = new Map();
+    headers.forEach((name, idx) => {
+      if (typeof name === 'string' && name.length > 0) headerIndexMap.set(name, idx);
+    });
+    for (let rowIndex = 2; rowIndex <= worksheet.rowCount; rowIndex++) {
+      const row = worksheet.getRow(rowIndex);
+      if (!row || row.cellCount === 0) continue;
+      const record = {
+        category: row.getCell(headerIndexMap.get('category') || 1).value ?? '',
+        subcategory: row.getCell(headerIndexMap.get('subcategory') || 2).value ?? '',
+        level: row.getCell(headerIndexMap.get('level') || 3).value ?? '',
+        question: row.getCell(headerIndexMap.get('question') || 4).value ?? '',
+        options: row.getCell(headerIndexMap.get('options') || 5).value ?? '',
+        correctAns: row.getCell(headerIndexMap.get('correctAns') || 6).value ?? '',
+        explanation: row.getCell(headerIndexMap.get('explanation') || 7).value ?? '',
+        visibility: row.getCell(headerIndexMap.get('visibility') || 8).value
+      };
+      // Convert RichText/object values to primitive strings
+      Object.keys(record).forEach(key => {
+        const value = record[key];
+        if (value && typeof value === 'object' && 'text' in value) {
+          record[key] = value.text;
+        } else if (value && typeof value === 'object' && 'richText' in value) {
+          record[key] = value.richText.map(t => t.text).join('');
+        }
+      });
+      rows.push(record);
+    }
     
     // Get visibility from form data or default to true
     const defaultVisibility = req.body.visibility === 'false' ? false : true;

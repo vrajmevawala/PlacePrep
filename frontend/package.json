@@ -14,6 +14,7 @@
     "chart.js": "^4.5.0",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.344.0",
+    "PlacePlep": "file:..",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.3.1",
@@ -26,7 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^5.0.1",
     "autoprefixer": "^10.4.18",
     "eslint": "^9.9.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
@@ -34,6 +35,6 @@
     "globals": "^15.9.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
-    "vite": "^5.4.2"
+    "vite": "^7.1.3"
   }
 }

@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 const prisma = new PrismaClient();
 
 // Get notification service from app
@@ -1626,69 +1626,89 @@ export const downloadContestResultsExcel = async (req, res) => {
       participant.participant.rank = index + 1;
     });
 
-    // Create Excel workbook
-    const workbook = XLSX.utils.book_new();
+    // Create Excel workbook using exceljs
+    const workbook = new ExcelJS.Workbook();
 
-    // Create Summary sheet
-    const summaryData = participantsWithAnswers.map(p => ({
-      'Rank': p.participant.rank,
-      'Name': p.participant.name,
-      'Email': p.participant.email,
-      'Score': p.participant.score,
-      'Total Questions': p.participant.totalQuestions,
-      'Percentage': `${p.participant.percentage}%`,
-      'Time Taken (minutes)': p.participant.timeTaken,
-      'Submitted At': p.participant.submittedAt
-    }));
-
-    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-
-    // Create detailed answers sheet for each participant
-    participantsWithAnswers.forEach((participant, index) => {
-      const participantName = participant.participant.name.replace(/[^a-zA-Z0-9]/g, '_');
-      const sheetName = `${participant.participant.rank}_${participantName}`.substring(0, 31); // Excel sheet name limit
-      
-      const answersData = participant.answers.map(answer => ({
-        'Question Number': answer.questionNumber,
-        'Question': answer.question,
-        'Options': JSON.stringify(answer.options),
-        'User Answer': answer.userAnswer || 'Not answered',
-        'Correct Answer': answer.correctAnswer,
-        'Status': answer.isCorrect ? 'Correct' : (answer.userAnswer ? 'Incorrect' : 'Not answered')
-      }));
-
-      const answersSheet = XLSX.utils.json_to_sheet(answersData);
-      XLSX.utils.book_append_sheet(workbook, answersSheet, sheetName);
+    // Summary worksheet
+    const summarySheet = workbook.addWorksheet('Summary');
+    summarySheet.columns = [
+      { header: 'Rank', key: 'rank', width: 8 },
+      { header: 'Name', key: 'name', width: 28 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Score', key: 'score', width: 10 },
+      { header: 'Total Questions', key: 'totalQuestions', width: 16 },
+      { header: 'Percentage', key: 'percentage', width: 12 },
+      { header: 'Time Taken (minutes)', key: 'timeTaken', width: 20 },
+      { header: 'Submitted At', key: 'submittedAt', width: 24 }
+    ];
+    participantsWithAnswers.forEach(p => {
+      summarySheet.addRow({
+        rank: p.participant.rank,
+        name: p.participant.name,
+        email: p.participant.email,
+        score: p.participant.score,
+        totalQuestions: p.participant.totalQuestions,
+        percentage: `${p.participant.percentage}%`,
+        timeTaken: p.participant.timeTaken,
+        submittedAt: p.participant.submittedAt
+      });
     });
 
-    // Create Questions sheet
-    const questionsData = contest.questions.map((question, index) => ({
-      'Question Number': index + 1,
-      'Question': question.question,
-      'Options': JSON.stringify(question.options),
-      'Correct Answer': question.correctAns,
-      'Level': question.level,
-      'Category': question.category,
-      'Subcategory': question.subcategory
-    }));
+    // Detailed answers worksheets per participant
+    participantsWithAnswers.forEach((participant) => {
+      const participantName = participant.participant.name.replace(/[^a-zA-Z0-9]/g, '_');
+      const sheetName = `${participant.participant.rank}_${participantName}`.substring(0, 31);
+      const ws = workbook.addWorksheet(sheetName);
+      ws.columns = [
+        { header: 'Question Number', key: 'questionNumber', width: 16 },
+        { header: 'Question', key: 'question', width: 80 },
+        { header: 'Options', key: 'options', width: 60 },
+        { header: 'User Answer', key: 'userAnswer', width: 14 },
+        { header: 'Correct Answer', key: 'correctAnswer', width: 16 },
+        { header: 'Status', key: 'status', width: 12 }
+      ];
+      participant.answers.forEach(answer => {
+        ws.addRow({
+          questionNumber: answer.questionNumber,
+          question: answer.question,
+          options: JSON.stringify(answer.options),
+          userAnswer: answer.userAnswer || 'Not answered',
+          correctAnswer: answer.correctAnswer,
+          status: answer.isCorrect ? 'Correct' : (answer.userAnswer ? 'Incorrect' : 'Not answered')
+        });
+      });
+    });
 
-    const questionsSheet = XLSX.utils.json_to_sheet(questionsData);
-    XLSX.utils.book_append_sheet(workbook, questionsSheet, 'Questions');
+    // Questions worksheet
+    const questionsSheet = workbook.addWorksheet('Questions');
+    questionsSheet.columns = [
+      { header: 'Question Number', key: 'number', width: 16 },
+      { header: 'Question', key: 'question', width: 80 },
+      { header: 'Options', key: 'options', width: 60 },
+      { header: 'Correct Answer', key: 'correct', width: 16 },
+      { header: 'Level', key: 'level', width: 12 },
+      { header: 'Category', key: 'category', width: 16 },
+      { header: 'Subcategory', key: 'subcategory', width: 16 }
+    ];
+    contest.questions.forEach((q, index) => {
+      questionsSheet.addRow({
+        number: index + 1,
+        question: q.question,
+        options: JSON.stringify(q.options),
+        correct: q.correctAns,
+        level: q.level,
+        category: q.category,
+        subcategory: q.subcategory
+      });
+    });
 
-    // Generate Excel file
-    console.log('Generating Excel buffer...');
-    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-    // Set response headers
+    // Generate Excel as buffer and send
     const fileName = `${contest.title}_Detailed_Results_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const excelBuffer = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.setHeader('Content-Length', excelBuffer.length);
-
-    console.log('Excel file generated successfully, size:', excelBuffer.length, 'bytes');
-    console.log('Sending file:', fileName);
-    res.send(excelBuffer);
+    res.setHeader('Content-Length', excelBuffer.byteLength);
+    res.send(Buffer.from(excelBuffer));
   } catch (error) {
     console.error('Error downloading contest results Excel:', error);
     console.error('Error stack:', error.stack);

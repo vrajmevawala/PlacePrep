@@ -146,7 +146,9 @@ const Practice = ({ user }) => {
   // Option click handler
   const handleOptionClick = (idx, option) => {
     if (userAnswers[idx]) return; // Prevent changing answer
-    const isCorrect = questions[idx].correctAns === option;
+    const isCorrect = Array.isArray(questions[idx].correctAnswers)
+      ? questions[idx].correctAnswers.includes(questions[idx].options[option]) || questions[idx].correctAnswers.includes(option)
+      : false;
     const updated = [...userAnswers];
     updated[idx] = { selected: option, isCorrect };
     setUserAnswers(updated);

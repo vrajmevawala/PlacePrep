@@ -22,6 +22,12 @@ const prisma = new PrismaClient();
 
 dotenv.config();
 
+// Force server timezone (helps match local behavior on Render/UTC)
+if (!process.env.TZ) {
+  process.env.TZ = 'Asia/Kolkata';
+  console.log('Server timezone set to', process.env.TZ);
+}
+
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {

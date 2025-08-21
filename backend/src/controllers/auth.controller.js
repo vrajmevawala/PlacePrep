@@ -317,7 +317,7 @@ export const getAllUsers = async (req, res) => {
     // Build per-user accuracy from StudentActivity
     const activities = await prisma.studentActivity.findMany({
       where: { selectedAnswer: { not: null } },
-      include: { question: { select: { correctAns: true } } }
+      include: { question: { select: { correctAnswers: true } } }
     });
 
     const userStats = new Map();
@@ -325,7 +325,7 @@ export const getAllUsers = async (req, res) => {
       if (!userStats.has(a.sid)) userStats.set(a.sid, { attempted: 0, correct: 0 });
       const stats = userStats.get(a.sid);
       stats.attempted += 1;
-      if (a.selectedAnswer === a.question.correctAns) stats.correct += 1;
+      if (Array.isArray(a.question.correctAnswers) && a.question.correctAnswers.includes(a.selectedAnswer)) stats.correct += 1;
     });
 
     const usersWithScore = users.map(u => {
@@ -349,7 +349,7 @@ export const getAdminStats = async (req, res) => {
     // Success rate: average user accuracy from StudentActivity
     const activities = await prisma.studentActivity.findMany({
       where: { selectedAnswer: { not: null } },
-      include: { question: { select: { correctAns: true } } }
+      include: { question: { select: { correctAnswers: true } } }
     });
 
     const userStats = new Map();
@@ -357,7 +357,7 @@ export const getAdminStats = async (req, res) => {
       if (!userStats.has(a.sid)) userStats.set(a.sid, { attempted: 0, correct: 0 });
       const stats = userStats.get(a.sid);
       stats.attempted += 1;
-      if (a.selectedAnswer === a.question.correctAns) stats.correct += 1;
+      if (Array.isArray(a.question.correctAnswers) && a.question.correctAnswers.includes(a.selectedAnswer)) stats.correct += 1;
     });
 
     const userAccuracies = Array.from(userStats.values()).map(s => (s.attempted > 0 ? (s.correct / s.attempted) * 100 : 0));

@@ -35,7 +35,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
     activities.forEach(activity => {
       if (activity.selectedAnswer) {
         totalQuestions++;
-        if (activity.selectedAnswer === activity.question.correctAns) {
+        if (Array.isArray(activity.question.correctAnswers) && activity.question.correctAnswers.includes(activity.selectedAnswer)) {
           correctAnswers++;
         }
       }

@@ -31,7 +31,7 @@ model Question {
   level             Level
   question          String
   options           Json
-  correctAns        String
+  correctAnswers    Json
   explanation       String
   visibility        Boolean           @default(true)
   createdBy         Int
@@ -95,6 +95,7 @@ model StudentActivity {
   qid            Int
   time           DateTime
   selectedAnswer String?       @db.VarChar(255)
+  selectedAnswers Json?
   testSeriesId   Int?
   freePracticeId Int?
   freePractice   freePractice? @relation("FreePracticeToStudentActivity", fields: [freePracticeId], references: [id], onDelete: Cascade)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AdminResults from './AdminResults';
-import { Users, UserPlus, Activity, BarChart3, Eye, Plus, Settings, Trophy, Users as UsersIcon, FileText, Tag, Edit, Trash2, Video, X, Upload } from 'lucide-react';
+import { Users, UserPlus, Activity, BarChart3, Eye, Plus, Settings, Trophy, Users as UsersIcon, FileText, Tag, Edit, Trash2, Video, X, Upload, Pencil } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
@@ -30,7 +30,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
     level: 'easy',
     question: '',
     options: { a: '', b: '', c: '', d: '' },
-    correctAns: '',
+    correctAnswers: [],
     explanation: ''
   });
   const [pdfForm, setPdfForm] = useState({
@@ -180,21 +180,37 @@ const AdminDashboard = ({ user, onNavigate }) => {
 
   // Handlers for Add Question
   const handleChange = e => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     if (["a", "b", "c", "d"].includes(name)) {
       setForm(f => ({ ...f, options: { ...f.options, [name]: value } }));
+    } else if (name.startsWith('correct-')) {
+      const key = name.replace('correct-', '');
+      setForm(f => {
+        const next = new Set(f.correctAnswers);
+        if (checked) next.add(f.options[key] || ''); else next.delete(f.options[key] || '');
+        return { ...f, correctAnswers: Array.from(next).filter(Boolean) };
+      });
     } else {
       setForm(f => ({ ...f, [name]: value }));
     }
   };
   const handleSubmit = async e => {
     e.preventDefault();
-    console.log('Question JSON:', form);
+    const payload = {
+      category: form.category,
+      subcategory: form.subcategory,
+      level: form.level,
+      question: form.question,
+      options: form.options,
+      correctAnswers: form.correctAnswers,
+      explanation: form.explanation,
+      visibility: true
+    };
     await fetch('/api/questions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify(form)
+      body: JSON.stringify(payload)
     });
     setShowForm(false);
   };
@@ -529,13 +545,24 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const [editForm, setEditForm] = useState(null);
 
   const handleEditQuestion = (q) => {
-    setEditForm({ ...q, options: { ...q.options } });
+    const initialCorrect = Array.isArray(q.correctAnswers)
+      ? q.correctAnswers
+      : (q.correctAns ? [q.correctAns] : []);
+    setEditForm({ ...q, correctAnswers: initialCorrect, options: { ...q.options } });
     setEditModalOpen(true);
   };
   const handleEditFormChange = e => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     if (["a", "b", "c", "d"].includes(name)) {
       setEditForm(f => ({ ...f, options: { ...f.options, [name]: value } }));
+    } else if (name.startsWith('edit-correct-')) {
+      const key = name.replace('edit-correct-', '');
+      setEditForm(f => {
+        const next = new Set(f.correctAnswers || []);
+        const optVal = f.options[key] || '';
+        if (checked) next.add(optVal); else next.delete(optVal);
+        return { ...f, correctAnswers: Array.from(next).filter(Boolean) };
+      });
     } else {
       setEditForm(f => ({ ...f, [name]: value }));
     }
@@ -553,22 +580,13 @@ const AdminDashboard = ({ user, onNavigate }) => {
           level: editForm.level,
           question: editForm.question,
           options: editForm.options,
-          correctAns: editForm.correctAns,
+          correctAnswers: editForm.correctAnswers || [],
           explanation: editForm.explanation,
           visibility: editForm.visibility
         })
       });
-      const data = await res.json();
-      if (res.ok) {
-        setAllQuestions(qs => qs.map(q => q.id === editForm.id ? data.question : q));
-        setEditModalOpen(false);
-        alert('Question updated successfully.');
-      } else {
-        alert(data.message || 'Failed to update question.');
-      }
-    } catch (err) {
-      alert('Failed to update question.');
-    }
+      if (res.ok) setEditModalOpen(false);
+    } catch (err) {}
   };
 
   useEffect(() => {
@@ -977,6 +995,57 @@ const AdminDashboard = ({ user, onNavigate }) => {
     // eslint-disable-next-line
   }, [location.search]);
 
+  const handleDeleteContest = async (contest) => {
+    try {
+      if (!window.confirm(`Delete contest "${contest.title}"? This cannot be undone.`)) return;
+      const res = await fetch(`/api/testseries/${contest.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (res.ok) {
+        setAllContests(prev => prev.filter(c => c.id !== contest.id));
+        alert('Contest deleted successfully.');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || 'Failed to delete contest');
+      }
+    } catch (err) {
+      alert('Failed to delete contest');
+    }
+  };
+
+  const [selectedContestIds, setSelectedContestIds] = useState([]);
+  const allSelected = selectedContestIds.length > 0 && selectedContestIds.length === (allContests?.length || 0);
+
+  const toggleSelectContest = (id) => {
+    setSelectedContestIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const toggleSelectAll = () => {
+    if (allSelected) setSelectedContestIds([]);
+    else setSelectedContestIds((allContests || []).map(c => c.id));
+  };
+  const handleBulkDeleteContests = async () => {
+    if (!window.confirm(`Delete ${selectedContestIds.length} selected contest(s)? This cannot be undone.`)) return;
+    try {
+      const res = await fetch('/api/testseries/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ids: selectedContestIds })
+      });
+      if (res.ok) {
+        setAllContests(prev => prev.filter(c => !selectedContestIds.includes(c.id)));
+        setSelectedContestIds([]);
+        alert('Selected contests deleted successfully.');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || 'Failed to delete selected contests');
+      }
+    } catch (err) {
+      alert('Failed to delete selected contests');
+    }
+  };
+
   return (
     <div className="page">
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -1382,6 +1451,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
               <table className="w-full text-left border rounded overflow-hidden">
                 <thead>
                   <tr className="bg-gray-100 border-b">
+                    <th className="py-2 px-3">
+                      <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
+                    </th>
                     <th className="py-2 px-3">Name</th>
                     <th className="py-2 px-3">Start Time</th>
                     <th className="py-2 px-3">End Time</th>
@@ -1394,6 +1466,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 <tbody>
                   {filteredContests.map(contest => (
                     <tr key={contest.id} className="border-b hover:bg-gray-50 transition">
+                      <td className="py-2 px-3">
+                        <input type="checkbox" checked={selectedContestIds?.includes(contest.id)} onChange={() => toggleSelectContest(contest.id)} />
+                      </td>
                       <td className="py-2 px-3 font-semibold">{contest.title}</td>
                       <td className="py-2 px-3">{new Date(contest.startTime).toLocaleString()}</td>
                       <td className="py-2 px-3">{new Date(contest.endTime).toLocaleString()}</td>
@@ -1409,21 +1484,17 @@ const AdminDashboard = ({ user, onNavigate }) => {
                       </td>
                       <td className="py-2 px-3">{contest.creator?.fullName || 'Unknown'}</td>
                       <td className="py-2 px-3">
-                        <div className="flex space-x-2">
-                          <button
-                            className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800 text-sm font-semibold"
-                            onClick={() => handleViewContestQuestions(contest)}
-                          >
-                            View
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => navigate(`/edit-contest/${contest.id}`)} title="Edit">
+                            <Pencil className="w-5 h-5 text-gray-800" />
                           </button>
-                          {getContestStatus(contest) === 'upcoming' && (
-                            <button
-                              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold"
-                              onClick={() => navigate(`/edit-contest/${contest.id}`)}
-                            >
-                              Edit
-                            </button>
-                          )}
+                          <button onClick={() => handleDeleteContest(contest)} title="Delete">
+                            <Trash2 className="w-5 h-5 text-red-600" />
+                          </button>
+                          <button onClick={() => handleViewContestQuestions(contest)} title="View Details" className="flex items-center gap-2">
+                            <Eye className="w-5 h-5 text-gray-800" />
+                            <span className="text-sm font-medium">View Details</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1485,23 +1556,23 @@ const AdminDashboard = ({ user, onNavigate }) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option A</label>
                       <input name="a" value={form.options.a} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="correct-a" onChange={handleChange} checked={form.correctAnswers.includes(form.options.a)} /> Mark correct</label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option B</label>
                       <input name="b" value={form.options.b} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="correct-b" onChange={handleChange} checked={form.correctAnswers.includes(form.options.b)} /> Mark correct</label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option C</label>
                       <input name="c" value={form.options.c} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="correct-c" onChange={handleChange} checked={form.correctAnswers.includes(form.options.c)} /> Mark correct</label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option D</label>
                       <input name="d" value={form.options.d} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="correct-d" onChange={handleChange} checked={form.correctAnswers.includes(form.options.d)} /> Mark correct</label>
                     </div>
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer (a/b/c/d)</label>
-                    <input name="correctAns" value={form.correctAns} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Correct Answer (a/b/c/d)" />
                   </div>
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
@@ -1696,23 +1767,23 @@ const AdminDashboard = ({ user, onNavigate }) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option A</label>
                       <input name="a" value={editForm.options.a} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-a" onChange={handleEditFormChange} checked={(editForm.correctAnswers || []).includes(editForm.options.a)} /> Mark correct</label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option B</label>
                       <input name="b" value={editForm.options.b} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-b" onChange={handleEditFormChange} checked={(editForm.correctAnswers || []).includes(editForm.options.b)} /> Mark correct</label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option C</label>
                       <input name="c" value={editForm.options.c} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-c" onChange={handleEditFormChange} checked={(editForm.correctAnswers || []).includes(editForm.options.c)} /> Mark correct</label>
                     </div>
-                <div>
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option D</label>
                       <input name="d" value={editForm.options.d} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-d" onChange={handleEditFormChange} checked={(editForm.correctAnswers || []).includes(editForm.options.d)} /> Mark correct</label>
                     </div>
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer (a/b/c/d)</label>
-                    <input name="correctAns" value={editForm.correctAns} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Correct Answer (a/b/c/d)" />
                   </div>
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>

@@ -323,7 +323,7 @@ const Bookmark = () => {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
                         {Object.entries(q.options).map(([key, val]) => {
-                          const isCorrect = q.correctAns === key;
+                          const isCorrect = Array.isArray(q.correctAnswers) && (q.correctAnswers.includes(val) || q.correctAnswers.includes(key));
                           const btnClass = isCorrect
                             ? 'border-green-600 bg-green-50 text-green-800'
                             : 'border-gray-300';
@@ -347,7 +347,7 @@ const Bookmark = () => {
                       {showExplanation[bm.id] && (
                         <div className="bg-black text-white p-4 mt-2 rounded">
                           <div className="font-semibold mb-1">Explanation:</div>
-                          <div className="mb-1">Correct Option: <span className="font-bold text-green-700">{q.correctAns?.toUpperCase()}</span></div>
+                          <div className="mb-1">Correct Answer(s): <span className="font-bold text-green-700">{Array.isArray(q.correctAnswers) ? q.correctAnswers.join(', ') : ''}</span></div>
                           <div>{q.explanation}</div>
                         </div>
                       )}

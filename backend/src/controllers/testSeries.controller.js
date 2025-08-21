@@ -61,7 +61,7 @@ export const createTestSeries = async (req, res) => {
           connect: questionIds.map(id => ({ id })),
         },
       },
-      include: { questions: { select: { id: true, question: true, options: true, level: true, category: true, subcategory: true } }, creator: true },
+      include: { questions: { select: { id: true, question: true, options: true, level: true, category: true, subcategory: true, correctAnswers: true } }, creator: true },
     });
 
     await prisma.question.updateMany({
@@ -137,7 +137,7 @@ export const getTestSeriesById = async (req, res) => {
             id: true,
             question: true,
             options: true,
-            correctAns: true,
+            correctAnswers: true,
             level: true,
             category: true,
             subcategory: true,
@@ -174,7 +174,8 @@ export const getTestSeriesQuestions = async (req, res) => {
             options: true,
             level: true,
             category: true,
-            subcategory: true
+            subcategory: true,
+            correctAnswers: true
           }
         }
       }
@@ -263,7 +264,7 @@ export const submitTestSeriesAnswers = async (req, res) => {
         questions: {
           select: { 
             id: true, 
-            correctAns: true,
+            correctAnswers: true,
             question: true,
             options: true
           }
@@ -275,11 +276,11 @@ export const submitTestSeriesAnswers = async (req, res) => {
       return res.status(404).json({ message: 'Test series not found.' });
     }
     
-    // Map questionId to correctAns and question details
+    // Map questionId to correct answers and question details
     const correctMap = {};
     const questionMap = {};
     testSeries.questions.forEach(q => {
-      correctMap[q.id] = q.correctAns;
+      correctMap[q.id] = Array.isArray(q.correctAnswers) ? q.correctAnswers : [];
       questionMap[q.id] = q;
     });
     
@@ -306,8 +307,8 @@ export const submitTestSeriesAnswers = async (req, res) => {
         question: questionMap[ans.questionId]?.question || '',
         options: questionMap[ans.questionId]?.options || {},
         userAnswer: ans.selectedOption || '',
-        correctAnswer: correctMap[ans.questionId] || '',
-        isCorrect: hasAnswer && correctMap[ans.questionId] === ans.selectedOption,
+        correctAnswer: (correctMap[ans.questionId] || []).join(', '),
+        isCorrect: hasAnswer && (correctMap[ans.questionId] || []).includes(ans.selectedOption),
         isAttempted: hasAnswer
       });
     });
@@ -410,7 +411,7 @@ export const getUserContestResult = async (req, res) => {
             id: true, 
             question: true, 
             options: true, 
-            correctAns: true 
+            correctAnswers: true 
           } 
         } 
       }
@@ -475,11 +476,11 @@ export const getUserContestResult = async (req, res) => {
       // If no participation, we'll still show contest info but no personal results
     }
 
-    // Map questionId to correctAns and question details
+    // Map questionId to correct answers and question details
     const correctMap = {};
     const questionMap = {};
     contest.questions.forEach(q => { 
-      correctMap[q.id] = q.correctAns;
+      correctMap[q.id] = Array.isArray(q.correctAnswers) ? q.correctAnswers : [];
       questionMap[q.id] = q;
     });
 
@@ -501,7 +502,7 @@ export const getUserContestResult = async (req, res) => {
       
       if (hasAnswer) {
         attempted++;
-        if (correctMap[question.id] === activity.selectedAnswer) {
+        if ((correctMap[question.id] || []).includes(activity.selectedAnswer)) {
           correct++;
         }
       }
@@ -511,8 +512,8 @@ export const getUserContestResult = async (req, res) => {
         question: question.question,
         options: question.options,
         userAnswer: activity?.selectedAnswer || '',
-        correctAnswer: correctMap[question.id],
-        isCorrect: hasAnswer && correctMap[question.id] === activity.selectedAnswer,
+        correctAnswer: (correctMap[question.id] || []).join(', '),
+        isCorrect: hasAnswer && (correctMap[question.id] || []).includes(activity.selectedAnswer),
         isAttempted: hasAnswer
       });
     });
@@ -577,7 +578,7 @@ export const getContestLeaderboard = async (req, res) => {
         questions: { 
           select: { 
             id: true, 
-            correctAns: true
+            correctAnswers: true
           } 
         } 
       }
@@ -588,7 +589,7 @@ export const getContestLeaderboard = async (req, res) => {
     }
 
     const correctMap = {};
-    contest.questions.forEach(q => { correctMap[q.id] = q.correctAns; });
+    contest.questions.forEach(q => { correctMap[q.id] = q.correctAnswers; });
     const totalQuestions = contest.questions.length;
 
     // Calculate scores for each user
@@ -749,7 +750,7 @@ export const getContestStats = async (req, res) => {
         questions: { 
           select: { 
             id: true, 
-            correctAns: true,
+            correctAnswers: true,
             question: true,
             options: true
           } 
@@ -762,7 +763,7 @@ export const getContestStats = async (req, res) => {
     }
 
     const correctMap = {};
-    contest.questions.forEach(q => { correctMap[q.id] = q.correctAns; });
+    contest.questions.forEach(q => { correctMap[q.id] = q.correctAnswers; });
     const totalQuestions = contest.questions.length;
 
     // Calculate scores for each user
@@ -788,7 +789,7 @@ export const getContestStats = async (req, res) => {
         questionId: q.id,
         question: q.question,
         options: q.options,
-        correctAns: q.correctAns,
+        correctAns: q.correctAnswers,
         totalAttempts: 0,
         correctAttempts: 0,
         incorrectAttempts: 0,
@@ -859,7 +860,7 @@ export const getAllContestStats = async (req, res) => {
         questions: {
           select: {
             id: true,
-            correctAns: true
+            correctAnswers: true
           }
         }
       }
@@ -916,7 +917,7 @@ export const getAllContestStats = async (req, res) => {
 
       // Calculate scores
       const correctMap = {};
-      contest.questions.forEach(q => { correctMap[q.id] = q.correctAns; });
+      contest.questions.forEach(q => { correctMap[q.id] = q.correctAnswers; });
 
       const userScores = {};
       allActivities.forEach(act => {
@@ -1067,22 +1068,11 @@ export const updateTestSeries = async (req, res) => {
       return res.status(404).json({ message: 'Test series not found.' });
     }
 
-    // Check if contest has already started
-    const now = new Date();
-    const contestStartTime = new Date(existingContest.startTime);
-    
-    if (now >= contestStartTime) {
-      return res.status(400).json({ message: 'Cannot update contest that has already started.' });
-    }
-
     // Validate times
     const newStartTime = new Date(startTime);
     const newEndTime = new Date(endTime);
-    
-    if (newStartTime <= now) {
-      return res.status(400).json({ message: 'Start time cannot be in the past.' });
-    }
-    
+    const now = new Date();
+    // Allow edits during live contests but keep sane validations
     if (newEndTime <= newStartTime) {
       return res.status(400).json({ message: 'End time must be after start time.' });
     }
@@ -1104,6 +1094,85 @@ export const updateTestSeries = async (req, res) => {
 
     res.json({ testSeries: updatedContest });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Delete a TestSeries (admin/moderator only)
+export const deleteTestSeries = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userRole = req.user.role;
+    if (!['admin', 'moderator'].includes(userRole)) {
+      return res.status(403).json({ message: 'Only admin or moderator can delete test series.' });
+    }
+
+    const contestId = Number(id);
+    const contest = await prisma.testSeries.findUnique({
+      where: { id: contestId },
+      include: { questions: true }
+    });
+    if (!contest) {
+      return res.status(404).json({ message: 'Test series not found.' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Make previously hidden questions visible again
+      const questionIds = contest.questions.map(q => q.id);
+      if (questionIds.length > 0) {
+        await tx.question.updateMany({
+          where: { id: { in: questionIds } },
+          data: { visibility: true }
+        });
+      }
+
+      // Remove related activities and participations
+      await tx.studentActivity.deleteMany({ where: { testSeriesId: contestId } });
+      await tx.participation.deleteMany({ where: { testSeriesId: contestId } });
+
+      // Finally delete the test series
+      await tx.testSeries.delete({ where: { id: contestId } });
+    });
+
+    res.json({ message: 'Test series deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting test series:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Bulk delete TestSeries (admin/moderator only)
+export const deleteMultipleTestSeries = async (req, res) => {
+  try {
+    const userRole = req.user.role;
+    if (!['admin', 'moderator'].includes(userRole)) {
+      return res.status(403).json({ message: 'Only admin or moderator can delete test series.' });
+    }
+
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'ids must be a non-empty array' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // For each contest, cleanup related data and delete
+      for (const id of ids) {
+        const contestId = Number(id);
+        const contest = await tx.testSeries.findUnique({ where: { id: contestId }, include: { questions: true } });
+        if (!contest) continue;
+        const questionIds = contest.questions.map(q => q.id);
+        if (questionIds.length > 0) {
+          await tx.question.updateMany({ where: { id: { in: questionIds } }, data: { visibility: true } });
+        }
+        await tx.studentActivity.deleteMany({ where: { testSeriesId: contestId } });
+        await tx.participation.deleteMany({ where: { testSeriesId: contestId } });
+        await tx.testSeries.delete({ where: { id: contestId } });
+      }
+    });
+
+    res.json({ message: 'Selected test series deleted successfully.' });
+  } catch (error) {
+    console.error('Error bulk deleting test series:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -1258,7 +1327,7 @@ export const getContestParticipants = async (req, res) => {
               question: {
                 select: {
                   id: true,
-                  correctAns: true
+                  correctAnswers: true
                 }
               }
             }
@@ -1274,7 +1343,7 @@ export const getContestParticipants = async (req, res) => {
             }
           });
 
-          const correctAnswers = answers.filter(a => a.selectedAnswer === a.question.correctAns).length;
+          const correctAnswers = answers.filter(a => a.selectedAnswer === a.question.correctAnswers).length;
           const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
           const timeTaken = participation.submittedAt && participation.startTime 
             ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / (1000 * 60))
@@ -1350,7 +1419,7 @@ export const getParticipantAnswers = async (req, res) => {
                 id: true,
                 question: true,
                 options: true,
-                correctAns: true,
+                correctAnswers: true,
                 explanation: true
               }
             }
@@ -1377,7 +1446,7 @@ export const getParticipantAnswers = async (req, res) => {
     const totalQuestions = participation.testSeries.questions.length;
     const correctAnswers = participation.testSeries.questions.reduce((acc, q) => {
       const ans = answersByQuestionId.get(q.id);
-      return acc + (ans && ans === q.correctAns ? 1 : 0);
+      return acc + (ans && ans === q.correctAnswers ? 1 : 0);
     }, 0);
     const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
     const timeTaken = participation.submittedAt && participation.startTime 
@@ -1387,13 +1456,13 @@ export const getParticipantAnswers = async (req, res) => {
     // Map questions with user answers
     const questionsWithAnswers = participation.testSeries.questions.map((question, index) => {
       const userAnswer = answers[index] || null;
-      const isCorrect = userAnswer === question.correctAns;
+      const isCorrect = userAnswer === question.correctAnswers;
       
       return {
         id: question.id,
         question: question.question,
         options: question.options,
-        correctAnswer: question.correctAns,
+        correctAnswer: question.correctAnswers,
         userAnswer,
         isCorrect,
         explanation: question.explanation
@@ -1532,7 +1601,7 @@ export const downloadContestResultsExcel = async (req, res) => {
             id: true,
             question: true,
             options: true,
-            correctAns: true,
+            correctAnswers: true,
             level: true,
             category: true,
             subcategory: true
@@ -1580,7 +1649,7 @@ export const downloadContestResultsExcel = async (req, res) => {
                 id: true,
                 question: true,
                 options: true,
-                correctAns: true
+                correctAnswers: true
               }
             }
           },
@@ -1590,7 +1659,7 @@ export const downloadContestResultsExcel = async (req, res) => {
         });
 
         const totalQuestions = contest.questions.length;
-        const correctAnswers = answers.filter(a => a.selectedAnswer === a.question.correctAns).length;
+        const correctAnswers = answers.filter(a => a.selectedAnswer === a.question.correctAnswers).length;
         const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
         const timeTaken = participation.submittedAt && participation.startTime 
           ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / 1000 / 60)
@@ -1612,8 +1681,8 @@ export const downloadContestResultsExcel = async (req, res) => {
             question: answer.question.question,
             options: answer.question.options,
             userAnswer: answer.selectedAnswer,
-            correctAnswer: answer.question.correctAns,
-            isCorrect: answer.selectedAnswer === answer.question.correctAns,
+            correctAnswer: answer.question.correctAnswers,
+            isCorrect: answer.selectedAnswer === answer.question.correctAnswers,
             questionNumber: contest.questions.findIndex(q => q.id === answer.qid) + 1
           }))
         };
@@ -1685,7 +1754,7 @@ export const downloadContestResultsExcel = async (req, res) => {
       { header: 'Question Number', key: 'number', width: 16 },
       { header: 'Question', key: 'question', width: 80 },
       { header: 'Options', key: 'options', width: 60 },
-      { header: 'Correct Answer', key: 'correct', width: 16 },
+      { header: 'Correct Answer(s)', key: 'correct', width: 20 },
       { header: 'Level', key: 'level', width: 12 },
       { header: 'Category', key: 'category', width: 16 },
       { header: 'Subcategory', key: 'subcategory', width: 16 }
@@ -1695,7 +1764,7 @@ export const downloadContestResultsExcel = async (req, res) => {
         number: index + 1,
         question: q.question,
         options: JSON.stringify(q.options),
-        correct: q.correctAns,
+        correct: Array.isArray(q.correctAnswers) ? q.correctAnswers.join(', ') : '',
         level: q.level,
         category: q.category,
         subcategory: q.subcategory
@@ -1732,7 +1801,7 @@ export const getDetailedAnalysis = async (req, res) => {
             id: true,
             question: true,
             options: true,
-            correctAns: true,
+            correctAnswers: true,
             level: true,
             category: true,
             subcategory: true
@@ -1776,7 +1845,7 @@ export const getDetailedAnalysis = async (req, res) => {
             id: true,
             question: true,
             options: true,
-            correctAns: true,
+            correctAnswers: true,
             level: true,
             category: true,
             subcategory: true
@@ -1790,7 +1859,7 @@ export const getDetailedAnalysis = async (req, res) => {
       const answersForQuestion = allAnswers.filter(a => a.qid === question.id);
 
       const correctAnswers = answersForQuestion.filter(a =>
-        a.selectedAnswer === question.correctAns
+        a.selectedAnswer === question.correctAnswers
       ).length;
 
       const successRate = answersForQuestion.length > 0 ?
@@ -1837,7 +1906,7 @@ export const getDetailedAnalysis = async (req, res) => {
       const scores = participants.map(p => {
         const participantAnswers = allAnswers.filter(a => a.sid === p.sid);
         const correctAnswers = participantAnswers.filter(a => 
-          a.selectedAnswer === a.question.correctAns
+          a.selectedAnswer === a.question.correctAnswers
         ).length;
         return correctAnswers;
       });
@@ -1887,7 +1956,7 @@ export const getDetailedAnalysis = async (req, res) => {
 
       categoryAnalysis[category].totalAttempts += answersForQuestion.length;
       categoryAnalysis[category].correctAttempts += answersForQuestion.filter(a =>
-        a.selectedAnswer === question.correctAns
+        a.selectedAnswer === question.correctAnswers
       ).length;
     });
 

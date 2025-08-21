@@ -1,0 +1,466 @@
+[
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "3, 5, 11, 14, 17, 21",
+    "options": {
+      "a": "21",
+      "b": "17",
+      "c": "14",
+      "d": "3"
+    },
+    "correctAnswers": ["14"],
+    "explanation": "Each of the numbers except 14 is an odd number.The number '14' is the only EVEN number.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "8, 27, 64, 100, 125, 216, 343",
+    "options": {
+      "a": "27",
+      "b": "100",
+      "c": "125",
+      "d": "343"
+    },
+    "correctAnswers": ["100"],
+    "explanation": "The pattern is 2^3, 3^3, 4^3, 5^3, 6^3, 7^3. But, 100 is not a perfect cube.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "10, 25, 45, 54, 60, 75, 80",
+    "options": {
+      "a": "10",
+      "b": "45",
+      "c": "54",
+      "d": "75"
+    },
+    "correctAnswers": ["54"],
+    "explanation": "Each of the numbers except 54 is multiple of 5.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "396, 462, 572, 427, 671, 264",
+    "options": {
+      "a": "396",
+      "b": "427",
+      "c": "671",
+      "d": "264"
+    },
+    "correctAnswers": ["427"],
+    "explanation": "In each number except 427, the middle digit is the sum of other two.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "6, 9, 15, 21, 24, 28, 30",
+    "options": {
+      "a": "28",
+      "b": "21",
+      "c": "24",
+      "d": "30"
+    },
+    "correctAnswers": ["28"],
+    "explanation": "Each of the numbers except 28, is a multiple of 3.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "1, 4, 9, 16, 23, 25, 36",
+    "options": {
+      "a": "9",
+      "b": "23",
+      "c": "25",
+      "d": "36"
+    },
+    "correctAnswers": ["23"],
+    "explanation": "Each of the numbers except 23, is perfect square.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "1, 4, 9, 16, 20, 36, 49",
+    "options": {
+      "a": "1",
+      "b": "9",
+      "c": "20",
+      "d": "49"
+    },
+    "correctAnswers": ["20"],
+    "explanation": "The pattern is 1^2, 2^2, 3^2, 4^2, 5^2, 6^2, 7^2. But, instead of 5^2, it is 20 which to be turned out.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "2, 5, 10, 17, 26, 37, 50, 64",
+    "options": {
+      "a": "50",
+      "b": "26",
+      "c": "37",
+      "d": "64"
+    },
+    "correctAnswers": ["64"],
+    "explanation": "(1*1)+1 , (2*2)+1 , (3*3)+1 , (4*4)+1 , (5*5)+1 , (6*6)+1 , (7*7)+1 , (8*8)+1But, 64 is out of pattern.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "10, 14, 16, 18, 21, 24, 26",
+    "options": {
+      "a": "26",
+      "b": "24",
+      "c": "21",
+      "d": "18"
+    },
+    "correctAnswers": ["21"],
+    "explanation": "Each of the numbers except 21 is an even number.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "16, 25, 36, 72, 144, 196, 225",
+    "options": {
+      "a": "36",
+      "b": "72",
+      "c": "196",
+      "d": "225"
+    },
+    "correctAnswers": ["72"],
+    "explanation": "Each of the numbers except 72 is a perfect square.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "331, 482, 551, 263, 383, 362, 284",
+    "options": {
+      "a": "263",
+      "b": "383",
+      "c": "331",
+      "d": "551"
+    },
+    "correctAnswers": ["383"],
+    "explanation": "In each number except 383, the product of first and third digits is the middle one.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "835, 734, 642, 751, 853, 981, 532",
+    "options": {
+      "a": "751",
+      "b": "853",
+      "c": "981",
+      "d": "532"
+    },
+    "correctAnswers": ["751"],
+    "explanation": "In each number except 751, the difference of third and first digit is the middle one.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "41, 43, 47, 53, 61, 71, 73, 81",
+    "options": {
+      "a": "61",
+      "b": "71",
+      "c": "73",
+      "d": "81"
+    },
+    "correctAnswers": ["81"],
+    "explanation": "Each of the numbers except 81 is a prime number.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "3, 5, 7, 12, 17, 19",
+    "options": {
+      "a": "19",
+      "b": "17",
+      "c": "5",
+      "d": "12"
+    },
+    "correctAnswers": ["12"],
+    "explanation": "Each of the numbers is a prime number except 12.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "16, 33, 65, 131, 261, (....)",
+    "options": {
+      "a": "523",
+      "b": "521",
+      "c": "613",
+      "d": "721"
+    },
+    "correctAnswers": ["523"],
+    "explanation": "Each number is twice the preceding one with 1 added or subtracted alternatively.So, the next number is (2 x 261 + 1) = 523.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "10, 5, 13, 10, 16, 20, 19, (....)",
+    "options": {
+      "a": "22",
+      "b": "40",
+      "c": "38",
+      "d": "23"
+    },
+    "correctAnswers": ["40"],
+    "explanation": "There are two series (10, 13, 16, 19) and (5, 10, 20, 40), one increasing by 3 and the other multiplied by 2.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "1, 4, 9, 16, 25, 36, 49, (....)",
+    "options": {
+      "a": "54",
+      "b": "56",
+      "c": "64",
+      "d": "81"
+    },
+    "correctAnswers": ["64"],
+    "explanation": "Numbers are 1^2, 2^2, 3^2, 4^2, 5^2, 6^2, 7^2.So, the next number is 8^2 = 64.",
+    "visibility": true
+  },
+  {    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "2, 4, 12, 48, 240, (....)",
+    "options": {
+      "a": "960",
+      "b": "1440",
+      "c": "1080",
+      "d": "1920"
+    },
+    "correctAnswers": ["1440"],
+    "explanation": "Go on multiplying the given numbers by 2, 3, 4, 5, 6.So, the correct next number is 1440.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "8, 7, 11, 12, 14, 17, 17, 22, (....)",
+    "options": {
+      "a": "27",
+      "b": "20",
+      "c": "22",
+      "d": "24"
+    },
+    "correctAnswers": ["20"],
+    "explanation": "There are two series (8, 11, 14, 17, 20) and (7, 12, 17, 22) increasing by 3 and 5 respectively.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "11, 13, 17, 19, 23, 29, 31, 37, 41, (....)",
+    "options": {
+      "a": "43",
+      "b": "47",
+      "c": "53",
+      "d": "51"
+    },
+    "correctAnswers": ["43"],
+    "explanation": "Numbers are all primes. The next prime is 43.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "8, 24, 12, 36, 18, 54, (....)",
+    "options": {
+      "a": "27",
+      "b": "108",
+      "c": "68",
+      "d": "72"
+    },
+    "correctAnswers": ["27"],
+    "explanation": "Numbers are alternatively multiplied by 3 and divided by 2.So, the next number = 54 \u00f7 2 = 27.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "2, 6, 12, 20, 30, 42, 56, (....)",
+    "options": {
+      "a": "61",
+      "b": "64",
+      "c": "72",
+      "d": "70"
+    },
+    "correctAnswers": ["72"],
+    "explanation": "The pattern is 1 x 2, 2 x 3, 3 x 4, 4 x 5, 5 x 6, 6 x 7, 7 x 8.So, the next number is 8 x 9 = 72.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "4, -8, 16, -32, 64, (....)",
+    "options": {
+      "a": "128",
+      "b": "-128",
+      "c": "192",
+      "d": "-192"
+    },
+    "correctAnswers": ["-128"],
+    "explanation": "Each number is the proceeding number multiplied by -2.So, the required number is -128.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "7, 26, 63, 124, 215, 342, (....)",
+    "options": {
+      "a": "481",
+      "b": "511",
+      "c": "391",
+      "d": "421"
+    },
+    "correctAnswers": ["511"],
+    "explanation": "Numbers are (2^3 - 1), (3^3 - 1), (4^3 - 1), (5^3 - 1), (6^3 - 1), (7^3 - 1) etc.So, the next number is (8^3 - 1) = (512 - 1) = 511.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "5, 10, 13, 26, 29, 58, 61, (....)",
+    "options": {
+      "a": "122",
+      "b": "64",
+      "c": "125",
+      "d": "128"
+    },
+    "correctAnswers": ["122"],
+    "explanation": "Numbers are alternatively multiplied by 2 and increased by 3.So, the missing number = 61 x 2 = 122.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "15, 31, 63, 127, 255, (....)",
+    "options": {
+      "a": "513",
+      "b": "511",
+      "c": "517",
+      "d": "523"
+    },
+    "correctAnswers": ["511"],
+    "explanation": "Each number is double the preceding one plus 1.So, the next number is (255 x 2) + 1 = 511.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "1, 8, 27, 64, 125, 216, (....)",
+    "options": {
+      "a": "354",
+      "b": "343",
+      "c": "392",
+      "d": "245"
+    },
+    "correctAnswers": ["343"],
+    "explanation": "Numbers are 1^3, 2^3, 3^3, 4^3, 5^3, 6^3.So, the missing number is 7^3 = 343.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "3, 7, 6, 5, 9, 3, 12, 1, 15, (....)",
+    "options": {
+      "a": "18",
+      "b": "13",
+      "c": "-1",
+      "d": "3"
+    },
+    "correctAnswers": ["-1"],
+    "explanation": "There are two series, beginning respectively with 3 and 7. In one 3 is added and in another 2 is subtracted.The next number is 1 - 2 = -1.",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "1, 2, 3, 4, 5, (....)",
+    "options": {
+      "a": "7",
+      "b": "6",
+      "c": "4",
+      "d": "1"
+    },
+    "correctAnswers": ["6"],
+    "explanation": "Natural numbers series",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "0, 1, 1, 2, 3, 5, 8, (....)",
+    "options": {
+      "a": "18",
+      "b": "13",
+      "c": "10",
+      "d": "3"
+    },
+    "correctAnswers": ["13"],
+    "explanation": "Fibonacci series",
+    "visibility": true
+  },
+  {
+    "category": "Aptitude",
+    "subcategory": "Odd Man Out & Series",
+    "level": "medium",
+    "question": "2, 4, 6, 8, 10, (....)",
+    "options": {
+      "a": "12",
+      "b": "16",
+      "c": "8",
+      "d": "20"
+    },
+    "correctAnswers": ["12"],
+    "explanation": "Even numbers",
+    "visibility": true
+  }
+]

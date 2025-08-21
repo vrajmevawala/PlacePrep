@@ -255,13 +255,13 @@ export const getFreePracticeResult = async (req, res) => {
     const details = questions.map(q => {
       const act = activities.find(a => a.qid === q.id);
       const selected = act ? act.selectedAnswer : null;
-      const isCorrect = selected != null && selected === q.correctAns;
+      const isCorrect = selected != null && Array.isArray(q.correctAnswers) && q.correctAnswers.includes(selected);
       if (selected != null) attempted++;
       if (isCorrect) correct++;
       return {
         questionId: q.id,
         selected,
-        correct: q.correctAns,
+        correct: Array.isArray(q.correctAnswers) ? q.correctAnswers : [],
         isCorrect
       };
     });
@@ -302,7 +302,7 @@ export const getStudentStats = async (req, res) => {
       if (freePractice && freePractice.questions) {
         for (const q of freePractice.questions) {
           const act = activities.find(a => a.qid === q.id);
-          if (act && act.selectedAnswer === q.correctAns) correct++;
+          if (act && Array.isArray(q.correctAnswers) && q.correctAnswers.includes(act.selectedAnswer)) correct++;
         }
       }
       if (totalQuestions > 0) {
@@ -352,7 +352,7 @@ export const getStudentRecentTests = async (req, res) => {
         if (freePractice && freePractice.questions) {
           for (const q of freePractice.questions) {
             const act = activities.find(a => a.qid === q.id);
-            if (act && act.selectedAnswer === q.correctAns) correct++;
+            if (act && Array.isArray(q.correctAnswers) && q.correctAnswers.includes(act.selectedAnswer)) correct++;
           }
         }
         score = totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : null;

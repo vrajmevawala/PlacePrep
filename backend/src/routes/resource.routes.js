@@ -65,7 +65,7 @@ router.post('/', authMiddleware, upload.single('file'), async (req, res) => {
     };
 
     if (type === 'mcq') {
-      const { question, correctAnswer, explanation } = req.body;
+      const { question, correctAnswer, explanation, correctAnswers } = req.body;
       
       // Extract options from form data
       const options = [];
@@ -76,11 +76,17 @@ router.post('/', authMiddleware, upload.single('file'), async (req, res) => {
       }
       
       // Create MCQ
+      const normalizedCorrect = Array.isArray(correctAnswers)
+        ? correctAnswers.map(x => String(x).trim()).filter(Boolean)
+        : typeof correctAnswer !== 'undefined'
+          ? [String(options[parseInt(correctAnswer)] || '').trim()].filter(Boolean)
+          : [];
+
       const mcq = await prisma.question.create({
         data: {
           question,
           options: options,
-          correctAns: options[parseInt(correctAnswer)],
+          correctAnswers: normalizedCorrect,
           explanation,
           category,
           subcategory,
@@ -632,6 +638,37 @@ router.post('/ai/analyze', authMiddleware, upload.single('file'), async (req, re
       message: errorMessage,
       suggestion: 'Please verify your Gemini API key is correct and has proper permissions.'
     });
+  }
+});
+
+// Bulk delete resources
+router.post('/bulk-delete', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'moderator') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'ids must be a non-empty array' });
+    }
+
+    // Delete bookmarks referencing these resources
+    await prisma.bookmark.deleteMany({ where: { resourceId: { in: ids.map(Number) } } });
+
+    // Fetch to remove files from disk
+    const items = await prisma.resource.findMany({ where: { id: { in: ids.map(Number) } } });
+    items.forEach(item => {
+      if (item.fileUrl && fs.existsSync(item.fileUrl)) {
+        try { fs.unlinkSync(item.fileUrl); } catch (e) {}
+      }
+    });
+
+    await prisma.resource.deleteMany({ where: { id: { in: ids.map(Number) } } });
+
+    res.json({ message: 'Selected resources deleted successfully.' });
+  } catch (error) {
+    console.error('Bulk delete resources error:', error);
+    res.status(500).json({ message: 'Failed to bulk delete resources' });
   }
 });
 

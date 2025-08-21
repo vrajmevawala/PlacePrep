@@ -71,6 +71,8 @@ const Resource = ({ user }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedResourceIds, setSelectedResourceIds] = useState([]);
+  const [selectedMCQIds, setSelectedMCQIds] = useState([]);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -227,6 +229,8 @@ const Resource = ({ user }) => {
   };
   
   const { filteredPdfs, filteredVideos } = getFilteredResources();
+  const allPdfsSelected = filteredPdfs.length > 0 && selectedResourceIds.length === filteredPdfs.length;
+  const allVideosSelected = filteredVideos.length > 0 && selectedResourceIds.length === filteredVideos.length;
   
   // Calculate pagination
   const getCurrentPageData = (data) => {
@@ -623,6 +627,36 @@ const Resource = ({ user }) => {
     setItemToDelete(null);
   };
 
+  const toggleSelectResource = (id) => {
+    setSelectedResourceIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const toggleSelectMCQ = (id) => {
+    setSelectedMCQIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const bulkDeleteResources = async () => {
+    if (selectedResourceIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedResourceIds.length} selected resource(s)?`)) return;
+    try {
+      const res = await fetch('/api/resources/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ids: selectedResourceIds })
+      });
+      if (res.ok) {
+        setPdfs(prev => prev.filter(p => !selectedResourceIds.includes(p.id)));
+        setVideos(prev => prev.filter(v => !selectedResourceIds.includes(v.id)));
+        setSelectedResourceIds([]);
+        alert('Selected resources deleted.');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || 'Failed to delete selected resources');
+      }
+    } catch (e) {
+      alert('Failed to delete selected resources');
+    }
+  };
+
   // Handle MCQ bookmark
   const handleBookmark = async (questionId) => {
     try {
@@ -912,7 +946,7 @@ const Resource = ({ user }) => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
                               {Object.entries(q.options).map(([key, option]) => {
                               const selected = answers[idx];
-                              const isCorrect = q.correctAns === key;
+                              const isCorrect = Array.isArray(q.correctAnswers) && q.correctAnswers.includes(option);
                                 let btnClass = 'border-gray-300 bg-gray-50';
                                 
                               if (selected) {
@@ -928,7 +962,7 @@ const Resource = ({ user }) => {
                               return (
                                   <button
                                     key={key}
-                                    onClick={() => handleOptionSelect(idx, key, q.correctAns)}
+                                    onClick={() => handleOptionSelect(idx, key, (q.correctAnswers || []).map(v => v))}
                                     className={`px-4 py-2 rounded border font-medium text-left transition ${btnClass} hover:bg-gray-100`}
                                   >
                                     {key.toUpperCase()}. {option}
@@ -947,7 +981,7 @@ const Resource = ({ user }) => {
                             {showExplanation[idx] && (
                               <div className="bg-black text-white p-4 mt-2 rounded">
                                 <div className="font-semibold mb-1">Explanation:</div>
-                                <div className="mb-1">Correct Option: <span className="font-bold text-green-700">{q.correctAns?.toUpperCase()}</span></div>
+                                <div className="mb-1">Correct Answer(s): <span className="font-bold text-green-700">{Array.isArray(q.correctAnswers) ? q.correctAnswers.join(', ') : ''}</span></div>
                                 <div>{q.explanation}</div>
                               </div>
                             )}

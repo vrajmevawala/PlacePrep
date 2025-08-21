@@ -10,7 +10,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Add a new question (admin/moderator only)
 export const addQuestion = async (req, res) => {
   try {
-    const { category, subcategory, level, question, options, correctAns, explanation, visibility } = req.body;
+    const { category, subcategory, level, question, options, explanation, visibility } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
 
@@ -18,9 +18,14 @@ export const addQuestion = async (req, res) => {
       return res.status(403).json({ message: 'Only admin or moderator can add questions.' });
     }
 
-    if (!category || !subcategory || !level || !question || !options || !correctAns) {
+    if (!category || !subcategory || !level || !question || !options) {
       return res.status(400).json({ message: 'All required fields must be provided.' });
     }
+    const normalizedCorrectAnswers = Array.isArray(req.body.correctAnswers)
+      ? req.body.correctAnswers.map(s => String(s).trim()).filter(Boolean)
+      : (req.body.correctAnswers || req.body.correctAns)
+        ? String(req.body.correctAnswers || req.body.correctAns).split(',').map(s => s.trim()).filter(Boolean)
+        : [];
 
     const newQuestion = await prisma.question.create({
       data: {
@@ -29,7 +34,7 @@ export const addQuestion = async (req, res) => {
         level,
         question,
         options,
-        correctAns,
+        correctAnswers: normalizedCorrectAnswers,
         explanation: explanation || '',
         visibility: visibility !== undefined ? visibility : true,
         createdBy: userId,
@@ -100,14 +105,16 @@ export const addQuestionsFromExcel = async (req, res) => {
       level: row.level,
       question: row.question,
       options: typeof row.options === 'string' ? JSON.parse(row.options) : row.options,
-      correctAns: row.correctAns,
+      correctAnswers: row.correctAnswers
+        ? (Array.isArray(row.correctAnswers) ? row.correctAnswers : String(row.correctAnswers).split(',').map(s => s.trim()).filter(Boolean))
+        : (row.correctAns ? String(row.correctAns).split(',').map(s => s.trim()).filter(Boolean) : []),
       explanation: row.explanation || '',
       visibility: row.visibility !== undefined ? row.visibility : defaultVisibility,
       createdBy: userId,
     }));
     // Basic validation
     for (const q of questionsToInsert) {
-      if (!q.category || !q.subcategory || !q.level || !q.question || !q.options || !q.correctAns) {
+      if (!q.category || !q.subcategory || !q.level || !q.question || !q.options || !q.correctAnswers || q.correctAnswers.length === 0) {
         return res.status(400).json({ message: 'Missing required fields in one or more rows.' });
       }
     }
@@ -148,13 +155,15 @@ export const addQuestionsFromJson = async (req, res) => {
       level: row.level,
       question: row.question,
       options: typeof row.options === 'string' ? JSON.parse(row.options) : row.options,
-      correctAns: row.correctAns,
+      correctAnswers: row.correctAnswers
+        ? (Array.isArray(row.correctAnswers) ? row.correctAnswers : String(row.correctAnswers).split(',').map(s => s.trim()).filter(Boolean))
+        : (row.correctAns ? String(row.correctAns).split(',').map(s => s.trim()).filter(Boolean) : []),
       explanation: row.explanation || '',
       visibility: row.visibility !== undefined ? row.visibility : defaultVisibility,
       createdBy: userId,
     }));
     for (const q of questionsToInsert) {
-      if (!q.category || !q.subcategory || !q.level || !q.question || !q.options || !q.correctAns) {
+      if (!q.category || !q.subcategory || !q.level || !q.question || !q.options || !q.correctAnswers || q.correctAnswers.length === 0) {
         return res.status(400).json({ message: 'Missing required fields in one or more rows.' });
       }
     }
@@ -262,10 +271,24 @@ export const updateQuestion = async (req, res) => {
       return res.status(403).json({ message: 'Only admin or moderator can edit questions.' });
     }
     const { id } = req.params;
-    const { category, subcategory, level, question, options, correctAns, explanation, visibility } = req.body;
+    const { category, subcategory, level, question, options, explanation, visibility } = req.body;
+    const normalizedCorrectAnswersUpdate = req.body.correctAnswers !== undefined || req.body.correctAns !== undefined
+      ? (Array.isArray(req.body.correctAnswers)
+          ? req.body.correctAnswers.map(s => String(s).trim()).filter(Boolean)
+          : String((req.body.correctAnswers ?? req.body.correctAns) || '').split(',').map(s => s.trim()).filter(Boolean))
+      : undefined;
     const updated = await prisma.question.update({
       where: { id: Number(id) },
-      data: { category, subcategory, level, question, options, correctAns, explanation, visibility }
+      data: { 
+        category, 
+        subcategory, 
+        level, 
+        question, 
+        options, 
+        explanation, 
+        visibility,
+        ...(normalizedCorrectAnswersUpdate !== undefined ? { correctAnswers: normalizedCorrectAnswersUpdate } : {})
+      }
     });
     res.json({ message: 'Question updated successfully.', question: updated });
   } catch (error) {

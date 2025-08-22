@@ -536,6 +536,18 @@ const TakeContest = () => {
       ...prev,
       [questionId]: answer
     }));
+
+    // Persist answer to backend for auto-submit
+    try {
+      fetch(`/api/testseries/${contestId}/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ questionId, selectedOption: answer || '' })
+      });
+    } catch (_err) {
+      // Ignore network errors for autosave to avoid interrupting UX
+    }
   };
 
   const handleNextQuestion = () => {

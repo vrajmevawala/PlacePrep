@@ -463,33 +463,76 @@ router.get('/ai/test', authMiddleware, async (req, res) => {
 // AI Assistant Chat
 router.post('/ai/chat', authMiddleware, async (req, res) => {
   try {
-    const { message, context } = req.body;
+    const { message, context, mode = 'concise', history = [] } = req.body;
     
     if (!message) {
       return res.status(400).json({ message: 'Message is required' });
     }
 
-    // Create a more intelligent prompt based on context
-    let systemPrompt = `You are an AI study assistant for a placement preparation platform. You help students with:
+    // Configure response length
+    const normalizedMode = ['concise', 'balanced', 'detailed'].includes((mode || '').toLowerCase())
+      ? (mode || '').toLowerCase()
+      : 'concise';
+    const modeToTokens = {
+      concise: 200,
+      balanced: 350,
+      detailed: 700
+    };
+    const brevityGuidelines = {
+      concise: 'Keep the answer under 120 words. Prefer 3-5 short bullet points or a tight paragraph. Avoid fluff.',
+      balanced: 'Keep the answer under 250 words. Be clear and structured with brief bullets where helpful.',
+      detailed: 'You may be thorough but stay within 500 words. Use clear sections and bullets as needed.'
+    };
 
-1. Aptitude questions and problem-solving techniques
-2. DSA (Data Structures and Algorithms) concepts and implementations
-3. Technical interview preparation
-4. General education and learning guidance
+    // Strict, scoped prompt with hard off-topic refusal policy
+    const systemPrompt = `You are an AI study assistant for a placement preparation platform.
+Your scope is STRICTLY limited to:
+- Aptitude (quantitative, logical reasoning, verbal ability)
+- DSA (Data Structures and Algorithms) and coding related to interview prep
+- Computer Science fundamentals and technical interview preparation
+- Study strategies that help prepare for the above topics only
+
+Guardrails (must follow):
+- If a user request is outside this scope (e.g., personal advice, health/medical, legal/financial, politics/news, entertainment, creative writing, general chit-chat, unrelated coding tasks, hacking/cheating, or anything non-educational), DO NOT answer the question.
+- Instead, respond with a short, kind refusal in exactly one sentence, then suggest 3 on-topic things you can help with.
+- Use this format for refusal:
+  "Sorry, I can only help with aptitude, DSA, CS fundamentals, interview prep, and study guidance. Try asking about: <topic 1>, <topic 2>, or <topic 3>."
+- When unsure whether it is in scope, treat it as off-topic and refuse using the same format.
+- Never fabricate facts; if uncertain on an in-scope question, say you’re not sure and outline how to approach it.
 
 Current context: ${context || 'General study assistance'}
 
-Please provide helpful, accurate, and educational responses. If you're not sure about something, say so rather than guessing.`;
+Style constraints: ${brevityGuidelines[normalizedMode]}
+Prefer direct, actionable answers when in scope. Keep explanations concise and structured.`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    // Prepare recent chat history (last 10 messages max)
+    const recentHistory = Array.isArray(history) ? history.slice(-10) : [];
+    const historyText = recentHistory
+      .map((h) => {
+        const role = h.type === 'user' ? 'User' : 'Assistant';
+        const content = (h.message || '').toString();
+        return `${role}: ${content}`;
+      })
+      .join('\n');
+
+    const historyBlock = historyText ? `\n\nChat history (most recent first):\n${historyText}\n\n` : '\n\n';
+
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.0-flash",
+      generationConfig: {
+        maxOutputTokens: modeToTokens[normalizedMode],
+        temperature: 0.7,
+      }
+    });
     
-    const result = await model.generateContent([systemPrompt, message]);
+    const result = await model.generateContent([systemPrompt, `${historyBlock}User: ${message}\nAssistant:`]);
     const response = await result.response;
     const text = response.text();
 
     res.json({ 
       message: text,
-      timestamp: new Date()
+      timestamp: new Date(),
+      mode: normalizedMode
     });
   } catch (error) {
     console.error('Error in AI chat:', error);

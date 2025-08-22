@@ -54,6 +54,9 @@ const AdminResults = ({ user }) => {
   const [performanceMetrics, setPerformanceMetrics] = useState({});
   const [timeAnalysis, setTimeAnalysis] = useState({});
   const [categoryAnalysis, setCategoryAnalysis] = useState({});
+  const [showAnswersModal, setShowAnswersModal] = useState(false);
+  const [answersLoading, setAnswersLoading] = useState(false);
+  const [answersData, setAnswersData] = useState(null);
 
   const itemsPerPage = 10;
 
@@ -188,6 +191,39 @@ const AdminResults = ({ user }) => {
       alert('Error downloading results');
     } finally {
       setDownloadingExcel(false);
+    }
+  };
+
+  const handleViewAnswers = async (participantRow) => {
+    try {
+      if (!participantRow.id) {
+        console.error('No participant ID found:', participantRow);
+        setAnswersData({ error: 'Invalid participant data' });
+        return;
+      }
+      
+      if (!selectedContest || !selectedContest.id) {
+        console.error('No contest selected');
+        setAnswersData({ error: 'Please select a contest first' });
+        return;
+      }
+      
+      setAnswersLoading(true);
+      setShowAnswersModal(true);
+      setAnswersData(null);
+      const response = await fetch(`/api/testseries/${selectedContest.id}/participant/${participantRow.id}/answers`, { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setAnswersData(data);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setAnswersData({ error: errorData.message || 'Failed to load answers' });
+      }
+    } catch (e) {
+      console.error('Error fetching answers:', e);
+      setAnswersData({ error: 'Network error while loading answers' });
+    } finally {
+      setAnswersLoading(false);
     }
   };
 
@@ -899,7 +935,7 @@ const AdminResults = ({ user }) => {
                                     <div key={result.id} className="flex items-center justify-between">
                                       <div>
                                         <p className="text-sm font-medium text-gray-900">{result.name || 'Unknown'}</p>
-                                        <p className="text-xs text-gray-500">{Math.round((result.timeTaken || 0) / 60)} min</p>
+                                        <p className="text-xs text-gray-500">{result.timeTaken || 0} min</p>
                                       </div>
                                       <span className={`text-sm font-medium ${getPerformanceColor(percentage)}`}>
                                         {percentage.toFixed(1)}%
@@ -997,9 +1033,10 @@ const AdminResults = ({ user }) => {
                                 </tr>
                               </thead>
                               <tbody className="bg-white divide-y divide-gray-200">
-                                {contestResults.map((result, index) => (
-                                  <tr key={result.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-4 whitespace-nowrap">
+                                {contestResults.map((result, index) => {
+                                  return (
+                                    <tr key={result.id} className="hover:bg-gray-50">
+                                      <td className="px-4 py-4 whitespace-nowrap">
                                       <div className="flex items-center">
                                         {index === 0 && <Trophy className="w-4 h-4 text-yellow-500 mr-2" />}
                                         {index === 1 && <Award className="w-4 h-4 text-gray-400 mr-2" />}
@@ -1020,7 +1057,7 @@ const AdminResults = ({ user }) => {
                                       </div>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                      {result.timeTaken ? `${Math.round(result.timeTaken / 60)} min` : 'N/A'}
+                                      {result.timeTaken ? `${result.timeTaken} min` : 'N/A'}
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
                                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -1031,7 +1068,7 @@ const AdminResults = ({ user }) => {
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                                       <button
-                                        onClick={() => {/* TODO: View detailed answers */}}
+                                        onClick={() => handleViewAnswers(result)}
                                         className="text-black hover:text-gray-700 flex items-center space-x-1"
                                       >
                                         <FileText className="w-4 h-4" />
@@ -1039,7 +1076,8 @@ const AdminResults = ({ user }) => {
                                       </button>
                                     </td>
                                   </tr>
-                                ))}
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
@@ -1053,6 +1091,78 @@ const AdminResults = ({ user }) => {
                     </div>
                   )}
                 </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Answers Modal */}
+      {showAnswersModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[85vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-black">Participant Answers</h3>
+              <button onClick={() => setShowAnswersModal(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
+              {answersLoading && (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading answers...</p>
+                </div>
+              )}
+
+              {!answersLoading && answersData?.error && (
+                <div className="text-center py-8 text-red-600 font-medium">{answersData.error}</div>
+              )}
+
+              {!answersLoading && answersData && !answersData.error && (
+                <div className="space-y-6">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600"><span className="font-medium text-black">Name:</span> {answersData.participant?.name || 'Unknown'}</p>
+                    <p className="text-sm text-gray-600"><span className="font-medium text-black">Email:</span> {answersData.participant?.email || '—'}</p>
+                    <p className="text-sm text-gray-600"><span className="font-medium text-black">Score:</span> {answersData.participant?.score}/{answersData.participant?.totalQuestions}</p>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Question</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Answer</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correct Answer</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {answersData.questions?.map((q, index) => (
+                          <tr key={q.id || index} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{index + 1}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900 max-w-md truncate" title={q.question}>{q.question}</td>
+                            <td className={`px-4 py-3 whitespace-nowrap text-sm ${q.isCorrect ? 'text-green-700' : 'text-gray-700'}`}>{q.userAnswer || '—'}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{q.correctAnswer || '—'}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                              {q.isCorrect ? (
+                                <span className="px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">Correct</span>
+                              ) : q.userAnswer ? (
+                                <span className="px-2 py-1 rounded bg-red-100 text-red-800 text-xs font-medium">Incorrect</span>
+                              ) : (
+                                <span className="px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs font-medium">Unanswered</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
             </div>
           </div>

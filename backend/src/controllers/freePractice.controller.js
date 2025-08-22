@@ -148,14 +148,14 @@ export const startPracticeTest = async (req, res) => {
     const freePractice = await prisma.freePractice.create({
       data: data2,
     });
-    // Create Participation entry with startTime and endTime as now
+    // Create Participation entry with startTime as now and endTime null (until submitted)
     const now = new Date();
     await prisma.participation.create({
       data: {
         sid: userId,
         freePracticeId: freePractice.id,
         startTime: now,
-        endTime: now,
+        endTime: null,
         practiceTest: true,
         contest: false,
       }
@@ -218,7 +218,8 @@ export const getUserFreePracticeParticipations = async (req, res) => {
     const participations = await prisma.participation.findMany({
       where: {
         sid: userId,
-        freePracticeId: { not: null }
+        freePracticeId: { not: null },
+        endTime: { not: null }
       },
       include: {
         freePractice: true
@@ -244,9 +245,16 @@ export const getFreePracticeResult = async (req, res) => {
     if (!participation || participation.sid !== userId) {
       return res.status(404).json({ message: 'Participation not found.' });
     }
+    // Do not expose results until the practice test is submitted
+    if (!participation.endTime) {
+      return res.status(403).json({ message: 'Result not available until the practice test is submitted.' });
+    }
     const freePracticeId = participation.freePracticeId;
     const questions = participation.freePractice.questions;
     const totalQuestions = questions.length;
+    if (totalQuestions <= 0) {
+      return res.status(404).json({ message: 'No questions available for this practice test.' });
+    }
     // Get all student activities for this participation
     const activities = await prisma.studentActivity.findMany({
       where: { sid: userId, freePracticeId },
@@ -276,8 +284,8 @@ export const getStudentStats = async (req, res) => {
   try {
     const userId = req.user.id;
     // Example stats: tests taken, average score, time spent, completed
-    const testsTaken = await prisma.freePractice.count({ where: { createdBy: userId } });
-    const participations = await prisma.participation.findMany({ where: { sid: userId, freePracticeId: { not: null } } });
+    const participations = await prisma.participation.findMany({ where: { sid: userId, freePracticeId: { not: null }, endTime: { not: null } } });
+    const testsTaken = participations.length;
     const completed = participations.filter(p => p.endTime !== null).length;
     const totalTime = participations.reduce((sum, p) => {
       if (p.startTime && p.endTime) {
@@ -331,9 +339,9 @@ export const getStudentStats = async (req, res) => {
 export const getStudentRecentTests = async (req, res) => {
   try {
     const userId = req.user.id;
-    // Get last 10 participations (freePractice)
+    // Get last 10 completed participations (freePractice)
     const participations = await prisma.participation.findMany({
-      where: { sid: userId, freePracticeId: { not: null } },
+      where: { sid: userId, freePracticeId: { not: null }, endTime: { not: null } },
       include: { freePractice: { include: { questions: true } } },
       orderBy: { startTime: 'desc' },
       take: 10
@@ -367,5 +375,46 @@ export const getStudentRecentTests = async (req, res) => {
     res.json(recentTests);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Admin: delete free practice tests by title (and optional date)
+export const adminDeleteFreePracticeByTitle = async (req, res) => {
+  try {
+    const { title, date } = req.query;
+    if (!title || title.trim() === '') {
+      return res.status(400).json({ message: 'title is required' });
+    }
+
+    // Build where clause
+    const where = { title: title.trim() };
+    if (date) {
+      const day = new Date(date);
+      if (!isNaN(day.getTime())) {
+        const startOfDay = new Date(day);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(day);
+        endOfDay.setHours(23, 59, 59, 999);
+        where.startTime = { gte: startOfDay, lte: endOfDay };
+      }
+    }
+
+    const targets = await prisma.freePractice.findMany({ where, select: { id: true } });
+    if (!targets.length) {
+      return res.status(404).json({ message: 'No matching free practice tests found.' });
+    }
+
+    let deletedCount = 0;
+    for (const t of targets) {
+      // Delete related activities and participations first to satisfy FK constraints
+      await prisma.studentActivity.deleteMany({ where: { freePracticeId: t.id } });
+      await prisma.participation.deleteMany({ where: { freePracticeId: t.id } });
+      await prisma.freePractice.delete({ where: { id: t.id } });
+      deletedCount += 1;
+    }
+
+    return res.json({ deleted: deletedCount, ids: targets.map(t => t.id) });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };

@@ -80,7 +80,7 @@ server.listen(PORT, () => {
 });
 
 // Cron job for contest management and notifications
-cron.schedule('*/5 * * * *', async () => { // every 5 minutes
+cron.schedule('* * * * *', async () => { // every 1 minute
   const now = new Date();
   
   try {

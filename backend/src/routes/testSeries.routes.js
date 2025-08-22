@@ -1,5 +1,5 @@
 import express from 'express';
-import { createTestSeries, getAllTestSeries, getTestSeriesById, getTestSeriesQuestions, submitTestSeriesAnswers, joinTestSeries, getUserContestResult, getContestStats, getContestLeaderboard, getAllContestStats, getUserParticipations, getUpcomingContests, joinContestByCode, updateTestSeries, recordViolation, getContestParticipants, getParticipantAnswers, exportContestResults, downloadContestResultsExcel, getDetailedAnalysis } from '../controllers/testSeries.controller.js';
+import { createTestSeries, getAllTestSeries, getTestSeriesById, getTestSeriesQuestions, submitTestSeriesAnswers, joinTestSeries, getUserContestResult, getContestStats, getContestLeaderboard, getAllContestStats, getUserParticipations, getUpcomingContests, joinContestByCode, updateTestSeries, recordViolation, getContestParticipants, getParticipantAnswers, exportContestResults, downloadContestResultsExcel, getDetailedAnalysis, autoSubmitExpiredContests, saveContestAnswer } from '../controllers/testSeries.controller.js';
 import authMiddleware from '../middleware/auth.middleware.js';
 import { requireAdminOrModerator } from '../middleware/role.middleware.js';
 
@@ -24,6 +24,7 @@ router.get('/:id/export', exportContestResults);
 router.get('/:id/detailed-analysis', requireAdminOrModerator, getDetailedAnalysis);
 router.post('/:id/download-results', requireAdminOrModerator, downloadContestResultsExcel);
 router.post('/:id/submit', submitTestSeriesAnswers);
+router.post('/:id/answer', saveContestAnswer);
 router.post('/:id/violation', recordViolation);
 router.post('/:id/join', joinTestSeries);
 router.post('/join-by-code', joinContestByCode);

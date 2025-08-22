@@ -12,7 +12,8 @@ const StudentDashboard = ({ user }) => {
   const navigate = useNavigate();
 
   // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentTestsPage, setCurrentTestsPage] = useState(1);
+  const [currentContestsPage, setCurrentContestsPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
   useEffect(() => {
@@ -44,8 +45,8 @@ const StudentDashboard = ({ user }) => {
   }, []);
 
   // Pagination helper functions
-  const getCurrentPageData = (data) => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
+  const getCurrentPageData = (data, page) => {
+    const startIndex = (page - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     return data.slice(startIndex, endIndex);
   };
@@ -54,8 +55,42 @@ const StudentDashboard = ({ user }) => {
     return Math.ceil(data.length / itemsPerPage);
   };
 
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
+  const handleTestsPageChange = (page) => {
+    setCurrentTestsPage(page);
+  };
+
+  const handleContestsPageChange = (page) => {
+    setCurrentContestsPage(page);
+  };
+
+  const handleRegister = async (contest) => {
+    try {
+      if (contest.requiresCode) {
+        navigate('/join-contest');
+        return;
+      }
+
+      const res = await fetch(`/api/testseries/${contest.id}/join`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to register for contest');
+      }
+
+      // If contest already started, take user directly to it; otherwise, confirm registration
+      const now = new Date();
+      const startTime = contest.startTime ? new Date(contest.startTime) : null;
+      if (startTime && now >= startTime) {
+        navigate(`/take-contest/${contest.id}`);
+      } else {
+        window.alert(`Registered! Contest starts at ${contest.date} ${contest.time}.`);
+      }
+    } catch (err) {
+      window.alert(err.message || 'Registration failed');
+    }
   };
 
   // Pagination component
@@ -185,28 +220,32 @@ const StudentDashboard = ({ user }) => {
                 <h2 className="text-xl font-semibold">Recent Tests</h2>
               </div>
               <div className="divide-y divide-gray-200">
-                {getCurrentPageData(recentTests).map((test, index) => {
-                  const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
-                  return (
-                    <div key={index} className="p-6 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                            <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                {recentTests.length === 0 ? (
+                  <div className="p-6 text-sm text-gray-600">No recent tests found.</div>
+                ) : (
+                  getCurrentPageData(recentTests, currentTestsPage).map((test, index) => {
+                    const actualIndex = (currentTestsPage - 1) * itemsPerPage + index + 1;
+                    return (
+                      <div key={`${test.name}-${index}`} className="p-6 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                            </div>
+                            <div>
+                              <h3 className="font-medium">{test.name}</h3>
+                              <p className="text-sm text-gray-600">{test.date}</p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="font-medium">{test.name}</h3>
-                            <p className="text-sm text-gray-600">{test.date}</p>
+                          <div className="text-right">
+                            <div className="text-lg font-semibold">{test.score != null ? `${test.score}%` : 'N/A'}</div>
+                            <div className="text-sm text-gray-600">{test.type}</div>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-semibold">{test.score}%</div>
-                          <div className="text-sm text-gray-600">{test.type}</div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
               
               {/* Pagination for Recent Tests */}
@@ -214,15 +253,15 @@ const StudentDashboard = ({ user }) => {
                 <div className="px-6 py-4 border-t border-gray-200">
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-gray-600">
-                      Showing {getCurrentPageData(recentTests).length} of {recentTests.length} tests
+                      Showing {getCurrentPageData(recentTests, currentTestsPage).length} of {recentTests.length} tests
                       {getTotalPages(recentTests) > 1 && (
-                        <span> (Page {currentPage} of {getTotalPages(recentTests)})</span>
+                        <span> (Page {currentTestsPage} of {getTotalPages(recentTests)})</span>
                       )}
                     </div>
                     <Pagination
-                      currentPage={currentPage}
+                      currentPage={currentTestsPage}
                       totalPages={getTotalPages(recentTests)}
-                      onPageChange={handlePageChange}
+                      onPageChange={handleTestsPageChange}
                     />
                   </div>
                 </div>
@@ -237,27 +276,31 @@ const StudentDashboard = ({ user }) => {
                 <h2 className="text-xl font-semibold">Upcoming Contests</h2>
               </div>
               <div className="divide-y divide-gray-200">
-                {getCurrentPageData(upcomingContests).map((contest, index) => {
-                  const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
-                  return (
-                    <div key={index} className="p-6">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                          <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                {upcomingContests.length === 0 ? (
+                  <div className="p-6 text-sm text-gray-600">No upcoming contests.</div>
+                ) : (
+                  getCurrentPageData(upcomingContests, currentContestsPage).map((contest, index) => {
+                    const actualIndex = (currentContestsPage - 1) * itemsPerPage + index + 1;
+                    return (
+                      <div key={contest.id ?? index} className="p-6">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                            <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                          </div>
+                          <h3 className="font-medium">{contest.name}</h3>
                         </div>
-                        <h3 className="font-medium">{contest.name}</h3>
+                        <div className="text-sm text-gray-600 space-y-1 ml-9">
+                          <p className="font-medium">{contest.date} at {contest.time}</p>
+                          <p className="text-blue-600">{contest.timeStatus}</p>
+                          <p>{contest.participants} participants{contest.requiresCode ? ' • Code required' : ''}</p>
+                        </div>
+                        <button onClick={() => handleRegister(contest)} className="mt-3 w-full bg-black text-white py-2 px-4 rounded-sm text-sm hover:bg-gray-800 transition-colors">
+                          {contest.requiresCode ? 'Register with Code' : 'Register'}
+                        </button>
                       </div>
-                      <div className="text-sm text-gray-600 space-y-1 ml-9">
-                        <p className="font-medium">{contest.date} at {contest.time}</p>
-                        <p className="text-blue-600">{contest.timeStatus}</p>
-                        <p>{contest.participants} participants</p>
-                      </div>
-                      <button className="mt-3 w-full bg-black text-white py-2 px-4 rounded-sm text-sm hover:bg-gray-800 transition-colors">
-                        Register
-                      </button>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
               
               {/* Pagination for Upcoming Contests */}
@@ -265,15 +308,15 @@ const StudentDashboard = ({ user }) => {
                 <div className="px-6 py-4 border-t border-gray-200">
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-gray-600">
-                      Showing {getCurrentPageData(upcomingContests).length} of {upcomingContests.length} contests
+                      Showing {getCurrentPageData(upcomingContests, currentContestsPage).length} of {upcomingContests.length} contests
                       {getTotalPages(upcomingContests) > 1 && (
-                        <span> (Page {currentPage} of {getTotalPages(upcomingContests)})</span>
+                        <span> (Page {currentContestsPage} of {getTotalPages(upcomingContests)})</span>
                       )}
                     </div>
                     <Pagination
-                      currentPage={currentPage}
+                      currentPage={currentContestsPage}
                       totalPages={getTotalPages(upcomingContests)}
-                      onPageChange={handlePageChange}
+                      onPageChange={handleContestsPageChange}
                     />
                   </div>
                 </div>

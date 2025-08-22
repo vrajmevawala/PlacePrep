@@ -443,7 +443,7 @@ const Practice = ({ user }) => {
                     <button
                       className="w-full px-6 py-3 bg-black hover:bg-gray-900 text-white rounded font-bold mt-4"
                       onClick={handleSubmitTest}
-                      disabled={userAnswers.some(ans => !ans)}
+                      disabled={loading}
                     >
                       Submit Practice Test
                     </button>

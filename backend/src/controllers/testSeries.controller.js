@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import XLSX from 'xlsx';
 import { sendContestReminderEmail, sendResultNotificationEmail } from '../lib/emailService.js';
+
 const prisma = new PrismaClient();
 
 // Get notification service from app
@@ -90,7 +91,7 @@ export const createTestSeries = async (req, res) => {
 // Get all TestSeries (optionally filter by creator)
 export const getAllTestSeries = async (req, res) => {
   try {
-    const tests = await prisma.testSeries.findMany({
+    const testsRaw = await prisma.testSeries.findMany({
       select: {
         id: true,
         title: true,
@@ -102,9 +103,24 @@ export const getAllTestSeries = async (req, res) => {
           select: {
             fullName: true
           }
+        },
+        _count: {
+          select: { participations: true }
         }
       }
     });
+
+    const tests = testsRaw.map(t => ({
+      id: t.id,
+      title: t.title,
+      startTime: t.startTime,
+      endTime: t.endTime,
+      requiresCode: t.requiresCode,
+      contestCode: t.contestCode,
+      creator: t.creator,
+      participantsCount: t._count?.participations || 0
+    }));
+
     res.json({ testSeries: tests });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -406,6 +422,55 @@ export const submitTestSeriesAnswers = async (req, res) => {
   }
 };
 
+// Save a single answer during an active contest (for auto-submit to use later)
+export const saveContestAnswer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { questionId, selectedOption } = req.body;
+
+    if (!questionId) {
+      return res.status(400).json({ message: 'questionId is required.' });
+    }
+
+    // Ensure contest exists
+    const contest = await prisma.testSeries.findUnique({ where: { id: Number(id) } });
+    if (!contest) {
+      return res.status(404).json({ message: 'Contest not found.' });
+    }
+
+    // Ensure user has participation
+    let participation = await prisma.participation.findFirst({ where: { sid: userId, testSeriesId: Number(id) } });
+    if (!participation) {
+      participation = await prisma.participation.create({
+        data: {
+          practiceTest: false,
+          contest: true,
+          startTime: new Date(),
+          endTime: null,
+          user: { connect: { id: userId } },
+          testSeries: { connect: { id: Number(id) } }
+        }
+      });
+    }
+
+    // Save latest answer as a new activity record
+    await prisma.studentActivity.create({
+      data: {
+        sid: userId,
+        qid: Number(questionId),
+        testSeriesId: Number(id),
+        time: new Date(),
+        selectedAnswer: selectedOption && String(selectedOption).trim() !== '' && selectedOption !== 'null' ? selectedOption : null
+      }
+    });
+
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 export const autoSubmitExpiredContests = async () => {
   try {
     const now = new Date();
@@ -585,7 +650,27 @@ export const getUserContestResult = async (req, res) => {
     const now = new Date();
     const contestEndTime = new Date(contest.endTime);
     
-    if (now < contestEndTime) {
+    // Allow results if contest ended OR if user has already submitted
+    let participation = null;
+    if (pid) {
+      participation = await prisma.participation.findFirst({
+        where: {
+          pid: Number(pid),
+          sid: userId,
+          testSeriesId: Number(id)
+        }
+      });
+    } else {
+      participation = await prisma.participation.findFirst({
+        where: {
+          sid: userId,
+          testSeriesId: Number(id)
+        }
+      });
+    }
+
+    const hasSubmitted = !!(participation && participation.submittedAt);
+    if (now < contestEndTime && !hasSubmitted) {
       return res.status(403).json({ 
         message: 'Results not available yet',
         contestEndTime: contest.endTime,
@@ -595,7 +680,6 @@ export const getUserContestResult = async (req, res) => {
 
     // Get StudentActivity for this user/contest
     let activities = [];
-    let participation = null;
     
     if (pid) {
       // If participation ID is provided, get activities for that specific participation
@@ -696,7 +780,7 @@ export const getUserContestResult = async (req, res) => {
       timeTaken: timeTaken,
       violations: participation?.violations || 0,
       autoSubmitted: participation?.violations >= 2 || isTimeBasedAutoSubmit,
-      timeTaken: isTimeBasedAutoSubmit ? 'Auto-submitted (time expired)' : 'N/A',
+      autoSubmitNote: isTimeBasedAutoSubmit ? 'Auto-submitted (time expired)' : null,
       hasParticipated: !!participation,
       questionResults
     });
@@ -901,60 +985,77 @@ export const getContestLeaderboard = async (req, res) => {
 export const getContestStats = async (req, res) => {
   try {
     const { id } = req.params;
-    // Get all participations for this contest
+
+    // Fetch participations to compute totals and time
     const participations = await prisma.participation.findMany({
       where: { testSeriesId: Number(id) },
-      select: { sid: true, startTime: true, endTime: true }
+      select: { sid: true, startTime: true, submittedAt: true }
     });
 
-    // Get all users' StudentActivity for this contest
+    // Fetch all activity logs for this contest
     const allActivities = await prisma.studentActivity.findMany({
       where: { testSeriesId: Number(id) }
     });
 
-    // Get correct answers for all questions in this contest
+    // Fetch contest questions and correct answers
     const contest = await prisma.testSeries.findUnique({
       where: { id: Number(id) },
-      select: { 
-        questions: { 
-          select: { 
-            id: true, 
-            correctAns: true,
-            question: true,
-            options: true
-          } 
-        } 
+      select: {
+        questions: {
+          select: { id: true, correctAns: true, question: true, options: true }
+        }
       }
     });
 
-    if (!contest) {
-      return res.status(404).json({ message: 'Contest not found.' });
-    }
+    if (!contest) return res.status(404).json({ message: 'Contest not found.' });
 
+    const totalQuestions = contest.questions.length;
     const correctMap = {};
     contest.questions.forEach(q => { correctMap[q.id] = q.correctAns; });
-    const totalQuestions = contest.questions.length;
 
-    // Calculate scores for each user
-    const userScores = {};
-    allActivities.forEach(act => {
-      if (!userScores[act.sid]) userScores[act.sid] = { correct: 0, attempted: 0 };
-      const hasAnswer = act.selectedAnswer && act.selectedAnswer.trim() !== '' && act.selectedAnswer !== 'null';
-      if (hasAnswer) userScores[act.sid].attempted++;
-      if (hasAnswer && correctMap[act.qid] === act.selectedAnswer) userScores[act.sid].correct++;
-    });
+    // Deduplicate answers: keep latest per (sid, qid)
+    const latestByUser = new Map(); // sid -> Map(qid -> { selectedAnswer, time })
+    for (const act of allActivities) {
+      const userMap = latestByUser.get(act.sid) || new Map();
+      const prev = userMap.get(act.qid);
+      if (!prev || (act.time && prev.time && new Date(act.time) > new Date(prev.time)) || (!prev.time && act.time)) {
+        userMap.set(act.qid, { selectedAnswer: act.selectedAnswer, time: act.time });
+      }
+      latestByUser.set(act.sid, userMap);
+    }
 
-    // Build array of scores
-    const scores = Object.values(userScores).map(u => u.correct);
+    // Compute per-user scores
+    const scores = [];
+    let highestScore = 0;
+    let lowestScore = Number.POSITIVE_INFINITY;
+    for (const [sid, qMap] of latestByUser.entries()) {
+      let correct = 0;
+      for (const [qid, ans] of qMap.entries()) {
+        const hasAnswer = ans.selectedAnswer && ans.selectedAnswer.trim() !== '' && ans.selectedAnswer !== 'null';
+        if (hasAnswer && correctMap[qid] === ans.selectedAnswer) correct++;
+      }
+      scores.push(correct);
+      if (correct > highestScore) highestScore = correct;
+      if (correct < lowestScore) lowestScore = correct;
+    }
+    if (scores.length === 0) lowestScore = 0;
 
-    // Calculate average
-    const average = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-    const averagePercentage = scores.length ? ((average / totalQuestions) * 100) : 0;
+    const averageScore = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+    const averagePercentage = totalQuestions > 0 ? (averageScore / totalQuestions) * 100 : 0;
 
-    // Calculate question-wise statistics
-    const questionStats = {};
+    // Completion rate and average time
+    const totalParticipants = participations.length;
+    const completedParticipants = participations.filter(p => p.submittedAt).length;
+    const completionRate = totalParticipants > 0 ? (completedParticipants / totalParticipants) * 100 : 0;
+    const timeSamples = participations
+      .filter(p => p.startTime && p.submittedAt)
+      .map(p => Math.round((new Date(p.submittedAt) - new Date(p.startTime)) / (1000 * 60)));
+    const averageTime = timeSamples.length ? Math.round(timeSamples.reduce((a, b) => a + b, 0) / timeSamples.length) : 0;
+
+    // Question-wise statistics from deduped answers
+    const questionStatsMap = new Map();
     contest.questions.forEach(q => {
-      questionStats[q.id] = {
+      questionStatsMap.set(q.id, {
         questionId: q.id,
         question: q.question,
         options: q.options,
@@ -963,57 +1064,50 @@ export const getContestStats = async (req, res) => {
         correctAttempts: 0,
         incorrectAttempts: 0,
         notAttempted: 0
-      };
+      });
     });
 
-    // Populate question statistics
-    allActivities.forEach(act => {
-      if (questionStats[act.qid]) {
-        questionStats[act.qid].totalAttempts++;
-        const hasAnswer = act.selectedAnswer && act.selectedAnswer.trim() !== '' && act.selectedAnswer !== 'null';
+    for (const [sid, qMap] of latestByUser.entries()) {
+      for (const [qid, ans] of qMap.entries()) {
+        const stat = questionStatsMap.get(qid);
+        if (!stat) continue;
+        stat.totalAttempts += 1;
+        const hasAnswer = ans.selectedAnswer && ans.selectedAnswer.trim() !== '' && ans.selectedAnswer !== 'null';
         if (hasAnswer) {
-          if (act.selectedAnswer === correctMap[act.qid]) {
-            questionStats[act.qid].correctAttempts++;
-          } else {
-            questionStats[act.qid].incorrectAttempts++;
-          }
-        } else {
-          questionStats[act.qid].notAttempted++;
+          if (ans.selectedAnswer === correctMap[qid]) stat.correctAttempts += 1;
+          else stat.incorrectAttempts += 1;
         }
       }
+    }
+
+    const questionStats = Array.from(questionStatsMap.values());
+    questionStats.forEach(q => {
+      q.notAttempted = Math.max(0, totalParticipants - q.totalAttempts);
     });
 
-    // Calculate not attempted for each question
-    const totalParticipants = participations.length;
-    Object.values(questionStats).forEach(q => {
-      q.notAttempted = totalParticipants - q.totalAttempts;
-    });
+    const safeArray = questionStats.length ? questionStats : [{ correctAttempts: 0, incorrectAttempts: 0, totalAttempts: 0 }];
+    const mostCorrect = safeArray.reduce((max, q) => q.correctAttempts > max.correctAttempts ? q : max, safeArray[0]);
+    const mostIncorrect = safeArray.reduce((max, q) => q.incorrectAttempts > max.incorrectAttempts ? q : max, safeArray[0]);
+    const mostAttempted = safeArray.reduce((max, q) => q.totalAttempts > max.totalAttempts ? q : max, safeArray[0]);
+    const leastAttempted = safeArray.reduce((min, q) => q.totalAttempts < min.totalAttempts ? q : min, safeArray[0]);
 
-    // Find most/least statistics
-    const questionStatsArray = Object.values(questionStats);
-    const mostCorrect = questionStatsArray.reduce((max, q) => 
-      q.correctAttempts > max.correctAttempts ? q : max, questionStatsArray[0]);
-    const mostIncorrect = questionStatsArray.reduce((max, q) => 
-      q.incorrectAttempts > max.incorrectAttempts ? q : max, questionStatsArray[0]);
-    const mostAttempted = questionStatsArray.reduce((max, q) => 
-      q.totalAttempts > max.totalAttempts ? q : max, questionStatsArray[0]);
-    const leastAttempted = questionStatsArray.reduce((min, q) => 
-      q.totalAttempts < min.totalAttempts ? q : min, questionStatsArray[0]);
-
-    res.json({
-      scores,
-      average,
-      averagePercentage,
-      totalQuestions,
+    return res.json({
       totalParticipants,
-      questionStats: questionStatsArray,
+      totalQuestions,
+      averageScore,
+      averagePercentage,
+      highestScore,
+      lowestScore,
+      completionRate,
+      averageTime,
+      questionStats,
       mostCorrect,
       mostIncorrect,
       mostAttempted,
       leastAttempted
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -1091,8 +1185,9 @@ export const getAllContestStats = async (req, res) => {
       const userScores = {};
       allActivities.forEach(act => {
         if (!userScores[act.sid]) userScores[act.sid] = { correct: 0, attempted: 0 };
-        if (act.selectedAnswer) userScores[act.sid].attempted++;
-        if (act.selectedAnswer && correctMap[act.qid] === act.selectedAnswer) userScores[act.sid].correct++;
+        const hasAnswer = act.selectedAnswer && act.selectedAnswer.trim() !== '' && act.selectedAnswer !== 'null';
+        if (hasAnswer) userScores[act.sid].attempted++;
+        if (hasAnswer && correctMap[act.qid] === act.selectedAnswer) userScores[act.sid].correct++;
       });
 
       const scores = Object.values(userScores).map(u => u.correct);
@@ -1150,7 +1245,9 @@ export const getUpcomingContests = async (req, res) => {
         endTime: true,
         requiresCode: true,
         contestCode: true,
-        participations: true,
+        participations: {
+          where: { submittedAt: { not: null } }
+        },
       }
     });
     
@@ -1418,7 +1515,7 @@ export const getContestParticipants = async (req, res) => {
     const participantsWithStats = await Promise.all(
       participants.map(async (participation) => {
         try {
-          // Get all answers for this participant
+          // Get all answers for this participant (newest first)
           const answers = await prisma.studentActivity.findMany({
             where: {
               sid: participation.sid,
@@ -1431,6 +1528,9 @@ export const getContestParticipants = async (req, res) => {
                   correctAns: true
                 }
               }
+            },
+            orderBy: {
+              time: 'desc'
             }
           });
 
@@ -1444,29 +1544,44 @@ export const getContestParticipants = async (req, res) => {
             }
           });
 
-          const correctAnswers = answers.filter(a => a.selectedAnswer === a.question.correctAns).length;
-          const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
+          // Deduplicate by question: keep latest attempt
+          const latestByQuestion = new Map(); // qid -> selectedAnswer
+          for (const a of answers) {
+            const qid = a.question?.id || a.qid;
+            if (!latestByQuestion.has(qid)) {
+              latestByQuestion.set(qid, a.selectedAnswer);
+            }
+          }
+
+          let correctAnswers = 0;
+          for (const [qid, selected] of latestByQuestion.entries()) {
+            const correct = answers.find(x => (x.question?.id || x.qid) === qid)?.question?.correctAns;
+            const hasAnswer = selected && selected.trim() !== '' && selected !== 'null';
+            if (hasAnswer && correct === selected) correctAnswers += 1;
+          }
+
+          const percentage = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
           const timeTaken = participation.submittedAt && participation.startTime 
             ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / (1000 * 60))
             : 0;
 
           return {
-            id: participation.id,
+            id: participation.pid,
             userId: participation.user?.id || 'unknown',
             name: participation.user?.fullName || 'Unknown User',
             email: participation.user?.email || 'No email',
             score: correctAnswers,
             totalQuestions,
-            percentage: parseFloat(percentage),
-            accuracy: parseFloat(percentage),
+            percentage: Math.min(100, Math.max(0, parseFloat(percentage.toFixed(1)))),
+            accuracy: Math.min(100, Math.max(0, parseFloat(percentage.toFixed(1)))),
             timeTaken,
             submittedAt: participation.submittedAt,
             startTime: participation.startTime
           };
         } catch (error) {
-          console.error('Error processing participant:', participation.id, error);
+          console.error('Error processing participant:', participation.pid, error);
           return {
-            id: participation.id,
+            id: participation.pid,
             userId: 'unknown',
             name: 'Unknown User',
             email: 'No email',
@@ -1497,9 +1612,17 @@ export const getParticipantAnswers = async (req, res) => {
   try {
     const { contestId, participantId } = req.params;
     
+    if (!participantId || participantId === 'undefined') {
+      return res.status(400).json({ message: 'Participant ID is required.' });
+    }
+    
+    if (!contestId) {
+      return res.status(400).json({ message: 'Contest ID is required.' });
+    }
+    
     const participation = await prisma.participation.findFirst({
       where: {
-        id: Number(participantId),
+        pid: Number(participantId),
         testSeriesId: Number(contestId),
         contest: true
       },
@@ -1533,21 +1656,46 @@ export const getParticipantAnswers = async (req, res) => {
       return res.status(404).json({ message: 'Participation not found.' });
     }
 
-    const result = await prisma.result.findFirst({
-      where: { pid: participation.id }
+    // Read answers from StudentActivity (newest first)
+    const activityAnswers = await prisma.studentActivity.findMany({
+      where: {
+        sid: participation.sid,
+        testSeriesId: Number(contestId)
+      },
+      include: {
+        question: {
+          select: { id: true, correctAns: true }
+        }
+      },
+      orderBy: { time: 'desc' }
     });
 
-    const answers = result?.answers || [];
+    // Deduplicate per question: keep latest
+    const latestByQuestion = new Map(); // qid -> selectedAnswer
+    for (const a of activityAnswers) {
+      const qid = a.question?.id || a.qid;
+      if (!latestByQuestion.has(qid)) {
+        latestByQuestion.set(qid, a.selectedAnswer);
+      }
+    }
+
+    // Compute correct answers
+    let correctAnswers = 0;
+    for (const [qid, selected] of latestByQuestion.entries()) {
+      const correct = activityAnswers.find(x => (x.question?.id || x.qid) === qid)?.question?.correctAns;
+      const hasAnswer = selected && selected.trim() !== '' && selected !== 'null';
+      if (hasAnswer && correct === selected) correctAnswers += 1;
+    }
+
     const totalQuestions = participation.testSeries.questions.length;
-    const correctAnswers = result?.correct || 0;
     const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
     const timeTaken = participation.submittedAt && participation.startTime 
       ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / 1000 / 60)
       : 0;
 
-    // Map questions with user answers
-    const questionsWithAnswers = participation.testSeries.questions.map((question, index) => {
-      const userAnswer = answers[index] || null;
+    // Map questions with user answers from latestByQuestion
+    const questionsWithAnswers = participation.testSeries.questions.map((question) => {
+      const userAnswer = latestByQuestion.get(question.id) || null;
       const isCorrect = userAnswer === question.correctAns;
       
       return {
@@ -1563,7 +1711,7 @@ export const getParticipantAnswers = async (req, res) => {
 
     res.json({
       participant: {
-        id: participation.id,
+        id: participation.pid,
         userId: participation.user?.id || 'unknown',
         name: participation.user?.fullName || 'Unknown User',
         email: participation.user?.email || 'No email',
@@ -1610,21 +1758,42 @@ export const exportContestResults = async (req, res) => {
     // Get results for all participants
     const participantsWithResults = await Promise.all(
       participants.map(async (participation) => {
-        const result = await prisma.result.findFirst({
-          where: { pid: participation.id }
+        // Compute from StudentActivity instead of Result model
+        const answers = await prisma.studentActivity.findMany({
+          where: {
+            sid: participation.sid,
+            testSeriesId: Number(id)
+          },
+          include: {
+            question: {
+              select: { id: true, correctAns: true }
+            }
+          },
+          orderBy: { time: 'desc' }
         });
 
         const totalQuestions = await prisma.question.count({
           where: {
-            testSeries: {
-              some: {
-                id: Number(id)
-              }
-            }
+            testSeries: { some: { id: Number(id) } }
           }
         });
 
-        const correctAnswers = result?.correct || 0;
+        // Deduplicate by question: keep latest
+        const latestByQuestion = new Map(); // qid -> selectedAnswer
+        for (const a of answers) {
+          const qid = a.question?.id || a.qid;
+          if (!latestByQuestion.has(qid)) {
+            latestByQuestion.set(qid, a.selectedAnswer);
+          }
+        }
+
+        let correctAnswers = 0;
+        for (const [qid, selected] of latestByQuestion.entries()) {
+          const correct = answers.find(x => (x.question?.id || x.qid) === qid)?.question?.correctAns;
+          const hasAnswer = selected && selected.trim() !== '' && selected !== 'null';
+          if (hasAnswer && correct === selected) correctAnswers += 1;
+        }
+
         const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
         const timeTaken = participation.submittedAt && participation.startTime 
           ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / 1000 / 60)
@@ -1989,7 +2158,7 @@ export const getDetailedAnalysis = async (req, res) => {
       }
     });
 
-    // Category Analysis
+    // Category Analysis (use allAnswers from StudentActivity)
     const categoryAnalysis = {};
     contest.questions.forEach(question => {
       const category = question.category || 'General';
@@ -2002,17 +2171,11 @@ export const getDetailedAnalysis = async (req, res) => {
           successRate: 0
         };
       }
-      
       categoryAnalysis[category].questionCount++;
-      
-      const answersForQuestion = participants.flatMap(p => 
-        p.answers.filter(a => a.questionId === question.id)
-      );
-      
+
+      const answersForQuestion = allAnswers.filter(a => a.qid === question.id);
       categoryAnalysis[category].totalAttempts += answersForQuestion.length;
-      categoryAnalysis[category].correctAttempts += answersForQuestion.filter(a => 
-        a.selectedAnswer === question.correctAns
-      ).length;
+      categoryAnalysis[category].correctAttempts += answersForQuestion.filter(a => a.selectedAnswer === question.correctAns).length;
     });
 
     // Calculate category metrics
@@ -2035,7 +2198,6 @@ export const getDetailedAnalysis = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 
 

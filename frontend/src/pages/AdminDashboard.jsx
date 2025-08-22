@@ -24,6 +24,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const [showForm, setShowForm] = useState(false);
   const [showPdfForm, setShowPdfForm] = useState(false);
   const [showVideoForm, setShowVideoForm] = useState(false);
+  const [questionSubmitMsg, setQuestionSubmitMsg] = useState('');
+  const [pdfSubmitMsg, setPdfSubmitMsg] = useState('');
+  const [videoSubmitMsg, setVideoSubmitMsg] = useState('');
   const [form, setForm] = useState({
     category: 'Aptitude',
     subcategory: '',
@@ -33,6 +36,8 @@ const AdminDashboard = ({ user, onNavigate }) => {
     correctAnswers: [],
     explanation: ''
   });
+  const [resourceView, setResourceView] = useState('questions'); // 'questions' | 'pdf' | 'video'
+  const [resources, setResources] = useState([]);
   const [pdfForm, setPdfForm] = useState({
     title: '',
     description: '',
@@ -145,14 +150,57 @@ const AdminDashboard = ({ user, onNavigate }) => {
     }
   }, [selectedTab]);
 
-  // Fetch all questions
+  // Fetch items for Resources and Tags
   useEffect(() => {
     if (selectedTab === 'resources' || selectedTab === 'tags') {
+      // Always refresh questions for tags usage
       fetch('/api/questions', { credentials: 'include' })
         .then(res => res.json())
         .then(data => setAllQuestions(data.questions || []));
+
+      if (selectedTab === 'resources') {
+        if (resourceView === 'questions') {
+          setResources([]); // Clear resources when viewing questions
+        } else {
+          const typeParam = resourceView === 'pdf' ? 'PDF' : 'VIDEO';
+          fetch(`/api/resources?type=${typeParam}`, { 
+            credentials: 'include',
+            headers: {
+              'Accept': 'application/json'
+            }
+          })
+            .then(res => {
+              if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+              return res.json();
+            })
+            .then(data => {
+              console.log('Resources data:', data);
+              // Initialize resources state
+              let resourcesData = [];
+              
+              if (Array.isArray(data)) {
+                resourcesData = data;
+              } else if (data && typeof data === 'object') {
+                if (data.resources && Array.isArray(data.resources)) {
+                  resourcesData = data.resources;
+                } else {
+                  // Try to find an array in the object's values
+                  const resourceArray = Object.values(data).find(Array.isArray);
+                  if (resourceArray) resourcesData = resourceArray;
+                }
+              }
+              
+              console.log('Setting resources:', resourcesData);
+              setResources(resourcesData);
+            })
+            .catch(error => {
+              console.error('Error fetching resources:', error);
+              setResources([]);
+            });
+        }
+      }
     }
-  }, [selectedTab]);
+  }, [selectedTab, resourceView]);
 
   // Fetch all users
   useEffect(() => {
@@ -196,6 +244,21 @@ const AdminDashboard = ({ user, onNavigate }) => {
   };
   const handleSubmit = async e => {
     e.preventDefault();
+    setQuestionSubmitMsg('');
+    // basic validation
+    if (!form.category || !form.subcategory || !form.level || !form.question) {
+      setQuestionSubmitMsg('Please fill all required fields.');
+      return;
+    }
+    const opts = form.options || {};
+    if (!opts.a || !opts.b || !opts.c || !opts.d) {
+      setQuestionSubmitMsg('Please provide all four options.');
+      return;
+    }
+    if (!form.correctAnswers || form.correctAnswers.length === 0) {
+      setQuestionSubmitMsg('Please select at least one correct answer.');
+      return;
+    }
     const payload = {
       category: form.category,
       subcategory: form.subcategory,
@@ -206,13 +269,36 @@ const AdminDashboard = ({ user, onNavigate }) => {
       explanation: form.explanation,
       visibility: true
     };
-    await fetch('/api/questions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(payload)
-    });
-    setShowForm(false);
+    try {
+      const res = await fetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setQuestionSubmitMsg(data.message || 'Failed to add question.');
+        return;
+      }
+      setShowForm(false);
+      setForm({
+        category: 'Aptitude',
+        subcategory: '',
+        level: 'easy',
+        question: '',
+        options: { a: '', b: '', c: '', d: '' },
+        correctAnswers: [],
+        explanation: ''
+      });
+      // refresh questions list if present
+      fetch('/api/questions', { credentials: 'include' })
+        .then(r => r.json())
+        .then(d => setAllQuestions(d.questions || []))
+        .catch(() => {});
+    } catch (err) {
+      setQuestionSubmitMsg('Network error while adding question.');
+    }
   };
 
   const handleExcelUpload = async (e) => {
@@ -275,6 +361,16 @@ const AdminDashboard = ({ user, onNavigate }) => {
     }
   };
 
+  const handleResourceDelete = async (id) => {
+    if (!confirm('Delete this resource?')) return;
+    try {
+      const res = await fetch(`/api/resources/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) {
+        setResources(resources.filter(r => r.id !== id));
+      }
+    } catch (_) {}
+  };
+
   // Handlers for PDF Form
   const handlePdfChange = e => {
     const { name, value } = e.target;
@@ -288,6 +384,15 @@ const AdminDashboard = ({ user, onNavigate }) => {
 
   const handlePdfSubmit = async e => {
     e.preventDefault();
+    setPdfSubmitMsg('');
+    if (!pdfForm.title || !pdfForm.category) {
+      setPdfSubmitMsg('Title and Category are required.');
+      return;
+    }
+    if (!pdfForm.file) {
+      setPdfSubmitMsg('Please choose a PDF file.');
+      return;
+    }
     const formData = new FormData();
     formData.append('type', 'pdf');
     formData.append('title', pdfForm.title);
@@ -305,19 +410,22 @@ const AdminDashboard = ({ user, onNavigate }) => {
         credentials: 'include',
         body: formData
       });
-      if (res.ok) {
-        setShowPdfForm(false);
-        setPdfForm({
-          title: '',
-          description: '',
-          category: 'Aptitude',
-          subcategory: '',
-          level: 'medium',
-          file: null
-        });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPdfSubmitMsg(data.message || 'Failed to add PDF.');
+        return;
       }
+      setShowPdfForm(false);
+      setPdfForm({
+        title: '',
+        description: '',
+        category: 'Aptitude',
+        subcategory: '',
+        level: 'medium',
+        file: null
+      });
     } catch (err) {
-      console.error('Error adding PDF:', err);
+      setPdfSubmitMsg('Network error while adding PDF.');
     }
   };
 
@@ -329,6 +437,11 @@ const AdminDashboard = ({ user, onNavigate }) => {
 
   const handleVideoSubmit = async e => {
     e.preventDefault();
+    setVideoSubmitMsg('');
+    if (!videoForm.title || !videoForm.category || !videoForm.videoUrl) {
+      setVideoSubmitMsg('Title, Category and Video URL are required.');
+      return;
+    }
     try {
       const res = await fetch('/api/resources', {
         method: 'POST',
@@ -339,19 +452,22 @@ const AdminDashboard = ({ user, onNavigate }) => {
           ...videoForm
         })
       });
-      if (res.ok) {
-        setShowVideoForm(false);
-        setVideoForm({
-          title: '',
-          description: '',
-          category: 'Aptitude',
-          subcategory: '',
-          level: 'medium',
-          videoUrl: ''
-        });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setVideoSubmitMsg(data.message || 'Failed to add video.');
+        return;
       }
+      setShowVideoForm(false);
+      setVideoForm({
+        title: '',
+        description: '',
+        category: 'Aptitude',
+        subcategory: '',
+        level: 'medium',
+        videoUrl: ''
+      });
     } catch (err) {
-      console.error('Error adding video:', err);
+      setVideoSubmitMsg('Network error while adding video.');
     }
   };
 
@@ -1169,6 +1285,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 <span>Create Moderator</span>
               </button>
             </div>
+            {resourceView === 'questions' && (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
@@ -1232,7 +1349,84 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   ))}
                 </tbody>
               </table>
+              
+              {/* Pagination for Resources */}
+              {getTotalPages(resources) > 1 && (
+                <div className="px-6 py-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Showing {getCurrentPageData(resources).length} of {resources.length} resources
+                      {getTotalPages(resources) > 1 && (
+                        <span> (Page {currentPage} of {getTotalPages(resources)})</span>
+                      )}
+                    </div>
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={getTotalPages(resources)}
+                      onPageChange={handlePageChange}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
+            )}
+
+            {(resourceView === 'pdf' || resourceView === 'video') && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border rounded overflow-hidden">
+                <thead>
+                  <tr className="bg-gray-100 border-b">
+                    <th className="py-2 px-3">Title</th>
+                    <th className="py-2 px-3">Category</th>
+                    <th className="py-2 px-3">Subcategory</th>
+                    <th className="py-2 px-3">Level</th>
+                    <th className="py-2 px-3">Type</th>
+                    <th className="py-2 px-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resources.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="py-4 text-center text-gray-500">No {resourceView.toUpperCase()} resources found</td>
+                    </tr>
+                  ) : (
+                    resources.map((r, index) => {
+                      const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                      return (
+                        <tr key={r.id} className="border-b hover:bg-gray-50 transition">
+                          <td className="py-2 px-3">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                                <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                              </div>
+                              <div className="font-medium">{r.title}</div>
+                            </div>
+                          </td>
+                          <td className="py-2 px-3">{r.category}</td>
+                          <td className="py-2 px-3">{r.subcategory || '-'}</td>
+                          <td className="py-2 px-3">{r.level}</td>
+                          <td className="py-2 px-3">{r.type}</td>
+                          <td className="py-2 px-3 flex gap-2">
+                            {r.type === 'PDF' && r.fileUrl && (
+                              <a href={`http://localhost:5001/uploads/resources/${r.fileName}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">View</a>
+                            )}
+                            {r.type === 'VIDEO' && r.videoUrl && (
+                              <a href={r.videoUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                                {r.videoUrl.includes('youtube.com') || r.videoUrl.includes('youtu.be') ? 'Watch on YouTube' : 'Watch Video'}
+                              </a>
+                            )}
+                            <button onClick={() => handleResourceDelete(r.id)} className="text-gray-600 hover:text-red-600">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            )}
           </div>
         )}
 
@@ -1324,6 +1518,14 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 </button>
               </div>
 
+              {/* Resource switcher */}
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="text-sm text-gray-600 mr-2">View:</span>
+                <button onClick={() => setResourceView('questions')} className={`px-3 py-1 rounded border ${resourceView==='questions'?'bg-black text-white border-black':'bg-white text-gray-700 border-gray-300'}`}>Questions</button>
+                <button onClick={() => setResourceView('pdf')} className={`px-3 py-1 rounded border ${resourceView==='pdf'?'bg-black text-white border-black':'bg-white text-gray-700 border-gray-300'}`}>PDFs</button>
+                <button onClick={() => setResourceView('video')} className={`px-3 py-1 rounded border ${resourceView==='video'?'bg-black text-white border-black':'bg-white text-gray-700 border-gray-300'}`}>Videos</button>
+              </div>
+
               {/* Bulk Upload */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 {/* Excel Card */}
@@ -1348,6 +1550,8 @@ const AdminDashboard = ({ user, onNavigate }) => {
               </div>
             </div>
             
+            {/* Data tables based on view */}
+            {resourceView === 'questions' && (
             <div className="overflow-x-auto">
               <table className="w-full text-left border rounded overflow-hidden">
                 <thead>
@@ -1388,7 +1592,6 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   })}
                 </tbody>
               </table>
-            </div>
             
             {/* Pagination for Resources */}
             {getTotalPages(allQuestions) > 1 && (
@@ -1408,8 +1611,8 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 </div>
               </div>
             )}
-          </div>
-        )}
+            </div>
+            )}
 
         {selectedTab === 'contests' && (
           <div className="bg-white rounded-lg border border-gray-200">
@@ -1583,6 +1786,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   <button type="submit" className="flex-1 px-4 py-2 bg-black text-white rounded-sm font-bold hover:bg-gray-800">Add</button>
                   <button type="button" onClick={() => setShowForm(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-sm font-bold">Cancel</button>
                 </div>
+                {questionSubmitMsg && (
+                  <p className="mt-3 text-sm text-red-600">{questionSubmitMsg}</p>
+                )}
               </form>
             </div>
           </div>
@@ -2217,6 +2423,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   Add PDF
                 </button>
               </div>
+              {pdfSubmitMsg && (
+                <p className="mt-3 text-sm text-red-600">{pdfSubmitMsg}</p>
+              )}
             </form>
           </div>
         </div>
@@ -2324,10 +2533,15 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   Add Video
                 </button>
               </div>
+              {videoSubmitMsg && (
+                <p className="mt-3 text-sm text-red-600">{videoSubmitMsg}</p>
+              )}
             </form>
           </div>
         </div>
       )}
+          </div>
+     )}
       </div>
     </div>
   );

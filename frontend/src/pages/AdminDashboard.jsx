@@ -102,6 +102,11 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const [showContestQuestionsModal, setShowContestQuestionsModal] = useState(false);
   const [selectedContestQuestions, setSelectedContestQuestions] = useState([]);
   
+  // Bulk delete state
+  const [selectedContestIds, setSelectedContestIds] = useState([]);
+  const [selectedMCQIds, setSelectedMCQIds] = useState([]);
+  const [selectedResourceIds, setSelectedResourceIds] = useState([]);
+  
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -162,41 +167,33 @@ const AdminDashboard = ({ user, onNavigate }) => {
         if (resourceView === 'questions') {
           setResources([]); // Clear resources when viewing questions
         } else {
-          const typeParam = resourceView === 'pdf' ? 'PDF' : 'VIDEO';
-          fetch(`/api/resources?type=${typeParam}`, { 
-            credentials: 'include',
-            headers: {
-              'Accept': 'application/json'
-            }
-          })
-            .then(res => {
-              if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-              return res.json();
-            })
-            .then(data => {
-              console.log('Resources data:', data);
-              // Initialize resources state
-              let resourcesData = [];
-              
-              if (Array.isArray(data)) {
-                resourcesData = data;
-              } else if (data && typeof data === 'object') {
-                if (data.resources && Array.isArray(data.resources)) {
-                  resourcesData = data.resources;
-                } else {
-                  // Try to find an array in the object's values
-                  const resourceArray = Object.values(data).find(Array.isArray);
-                  if (resourceArray) resourcesData = resourceArray;
+          // Use the same fetch logic as Resource.jsx
+          const fetchResources = async () => {
+            try {
+              if (resourceView === 'pdf') {
+                const pdfResponse = await fetch('/api/resources?type=PDF', { credentials: 'include' });
+                if (!pdfResponse.ok) {
+                  throw new Error(`PDF fetch failed: ${pdfResponse.status}`);
                 }
+                const pdfData = await pdfResponse.json();
+                const pdfResources = Array.isArray(pdfData) ? pdfData : pdfData.resources || [];
+                setResources(pdfResources);
+              } else if (resourceView === 'video') {
+                const videoResponse = await fetch('/api/resources?type=VIDEO', { credentials: 'include' });
+                if (!videoResponse.ok) {
+                  throw new Error(`Video fetch failed: ${videoResponse.status}`);
+                }
+                const videoData = await videoResponse.json();
+                const videoResources = Array.isArray(videoData) ? videoData : videoData.resources || [];
+                setResources(videoResources);
               }
-              
-              console.log('Setting resources:', resourcesData);
-              setResources(resourcesData);
-            })
-            .catch(error => {
+            } catch (error) {
               console.error('Error fetching resources:', error);
               setResources([]);
-            });
+            }
+          };
+          
+          fetchResources();
         }
       }
     }
@@ -371,6 +368,117 @@ const AdminDashboard = ({ user, onNavigate }) => {
     } catch (_) {}
   };
 
+
+
+  const handleBulkDeleteQuestions = async () => {
+    if (selectedMCQIds.length === 0) return;
+    
+    try {
+      const promises = selectedMCQIds.map(id => 
+        fetch(`/api/questions/${id}`, { method: 'DELETE', credentials: 'include' })
+      );
+      
+      const results = await Promise.all(promises);
+      const successCount = results.filter(res => res.ok).length;
+      
+      if (successCount > 0) {
+        setAllQuestions(prev => prev.filter(q => !selectedMCQIds.includes(q.id)));
+        setSelectedMCQIds([]);
+        alert(`Successfully deleted ${successCount} question(s)`);
+      }
+    } catch (error) {
+      console.error('Error bulk deleting questions:', error);
+      alert('Failed to delete some questions');
+    }
+  };
+
+  const handleDeleteAllQuestions = async () => {
+    try {
+      const promises = allQuestions.map(q => 
+        fetch(`/api/questions/${q.id}`, { method: 'DELETE', credentials: 'include' })
+      );
+      
+      const results = await Promise.all(promises);
+      const successCount = results.filter(res => res.ok).length;
+      
+      if (successCount > 0) {
+        setAllQuestions([]);
+        setSelectedMCQIds([]);
+        alert(`Successfully deleted ${successCount} question(s)`);
+      }
+    } catch (error) {
+      console.error('Error deleting all questions:', error);
+      alert('Failed to delete some questions');
+    }
+  };
+
+  const handleBulkDeleteResources = async () => {
+    if (selectedResourceIds.length === 0) return;
+    
+    try {
+      const promises = selectedResourceIds.map(id => 
+        fetch(`/api/resources/${id}`, { method: 'DELETE', credentials: 'include' })
+      );
+      
+      const results = await Promise.all(promises);
+      const successCount = results.filter(res => res.ok).length;
+      
+      if (successCount > 0) {
+        setResources(prev => prev.filter(r => !selectedResourceIds.includes(r.id)));
+        setSelectedResourceIds([]);
+        alert(`Successfully deleted ${successCount} resource(s)`);
+      }
+    } catch (error) {
+      console.error('Error bulk deleting resources:', error);
+      alert('Failed to delete some resources');
+    }
+  };
+
+  const handleDeleteAllResources = async () => {
+    try {
+      const promises = resources.map(r => 
+        fetch(`/api/resources/${r.id}`, { method: 'DELETE', credentials: 'include' })
+      );
+      
+      const results = await Promise.all(promises);
+      const successCount = results.filter(res => res.ok).length;
+      
+      if (successCount > 0) {
+        setResources([]);
+        setSelectedResourceIds([]);
+        alert(`Successfully deleted ${successCount} resource(s)`);
+      }
+    } catch (error) {
+      console.error('Error deleting all resources:', error);
+      alert('Failed to delete some resources');
+    }
+  };
+
+  const handleResourceDownload = async (resourceId, fileName) => {
+    try {
+      const response = await fetch(`/api/resources/download/${resourceId}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || 'document.pdf';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Failed to download PDF. Please try again.');
+    }
+  };
+
   // Handlers for PDF Form
   const handlePdfChange = e => {
     const { name, value } = e.target;
@@ -424,6 +532,13 @@ const AdminDashboard = ({ user, onNavigate }) => {
         level: 'medium',
         file: null
       });
+      
+      // Refresh resources if currently viewing PDFs
+      if (selectedTab === 'resources' && resourceView === 'pdf') {
+        const pdfResponse = await fetch('/api/resources?type=PDF', { credentials: 'include' });
+        const pdfData = await pdfResponse.json();
+        setResources(Array.isArray(pdfData) ? pdfData : pdfData.resources || []);
+      }
     } catch (err) {
       setPdfSubmitMsg('Network error while adding PDF.');
     }
@@ -466,6 +581,13 @@ const AdminDashboard = ({ user, onNavigate }) => {
         level: 'medium',
         videoUrl: ''
       });
+      
+      // Refresh resources if currently viewing videos
+      if (selectedTab === 'resources' && resourceView === 'video') {
+        const videoResponse = await fetch('/api/resources?type=VIDEO', { credentials: 'include' });
+        const videoData = await videoResponse.json();
+        setResources(Array.isArray(videoData) ? videoData : videoData.resources || []);
+      }
     } catch (err) {
       setVideoSubmitMsg('Network error while adding video.');
     }
@@ -592,6 +714,8 @@ const AdminDashboard = ({ user, onNavigate }) => {
       alert('Failed to delete question.');
     }
   };
+
+
 
   // Pagination helper functions
   const getCurrentPageData = (data) => {
@@ -1130,9 +1254,10 @@ const AdminDashboard = ({ user, onNavigate }) => {
     }
   };
 
-  const [selectedContestIds, setSelectedContestIds] = useState([]);
-  const allSelected = selectedContestIds.length > 0 && selectedContestIds.length === (allContests?.length || 0);
 
+
+  const allSelected = selectedContestIds.length > 0 && selectedContestIds.length === (allContests?.length || 0);
+  
   const toggleSelectContest = (id) => {
     setSelectedContestIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
@@ -1159,6 +1284,25 @@ const AdminDashboard = ({ user, onNavigate }) => {
       }
     } catch (err) {
       alert('Failed to delete selected contests');
+    }
+  };
+
+  const handleDeleteAllContests = async () => {
+    if (!window.confirm(`Delete ALL ${filteredContests.length} contests? This action cannot be undone!`)) return;
+    try {
+      const promises = filteredContests.map(contest =>
+        fetch(`/api/testseries/${contest.id}`, { method: 'DELETE', credentials: 'include' })
+      );
+      const results = await Promise.all(promises);
+      const successCount = results.filter(res => res.ok).length;
+      if (successCount > 0) {
+        setAllContests(prev => prev.filter(c => !filteredContests.some(fc => fc.id === c.id)));
+        setSelectedContestIds([]);
+        alert(`Successfully deleted ${successCount} contest(s)`);
+      }
+    } catch (error) {
+      console.error('Error deleting all contests:', error);
+      alert('Failed to delete some contests. Please try again.');
     }
   };
 
@@ -1370,63 +1514,6 @@ const AdminDashboard = ({ user, onNavigate }) => {
               )}
             </div>
             )}
-
-            {(resourceView === 'pdf' || resourceView === 'video') && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border rounded overflow-hidden">
-                <thead>
-                  <tr className="bg-gray-100 border-b">
-                    <th className="py-2 px-3">Title</th>
-                    <th className="py-2 px-3">Category</th>
-                    <th className="py-2 px-3">Subcategory</th>
-                    <th className="py-2 px-3">Level</th>
-                    <th className="py-2 px-3">Type</th>
-                    <th className="py-2 px-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resources.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="py-4 text-center text-gray-500">No {resourceView.toUpperCase()} resources found</td>
-                    </tr>
-                  ) : (
-                    resources.map((r, index) => {
-                      const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
-                      return (
-                        <tr key={r.id} className="border-b hover:bg-gray-50 transition">
-                          <td className="py-2 px-3">
-                            <div className="flex items-center space-x-3">
-                              <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                                <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
-                              </div>
-                              <div className="font-medium">{r.title}</div>
-                            </div>
-                          </td>
-                          <td className="py-2 px-3">{r.category}</td>
-                          <td className="py-2 px-3">{r.subcategory || '-'}</td>
-                          <td className="py-2 px-3">{r.level}</td>
-                          <td className="py-2 px-3">{r.type}</td>
-                          <td className="py-2 px-3 flex gap-2">
-                            {r.type === 'PDF' && r.fileUrl && (
-                              <a href={`http://localhost:5001/uploads/resources/${r.fileName}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">View</a>
-                            )}
-                            {r.type === 'VIDEO' && r.videoUrl && (
-                              <a href={r.videoUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                                {r.videoUrl.includes('youtube.com') || r.videoUrl.includes('youtu.be') ? 'Watch on YouTube' : 'Watch Video'}
-                              </a>
-                            )}
-                            <button onClick={() => handleResourceDelete(r.id)} className="text-gray-600 hover:text-red-600">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-            )}
           </div>
         )}
 
@@ -1553,9 +1640,70 @@ const AdminDashboard = ({ user, onNavigate }) => {
             {/* Data tables based on view */}
             {resourceView === 'questions' && (
             <div className="overflow-x-auto">
+              {/* Bulk Actions for Questions */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 border-b">
+                <div className="flex items-center space-x-4">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={getCurrentPageData(allQuestions).length > 0 && selectedMCQIds.length === getCurrentPageData(allQuestions).length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedMCQIds(getCurrentPageData(allQuestions).map(q => q.id));
+                        } else {
+                          setSelectedMCQIds([]);
+                        }
+                      }}
+                      className="w-4 h-4 text-black"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Select All ({selectedMCQIds.length} of {getCurrentPageData(allQuestions).length})
+                    </span>
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {selectedMCQIds.length > 0 && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Delete ${selectedMCQIds.length} selected question(s)?`)) {
+                          handleBulkDeleteQuestions();
+                        }
+                      }}
+                      className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                    >
+                      Delete Selected ({selectedMCQIds.length})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Delete ALL ${allQuestions.length} questions? This action cannot be undone!`)) {
+                        handleDeleteAllQuestions();
+                      }
+                    }}
+                    className="px-3 py-1 bg-red-800 text-white text-sm rounded hover:bg-red-900 transition-colors"
+                  >
+                    Delete All ({allQuestions.length})
+                  </button>
+                </div>
+              </div>
+              
               <table className="w-full text-left border rounded overflow-hidden">
                 <thead>
                   <tr className="bg-gray-100 border-b">
+                    <th className="py-2 px-3">
+                      <input
+                        type="checkbox"
+                        checked={getCurrentPageData(allQuestions).length > 0 && selectedMCQIds.length === getCurrentPageData(allQuestions).length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedMCQIds(getCurrentPageData(allQuestions).map(q => q.id));
+                          } else {
+                            setSelectedMCQIds([]);
+                          }
+                        }}
+                        className="w-4 h-4 text-black"
+                      />
+                    </th>
                     <th className="py-2 px-3">Question</th>
                     <th className="py-2 px-3">Category</th>
                     <th className="py-2 px-3">Subcategory</th>
@@ -1568,6 +1716,20 @@ const AdminDashboard = ({ user, onNavigate }) => {
                     const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
                     return (
                       <tr key={q.id} className="border-b hover:bg-gray-50 transition">
+                        <td className="py-2 px-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedMCQIds.includes(q.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMCQIds([...selectedMCQIds, q.id]);
+                              } else {
+                                setSelectedMCQIds(selectedMCQIds.filter(id => id !== q.id));
+                              }
+                            }}
+                            className="w-4 h-4 text-black"
+                          />
+                        </td>
                         <td className="py-2 px-3">
                           <div className="flex items-center space-x-3">
                             <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
@@ -1593,7 +1755,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 </tbody>
               </table>
             
-            {/* Pagination for Resources */}
+            {/* Pagination for Questions */}
             {getTotalPages(allQuestions) > 1 && (
               <div className="px-6 py-4 border-t border-gray-200">
                 <div className="flex items-center justify-between">
@@ -1613,6 +1775,188 @@ const AdminDashboard = ({ user, onNavigate }) => {
             )}
             </div>
             )}
+
+            {(resourceView === 'pdf' || resourceView === 'video') && (
+              <div className="overflow-x-auto">
+                {/* Bulk Actions for PDFs/Videos */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 border-b">
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={getCurrentPageData(resources).length > 0 && selectedResourceIds.length === getCurrentPageData(resources).length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedResourceIds(getCurrentPageData(resources).map(r => r.id));
+                          } else {
+                            setSelectedResourceIds([]);
+                          }
+                        }}
+                        className="w-4 h-4 text-black"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Select All ({selectedResourceIds.length} of {getCurrentPageData(resources).length})
+                      </span>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {selectedResourceIds.length > 0 && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Delete ${selectedResourceIds.length} selected ${resourceView === 'pdf' ? 'PDF' : 'video'}(s)?`)) {
+                            handleBulkDeleteResources();
+                          }
+                        }}
+                        className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                      >
+                        Delete Selected ({selectedResourceIds.length})
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Delete ALL ${resources.length} ${resourceView === 'pdf' ? 'PDFs' : 'videos'}? This action cannot be undone!`)) {
+                          handleDeleteAllResources();
+                        }
+                      }}
+                      className="px-3 py-1 bg-red-800 text-white text-sm rounded hover:bg-red-900 transition-colors"
+                    >
+                      Delete All ({resources.length})
+                    </button>
+                  </div>
+                </div>
+                
+                <table className="w-full text-left border rounded overflow-hidden">
+                  <thead>
+                    <tr className="bg-gray-100 border-b">
+                      <th className="py-2 px-3">
+                        <input
+                          type="checkbox"
+                          checked={getCurrentPageData(resources).length > 0 && selectedResourceIds.length === getCurrentPageData(resources).length}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedResourceIds(getCurrentPageData(resources).map(r => r.id));
+                            } else {
+                              setSelectedResourceIds([]);
+                            }
+                          }}
+                          className="w-4 h-4 text-black"
+                        />
+                      </th>
+                      <th className="py-2 px-3">Title</th>
+                      <th className="py-2 px-3">Category</th>
+                      <th className="py-2 px-3">Subcategory</th>
+                      <th className="py-2 px-3">Level</th>
+                      <th className="py-2 px-3">Type</th>
+                      <th className="py-2 px-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resources.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="py-4 text-center text-gray-500">
+                          No {resourceView === 'pdf' ? 'PDF' : 'video'} resources found
+                        </td>
+                      </tr>
+                    ) : (
+                      getCurrentPageData(resources).map((resource, index) => {
+                        const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                        return (
+                          <tr key={resource.id} className="border-b hover:bg-gray-50 transition">
+                            <td className="py-2 px-3">
+                              <input
+                                type="checkbox"
+                                checked={selectedResourceIds.includes(resource.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedResourceIds([...selectedResourceIds, resource.id]);
+                                  } else {
+                                    setSelectedResourceIds(selectedResourceIds.filter(id => id !== resource.id));
+                                  }
+                                }}
+                                className="w-4 h-4 text-black"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center space-x-3">
+                                <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                                  <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                                </div>
+                                <div className="font-medium">{resource.title}</div>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">{resource.category}</td>
+                            <td className="py-2 px-3">{resource.subcategory || '-'}</td>
+                            <td className="py-2 px-3">{resource.level}</td>
+                            <td className="py-2 px-3">{resource.type}</td>
+                            <td className="py-2 px-3 flex gap-2">
+                              {resourceView === 'pdf' && resource.fileName && (
+                                <a 
+                                  href={`http://localhost:5001/uploads/resources/${resource.fileName}`} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  View
+                                </a>
+                              )}
+                              {resourceView === 'video' && resource.videoUrl && (
+                                <a 
+                                  href={resource.videoUrl} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  {resource.videoUrl.includes('youtube.com') || resource.videoUrl.includes('youtu.be') ? (
+                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                    </svg>
+                                  ) : 'Watch Video'}
+                                </a>
+                              )}
+                              {resourceView === 'pdf' && resource.fileName && (
+                                <button 
+                                  onClick={() => handleResourceDownload(resource.id, resource.fileName)}
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  Download
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => handleResourceDelete(resource.id)} 
+                                className="text-gray-600 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+                
+                {/* Pagination for PDFs/Videos */}
+                {getTotalPages(resources) > 1 && (
+                  <div className="px-6 py-4 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-gray-600">
+                        Showing {getCurrentPageData(resources).length} of {resources.length} {resourceView === 'pdf' ? 'PDFs' : 'videos'}
+                        {getTotalPages(resources) > 1 && (
+                          <span> (Page {currentPage} of {getTotalPages(resources)})</span>
+                        )}
+                      </div>
+                      <Pagination
+                        currentPage={currentPage}
+                        totalPages={getTotalPages(resources)}
+                        onPageChange={handlePageChange}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {selectedTab === 'contests' && (
           <div className="bg-white rounded-lg border border-gray-200">
@@ -1650,12 +1994,65 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 </button>
               </div>
             </div>
+            
+            {/* Bulk Actions for Contests */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 border-b">
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 text-black"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Select All ({selectedContestIds.length} of {filteredContests.length})
+                  </span>
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                {selectedContestIds.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Delete ${selectedContestIds.length} selected contest(s)?`)) {
+                        handleBulkDeleteContests();
+                      }
+                    }}
+                    className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                  >
+                    Delete Selected ({selectedContestIds.length})
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    if (window.confirm(`Delete ALL ${filteredContests.length} contests? This action cannot be undone!`)) {
+                      handleDeleteAllContests();
+                    }
+                  }}
+                  className="px-3 py-1 bg-red-800 text-white text-sm rounded hover:bg-red-900 transition-colors"
+                >
+                  Delete All ({filteredContests.length})
+                </button>
+              </div>
+            </div>
+            
             <div className="overflow-x-auto">
               <table className="w-full text-left border rounded overflow-hidden">
                 <thead>
                   <tr className="bg-gray-100 border-b">
                     <th className="py-2 px-3">
-                      <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
+                      <input
+                        type="checkbox"
+                        checked={filteredContests.length > 0 && selectedContestIds.length === filteredContests.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedContestIds(filteredContests.map(c => c.id));
+                          } else {
+                            setSelectedContestIds([]);
+                          }
+                        }}
+                        className="w-4 h-4 text-black"
+                      />
                     </th>
                     <th className="py-2 px-3">Name</th>
                     <th className="py-2 px-3">Start Time</th>
@@ -2540,8 +2937,6 @@ const AdminDashboard = ({ user, onNavigate }) => {
           </div>
         </div>
       )}
-          </div>
-     )}
       </div>
     </div>
   );

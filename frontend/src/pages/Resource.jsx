@@ -92,16 +92,19 @@ const Resource = ({ user }) => {
         // Fetch PDFs
         const pdfResponse = await fetch('/api/resources?type=PDF', { credentials: 'include' });
         const pdfData = await pdfResponse.json();
+        console.log('PDFs fetched:', pdfData);
         setPdfs(pdfData);
 
         // Fetch Videos
         const videoResponse = await fetch('/api/resources?type=VIDEO', { credentials: 'include' });
         const videoData = await videoResponse.json();
+        console.log('Videos fetched:', videoData);
         setVideos(videoData);
 
         // Fetch bookmarked resources
         const bookmarkResponse = await fetch('/api/resources/bookmarks', { credentials: 'include' });
         const bookmarkData = await bookmarkResponse.json();
+        console.log('Bookmarks fetched:', bookmarkData);
         setBookmarkedResources(bookmarkData.bookmarks || []);
       } catch (error) {
         console.error('Error fetching resources:', error);
@@ -213,18 +216,29 @@ const Resource = ({ user }) => {
   
   // Pagination functions
   const getFilteredResources = () => {
+    console.log('Filtering resources:', { pdfs, videos, searchQuery, selectedCategory, mcqLevel });
+    
     const filteredPdfs = pdfs.filter(item => {
-      const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-      return matchesSearch && matchesCategory;
+      const matchesLevel = mcqLevel === 'all' || item.level === mcqLevel;
+      const result = matchesSearch && matchesCategory && matchesLevel;
+      console.log('PDF filter:', { title: item.title, matchesSearch, matchesCategory, matchesLevel, result });
+      return result;
     });
     
     const filteredVideos = videos.filter(item => {
-      const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-      return matchesSearch && matchesCategory;
+      const matchesLevel = mcqLevel === 'all' || item.level === mcqLevel;
+      const result = matchesSearch && matchesCategory && matchesLevel;
+      console.log('Video filter:', { title: item.title, matchesSearch, matchesCategory, matchesLevel, result });
+      return result;
     });
     
+    console.log('Filtered results:', { filteredPdfs, filteredVideos });
     return { filteredPdfs, filteredVideos };
   };
   
@@ -250,7 +264,7 @@ const Resource = ({ user }) => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategory, activeTab]);
+  }, [searchQuery, selectedCategory, activeTab, mcqLevel]);
   
   // Pagination component
   const Pagination = ({ currentPage, totalPages, onPageChange }) => {

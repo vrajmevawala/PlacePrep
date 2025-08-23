@@ -1688,34 +1688,35 @@ const AdminDashboard = ({ user, onNavigate }) => {
               </div>
               
               <table className="w-full text-left border rounded overflow-hidden">
-                <thead>
-                  <tr className="bg-gray-100 border-b">
-                    <th className="py-2 px-3">
-                      <input
-                        type="checkbox"
-                        checked={getCurrentPageData(allQuestions).length > 0 && selectedMCQIds.length === getCurrentPageData(allQuestions).length}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedMCQIds(getCurrentPageData(allQuestions).map(q => q.id));
-                          } else {
-                            setSelectedMCQIds([]);
-                          }
-                        }}
-                        className="w-4 h-4 text-black"
-                      />
-                    </th>
-                    <th className="py-2 px-3">Question</th>
-                    <th className="py-2 px-3">Category</th>
-                    <th className="py-2 px-3">Subcategory</th>
-                    <th className="py-2 px-3">Level</th>
-                    <th className="py-2 px-3">Actions</th>
+              <thead>
+                <tr className="bg-gray-100 border-b">
+                  <th className="py-2 px-3"></th>
+                  <th className="py-2 px-3">Question</th>
+                  <th className="py-2 px-3">Category</th>
+                  <th className="py-2 px-3">Subcategory</th>
+                  <th className="py-2 px-3">Level</th>
+                  <th className="py-2 px-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allQuestions.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-6 text-center text-gray-500"
+                    >
+                      No questions found
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {getCurrentPageData(allQuestions).map((q, index) => {
-                    const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                ) : (
+                  getCurrentPageData(allQuestions).map((q, index) => {
+                    const actualIndex =
+                      (currentPage - 1) * itemsPerPage + index + 1;
                     return (
-                      <tr key={q.id} className="border-b hover:bg-gray-50 transition">
+                      <tr
+                        key={q.id}
+                        className="border-b hover:bg-gray-50 transition"
+                      >
                         <td className="py-2 px-3">
                           <input
                             type="checkbox"
@@ -1724,7 +1725,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
                               if (e.target.checked) {
                                 setSelectedMCQIds([...selectedMCQIds, q.id]);
                               } else {
-                                setSelectedMCQIds(selectedMCQIds.filter(id => id !== q.id));
+                                setSelectedMCQIds(
+                                  selectedMCQIds.filter((id) => id !== q.id)
+                                );
                               }
                             }}
                             className="w-4 h-4 text-black"
@@ -1733,7 +1736,9 @@ const AdminDashboard = ({ user, onNavigate }) => {
                         <td className="py-2 px-3">
                           <div className="flex items-center space-x-3">
                             <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                              <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                              <span className="text-xs font-medium text-gray-600">
+                                {actualIndex}
+                              </span>
                             </div>
                             <div>{q.question}</div>
                           </div>
@@ -1742,18 +1747,25 @@ const AdminDashboard = ({ user, onNavigate }) => {
                         <td className="py-2 px-3">{q.subcategory}</td>
                         <td className="py-2 px-3">{q.level}</td>
                         <td className="py-2 px-3 flex gap-2">
-                          <button onClick={() => handleEditQuestion(q)} className="text-gray-600 hover:text-black mr-3">
+                          <button
+                            onClick={() => handleEditQuestion(q)}
+                            className="text-gray-600 hover:text-black mr-3"
+                          >
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDeleteQuestion(q.id)} className="text-gray-600 hover:text-red-600">
+                          <button
+                            onClick={() => handleDeleteQuestion(q.id)}
+                            className="text-gray-600 hover:text-red-600"
+                          >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
+                  })
+                )}
+              </tbody>
+            </table>
             
             {/* Pagination for Questions */}
             {getTotalPages(allQuestions) > 1 && (
@@ -1829,18 +1841,6 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   <thead>
                     <tr className="bg-gray-100 border-b">
                       <th className="py-2 px-3">
-                        <input
-                          type="checkbox"
-                          checked={getCurrentPageData(resources).length > 0 && selectedResourceIds.length === getCurrentPageData(resources).length}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedResourceIds(getCurrentPageData(resources).map(r => r.id));
-                            } else {
-                              setSelectedResourceIds([]);
-                            }
-                          }}
-                          className="w-4 h-4 text-black"
-                        />
                       </th>
                       <th className="py-2 px-3">Title</th>
                       <th className="py-2 px-3">Category</th>
@@ -2041,18 +2041,6 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 <thead>
                   <tr className="bg-gray-100 border-b">
                     <th className="py-2 px-3">
-                      <input
-                        type="checkbox"
-                        checked={filteredContests.length > 0 && selectedContestIds.length === filteredContests.length}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedContestIds(filteredContests.map(c => c.id));
-                          } else {
-                            setSelectedContestIds([]);
-                          }
-                        }}
-                        className="w-4 h-4 text-black"
-                      />
                     </th>
                     <th className="py-2 px-3">Name</th>
                     <th className="py-2 px-3">Start Time</th>

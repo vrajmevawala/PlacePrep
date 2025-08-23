@@ -914,7 +914,7 @@ const CreateContest = () => {
                 {selectedQuestions.map(q => (
                   <div 
                     key={q.id} 
-                    className="bg-gray-50 border border-gray-200 p-4 flex items-start justify-between group hover:bg-gray-100 transition-colors cursor-pointer"
+                    className="bg-gray-50 border border-gray-200 p-4 flex items-start justify-between group hover:bg-gray-100 transition-colors"
                     onClick={() => scrollToQuestion(q.id)}
                   >
                     <div className="flex-1 min-w-0">
@@ -926,18 +926,37 @@ const CreateContest = () => {
                         </span>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelectQuestion(q);
-                      }}
-                      className="ml-2 p-1 text-gray-600 hover:text-black hover:bg-gray-200 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+
+                    <div className="flex items-center space-x-2 ml-2">
+                      {/* Edit button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditQuestion(q);
+                        }}
+                        className="p-1 text-gray-600 hover:text-black hover:bg-gray-200 transition-colors"
+                        title="Edit Question"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+
+                      {/* Remove button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectQuestion(q);
+                        }}
+                        className="p-1 text-gray-600 hover:text-black hover:bg-gray-200 transition-colors"
+                        title="Remove Question"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
+
               </div>
             ) : (
               <div className="text-center py-12 text-gray-500">
@@ -1422,44 +1441,51 @@ const CreateContest = () => {
         )}
 
         {/* Edit Question Modal */}
-        {showEditQuestionModal && editingQuestion && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white border border-gray-200 p-8 max-w-lg w-full mx-4 relative">
-              <button
-                onClick={() => setShowEditQuestionModal(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
-                aria-label="Close"
-              >
-                ×
-              </button>
-              <h2 className="text-2xl font-bold mb-8 text-black text-center">Edit Question</h2>
-                              <form
-                  onSubmit={handleSaveEditedQuestion}
-                  className="space-y-6"
+          {showEditQuestionModal && editingQuestion && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+              <div className="bg-white border border-gray-200 p-4 max-w-sm w-full mx-2 relative rounded-md shadow-md">
+                {/* Close */}
+                <button
+                  onClick={() => setShowEditQuestionModal(false)}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-lg font-bold"
+                  aria-label="Close"
                 >
+                  ×
+                </button>
+
+                <h2 className="text-lg font-bold mb-4 text-black text-center">Edit Question</h2>
+
+                <form
+                  onSubmit={handleSaveEditedQuestion}
+                  className="space-y-3"
+                >
+                  {/* Question text */}
                   <div>
-                    <label className="block text-sm font-semibold text-black mb-3">Question</label>
+                    <label className="block text-xs font-semibold text-black mb-1">Question</label>
                     <textarea
-                      className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black focus:border-black text-sm"
+                      rows={2}
                       value={editingQuestionData.question}
                       onChange={e => setEditingQuestionData(q => ({ ...q, question: e.target.value }))}
                       required
                     />
                   </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                  {/* Topic + Difficulty */}
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-semibold text-black mb-3">Topic</label>
+                      <label className="block text-xs font-semibold text-black mb-1">Topic</label>
                       <input
-                        className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
+                        className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
                         value={editingQuestionData.subcategory}
                         onChange={e => setEditingQuestionData(q => ({ ...q, subcategory: e.target.value }))}
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-black mb-3">Difficulty</label>
+                      <label className="block text-xs font-semibold text-black mb-1">Difficulty</label>
                       <select
-                        className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
+                        className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
                         value={editingQuestionData.level}
                         onChange={e => setEditingQuestionData(q => ({ ...q, level: e.target.value }))}
                       >
@@ -1469,156 +1495,182 @@ const CreateContest = () => {
                       </select>
                     </div>
                   </div>
-                <div className="grid grid-cols-2 gap-6">
-                  {['a', 'b', 'c', 'd'].map(opt => (
-                    <div key={opt}>
-                      <label className="block text-sm font-semibold text-black mb-3">Option {opt.toUpperCase()}</label>
-                      <input
-                        className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
-                        value={editingQuestionData.options[opt]}
-                        onChange={e => setEditingQuestionData(q => ({ ...q, options: { ...q.options, [opt]: e.target.value } }))}
-                        required
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-black mb-3">Correct Option</label>
-                  <select
-                    className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
-                    value={editingQuestionData.correctAns}
-                    onChange={e => setEditingQuestionData(q => ({ ...q, correctAns: e.target.value }))}
-                  >
-                    <option value="a">A</option>
-                    <option value="b">B</option>
-                    <option value="c">C</option>
-                    <option value="d">D</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-black mb-3">Explanation</label>
-                  <textarea
-                    className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
-                    value={editingQuestionData.explanation}
-                    onChange={e => setEditingQuestionData(q => ({ ...q, explanation: e.target.value }))}
-                  />
-                </div>
-                <div className="flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowEditQuestionModal(false)}
-                    className="px-6 py-3 bg-gray-300 text-gray-700 font-semibold hover:bg-gray-400 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-3 bg-black text-white font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors"
-                    disabled={savingQuestion}
-                  >
-                    {savingQuestion ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
-        {/* Add New Question Modal */}
+                  {/* Options */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {['a', 'b', 'c', 'd'].map(opt => (
+                      <div key={opt}>
+                        <label className="block text-xs font-semibold text-black mb-1">Option {opt.toUpperCase()}</label>
+                        <input
+                          className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                          value={editingQuestionData.options[opt]}
+                          onChange={e =>
+                            setEditingQuestionData(q => ({
+                              ...q,
+                              options: { ...q.options, [opt]: e.target.value }
+                            }))
+                          }
+                          required
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Correct Answer */}
+                  <div>
+                    <label className="block text-xs font-semibold text-black mb-1">Correct Option</label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                      value={editingQuestionData.correctAns}
+                      onChange={e => setEditingQuestionData(q => ({ ...q, correctAns: e.target.value }))}
+                    >
+                      <option value="a">A</option>
+                      <option value="b">B</option>
+                      <option value="c">C</option>
+                      <option value="d">D</option>
+                    </select>
+                  </div>
+
+                  {/* Explanation */}
+                  <div>
+                    <label className="block text-xs font-semibold text-black mb-1">Explanation</label>
+                    <textarea
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                      rows={2}
+                      value={editingQuestionData.explanation}
+                      onChange={e => setEditingQuestionData(q => ({ ...q, explanation: e.target.value }))}
+                    />
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="flex justify-end space-x-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowEditQuestionModal(false)}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                      disabled={savingQuestion}
+                    >
+                      {savingQuestion ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+       {/* Add New Question Modal */}
         {showAddQuestionModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white border border-gray-200 p-8 max-w-lg w-full mx-4 relative">
+            <div className="bg-white border border-gray-200 p-4 max-w-sm w-full mx-2 relative rounded-md shadow-md">
+              {/* Close */}
               <button
                 onClick={() => setShowAddQuestionModal(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-lg font-bold"
                 aria-label="Close"
               >
                 ×
               </button>
-              <h2 className="text-2xl font-bold mb-8 text-black text-center">Add New Question</h2>
-                              <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    setAddingQuestion(true);
-                    // POST to backend with visibility set to false
-                    const questionData = {
-                      ...newQuestion,
-                      visibility: false // Set visibility to false for contest questions
-                    };
-                    const res = await fetch('/api/questions', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      credentials: 'include',
-                      body: JSON.stringify(questionData)
+
+              <h2 className="text-lg font-bold mb-4 text-black text-center">Add New Question</h2>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setAddingQuestion(true);
+                  const questionData = { ...newQuestion, visibility: false };
+                  const res = await fetch('/api/questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(questionData)
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setAllQuestions(qs => [...qs, data.question]);
+                    setShowAddQuestionModal(false);
+                    setNewQuestion({
+                      question: '',
+                      subcategory: '',
+                      level: 'easy',
+                      options: { a: '', b: '', c: '', d: '' },
+                      correctAns: 'a',
+                      explanation: ''
                     });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setAllQuestions(qs => [...qs, data.question]);
-                      setShowAddQuestionModal(false);
-                      setNewQuestion({
-                        question: '',
-                        subcategory: '',
-                        level: 'easy',
-                        options: { a: '', b: '', c: '', d: '' },
-                        correctAns: 'a',
-                        explanation: ''
-                      });
-                    } else {
-                      alert('Failed to add question');
-                    }
-                    setAddingQuestion(false);
-                  }}
-                  className="space-y-6"
-                >
-                                  <div>
-                    <label className="block text-sm font-semibold text-black mb-3">Question</label>
-                    <textarea
-                      className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
-                      value={newQuestion.question}
-                      onChange={e => setNewQuestion(q => ({ ...q, question: e.target.value }))}
+                  } else {
+                    alert('Failed to add question');
+                  }
+                  setAddingQuestion(false);
+                }}
+                className="space-y-3"
+              >
+                {/* Question */}
+                <div>
+                  <label className="block text-xs font-semibold text-black mb-1">Question</label>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    rows={2}
+                    value={newQuestion.question}
+                    onChange={e => setNewQuestion(q => ({ ...q, question: e.target.value }))}
+                    required
+                  />
+                </div>
+
+                {/* Topic + Difficulty */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-black mb-1">Topic</label>
+                    <input
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                      value={newQuestion.subcategory}
+                      onChange={e => setNewQuestion(q => ({ ...q, subcategory: e.target.value }))}
                       required
                     />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-semibold text-black mb-3">Topic</label>
-                      <input
-                        className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
-                        value={newQuestion.subcategory}
-                        onChange={e => setNewQuestion(q => ({ ...q, subcategory: e.target.value }))}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-black mb-3">Difficulty</label>
-                      <select
-                        className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
-                        value={newQuestion.level}
-                        onChange={e => setNewQuestion(q => ({ ...q, level: e.target.value }))}
-                      >
-                        <option value="easy">Easy</option>
-                        <option value="medium">Medium</option>
-                        <option value="hard">Hard</option>
-                      </select>
-                    </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-black mb-1">Difficulty</label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                      value={newQuestion.level}
+                      onChange={e => setNewQuestion(q => ({ ...q, level: e.target.value }))}
+                    >
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
                   </div>
-                <div className="grid grid-cols-2 gap-6">
+                </div>
+
+                {/* Options */}
+                <div className="grid grid-cols-2 gap-3">
                   {['a', 'b', 'c', 'd'].map(opt => (
                     <div key={opt}>
-                      <label className="block text-sm font-semibold text-black mb-3">Option {opt.toUpperCase()}</label>
+                      <label className="block text-xs font-semibold text-black mb-1">Option {opt.toUpperCase()}</label>
                       <input
-                        className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
+                        className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
                         value={newQuestion.options[opt]}
-                        onChange={e => setNewQuestion(q => ({ ...q, options: { ...q.options, [opt]: e.target.value } }))}
+                        onChange={e =>
+                          setNewQuestion(q => ({
+                            ...q,
+                            options: { ...q.options, [opt]: e.target.value }
+                          }))
+                        }
                         required
                       />
                     </div>
                   ))}
                 </div>
+
+                {/* Correct Answer */}
                 <div>
-                  <label className="block text-sm font-semibold text-black mb-3">Correct Option</label>
+                  <label className="block text-xs font-semibold text-black mb-1">Correct Option</label>
                   <select
-                    className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
                     value={newQuestion.correctAns}
                     onChange={e => setNewQuestion(q => ({ ...q, correctAns: e.target.value }))}
                   >
@@ -1628,18 +1680,23 @@ const CreateContest = () => {
                     <option value="d">D</option>
                   </select>
                 </div>
+
+                {/* Explanation */}
                 <div>
-                  <label className="block text-sm font-semibold text-black mb-3">Explanation</label>
+                  <label className="block text-xs font-semibold text-black mb-1">Explanation</label>
                   <textarea
-                    className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black"
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    rows={2}
                     value={newQuestion.explanation}
                     onChange={e => setNewQuestion(q => ({ ...q, explanation: e.target.value }))}
                   />
                 </div>
-                <div className="flex justify-end">
+
+                {/* Buttons */}
+                <div className="flex justify-end pt-2">
                   <button
                     type="submit"
-                    className="px-6 py-3 bg-black text-white font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
                     disabled={addingQuestion}
                   >
                     {addingQuestion ? 'Adding...' : 'Add Question'}
@@ -1649,6 +1706,7 @@ const CreateContest = () => {
             </div>
           </div>
         )}
+
       </div>
       <style jsx>{`
         @keyframes shake {

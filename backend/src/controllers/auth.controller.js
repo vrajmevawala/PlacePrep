@@ -4,7 +4,13 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from '../lib/utils.js';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
-import { sendWelcomeEmail, sendPasswordResetEmail } from '../lib/emailService.js';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendEmailVerificationEmail, sendModeratorRoleEmail } from '../lib/emailService.js';
+import crypto from 'crypto';
+
+// Generate a random 6-digit verification code
+const generateVerificationCode = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
 export const signup = async (req, res) => {
     const { fullName, email, password, role } = req.body;
@@ -27,13 +33,20 @@ export const signup = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Insert new user
+        // Generate verification code and expiration
+        const verificationCode = generateVerificationCode();
+        const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Insert new user with verification data
         const result = await prisma.user.create({
             data: {
                 role: role || 'user',
                 fullName,
                 email,
-                password: hashedPassword
+                password: hashedPassword,
+                emailVerificationToken: verificationCode,
+                emailVerificationExpires: verificationExpires,
+                isEmailVerified: false
             },
             select: {
                 id: true,
@@ -45,38 +58,134 @@ export const signup = async (req, res) => {
         });
 
         if (result) {
-            // Send welcome notification
-            const notificationService = req.app.get('notificationService');
-            if (notificationService) {
-                try {
-                    await notificationService.notifyWelcome(result.id, result);
-                } catch (error) {
-                    console.error('Failed to send welcome notification:', error);
-                }
-            }
-
-            // Send welcome email (non-blocking)
-            sendWelcomeEmail(result.email, result.fullName)
+            // Send verification email (non-blocking)
+            sendEmailVerificationEmail(result.email, result.fullName, verificationCode)
                 .then(() => {
-                    console.log(`Welcome email sent to: ${result.email}`);
+                    console.log(`Verification email sent to: ${result.email}`);
                 })
                 .catch((error) => {
-                    console.error('Failed to send welcome email:', error);
+                    console.error('Failed to send verification email:', error);
                     // Don't block the signup process if email fails
                 });
 
-            generateToken(result.id, result.role, res);
             res.status(201).json({
-                role: result.role,
-                _id: result.id,
-                fullName: result.fullName,
+                message: 'Account created successfully! Please check your email for verification.',
+                userId: result.id,
                 email: result.email,
+                requiresVerification: true
             });
         } else {
             res.status(400).json({ message: 'Invalid user data' });
         }
     } catch (error) {
         console.error("Error in signup controller:", error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+};
+
+export const verifyEmail = async (req, res) => {
+    const { email, verificationCode } = req.body;
+    
+    try {
+        if (!email || !verificationCode) {
+            return res.status(400).json({ message: "Email and verification code are required" });
+        }
+
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (user.isEmailVerified) {
+            return res.status(400).json({ message: "Email is already verified" });
+        }
+
+        if (!user.emailVerificationToken || !user.emailVerificationExpires) {
+            return res.status(400).json({ message: "No verification code found" });
+        }
+
+        if (user.emailVerificationToken !== verificationCode) {
+            return res.status(400).json({ message: "Invalid verification code" });
+        }
+
+        if (new Date() > user.emailVerificationExpires) {
+            return res.status(400).json({ message: "Verification code has expired" });
+        }
+
+        // Mark email as verified and clear verification data
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                isEmailVerified: true,
+                emailVerificationToken: null,
+                emailVerificationExpires: null
+            }
+        });
+
+        // Send welcome email after verification
+        sendWelcomeEmail(user.email, user.fullName)
+            .then(() => {
+                console.log(`Welcome email sent to verified user: ${user.email}`);
+            })
+            .catch((error) => {
+                console.error('Failed to send welcome email:', error);
+            });
+
+        res.status(200).json({
+            message: "Email verified successfully! You can now log in.",
+            email: user.email
+        });
+    } catch (error) {
+        console.error("Error in verifyEmail controller:", error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+};
+
+export const resendVerificationCode = async (req, res) => {
+    const { email } = req.body;
+    
+    try {
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (user.isEmailVerified) {
+            return res.status(400).json({ message: "Email is already verified" });
+        }
+
+        // Generate new verification code and expiration
+        const verificationCode = generateVerificationCode();
+        const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Update user with new verification data
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                emailVerificationToken: verificationCode,
+                emailVerificationExpires: verificationExpires
+            }
+        });
+
+        // Send new verification email
+        sendEmailVerificationEmail(user.email, user.fullName, verificationCode)
+            .then(() => {
+                console.log(`New verification email sent to: ${user.email}`);
+            })
+            .catch((error) => {
+                console.error('Failed to send new verification email:', error);
+            });
+
+        res.status(200).json({
+            message: "New verification code sent to your email",
+            email: user.email
+        });
+    } catch (error) {
+        console.error("Error in resendVerificationCode controller:", error);
         res.status(500).json({ message: 'Internal Server Error' });
     }
 };
@@ -89,11 +198,13 @@ export const login = async (req, res) => {
         if (!user) {
             return res.status(400).json({ message: "Invalid Credentials" });
         }
+        
         const isPasswordCorrect = await bcrypt.compare(password, user.password);
         if (!isPasswordCorrect) {
             return res.status(400).json({ message: "Invalid Credentials" });
         }
 
+        // Allow login regardless of email verification status
         generateToken(user.id, user.role, res);
         res.status(200).json({
             role: user.role,
@@ -127,7 +238,10 @@ export const createModerator = async (req, res) => {
                 role: 'moderator',
                 fullName,
                 email,
-                password: hashedPassword
+                password: hashedPassword,
+                isEmailVerified: true, // Admin-created moderators are pre-verified
+                emailVerificationToken: null,
+                emailVerificationExpires: null
             },
             select: {
                 id: true,
@@ -138,13 +252,13 @@ export const createModerator = async (req, res) => {
             }
         });
         
-        // Send welcome email to new moderator (non-blocking)
-        sendWelcomeEmail(result.email, result.fullName)
+        // Send moderator role assignment email to new moderator (non-blocking)
+        sendModeratorRoleEmail(result.email, result.fullName, password)
             .then(() => {
-                console.log(`Welcome email sent to new moderator: ${result.email}`);
+                console.log(`Moderator role assignment email sent to: ${result.email}`);
             })
             .catch((error) => {
-                console.error('Failed to send welcome email to moderator:', error);
+                console.error('Failed to send moderator role assignment email:', error);
             });
         
         res.status(201).json({
@@ -193,7 +307,10 @@ export const googleAuth = async (req, res) => {
                     role: 'user',
                     fullName: name,
                     email,
-                    password: 'google-oauth'
+                    password: 'google-oauth',
+                    isEmailVerified: true, // Google users are already verified
+                    emailVerificationToken: null,
+                    emailVerificationExpires: null
                 },
                 select: {
                     id: true,
@@ -205,14 +322,8 @@ export const googleAuth = async (req, res) => {
             });
             user = insertResult;
             
-            // Send welcome email for new Google OAuth users (non-blocking)
-            sendWelcomeEmail(user.email, user.fullName)
-                .then(() => {
-                    console.log(`Welcome email sent to Google OAuth user: ${user.email}`);
-                })
-                .catch((error) => {
-                    console.error('Failed to send welcome email to Google OAuth user:', error);
-                });
+            // Google OAuth users are already verified, so no welcome email needed
+            console.log(`Google OAuth user account created: ${user.email}`);
         }
         
         const token = jwt.sign(
@@ -254,10 +365,8 @@ export const forgotPassword = async (req, res) => {
             process.env.JWT_SECRET,
             { expiresIn: '1h' }
         );
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-        const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-        await sendPasswordResetEmail(email, resetLink);
+        await sendPasswordResetEmail(email, resetToken);
         res.status(200).json({ message: 'Password reset link sent to your email.' });
     } catch (error) {
         console.log('Error in forgotPassword controller', error.message);
@@ -266,16 +375,16 @@ export const forgotPassword = async (req, res) => {
 };
 
 export const resetPassword = async (req, res) => {
-    const { token, newPassword } = req.body;
-    if (!token || !newPassword) {
-        return res.status(400).json({ message: 'Token and new password are required.' });
+    const { token, password } = req.body;
+    if (!token || !password) {
+        return res.status(400).json({ message: 'Token and password are required.' });
     }
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const userId = decoded.userId;
 
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
         await prisma.user.update({
             where: { id: userId },

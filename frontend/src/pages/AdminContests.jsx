@@ -334,12 +334,12 @@ const AdminContests = ({ user }) => {
                   <h4 className="font-semibold text-black mb-2">Question {index + 1}</h4>
                   <p className="text-gray-700 mb-3">{question.question}</p>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    {Object.entries(question.options).map(([key, value]) => (
-                      <div key={key} className={`p-2 border ${
-                        key === question.correctAns ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                    {question.options.map((option, index) => (
+                      <div key={index} className={`p-2 border ${
+                        Array.isArray(question.correctAnswers) && question.correctAnswers.includes(option) ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
                       }`}>
-                        <span className="font-medium">{key.toUpperCase()}:</span> {value}
-                        {key === question.correctAns && (
+                        <span className="font-medium">{String.fromCharCode(65 + index)}:</span> {option}
+                        {Array.isArray(question.correctAnswers) && question.correctAnswers.includes(option) && (
                           <span className="ml-2 text-green-600 font-semibold">✓ Correct</span>
                         )}
                       </div>

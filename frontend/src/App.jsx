@@ -9,6 +9,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import Navigation from './components/Navigation.jsx';
 import LoginForm from './components/LoginForm.jsx';
 import SignUpForm from './components/SignUpForm.jsx';
+import EmailVerification from './components/EmailVerification.jsx';
 import ForgotPassword from './components/ForgotPassword.jsx';
 import Modal from './components/Modal.jsx';
 import ResetPassword from './components/ResetPassword.jsx';
@@ -41,7 +42,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authModalType, setAuthModalType] = useState('login'); // 'login', 'signup', 'forgot-password', 'reset-password'
+  const [authModalType, setAuthModalType] = useState('login'); // 'login', 'signup', 'forgot-password', 'reset-password', 'email-verification'
+  const [pendingVerification, setPendingVerification] = useState(null); // { email, fullName }
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -71,18 +73,9 @@ function App() {
     );
   }
 
+  const [resetToken, setResetToken] = useState(null);
+
   useEffect(() => {
-    // Check for reset password token in URL
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('token')) {
-      setAuthModalType('reset-password');
-      setShowAuthModal(true);
-      // Clean up the URL
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
-      return;
-    }
-    
     // Don't check session if we're in Google Auth callback
     if (window.location.pathname === '/google-auth-callback') {
       return;
@@ -109,6 +102,28 @@ function App() {
     checkSession();
   }, [navigate]);
 
+
+
+  // Immediate token detection for reset password
+  if (window.location.pathname === '/reset-password' && !resetToken) {
+    const token = new URLSearchParams(window.location.search).get('token');
+    
+    if (token) {
+      setResetToken(token);
+      setAuthModalType('reset-password');
+      setShowAuthModal(true);
+      // Clean up the URL after setting state
+      setTimeout(() => {
+        window.history.replaceState({}, document.title, '/');
+      }, 100);
+      return;
+    }
+  }
+
+
+
+
+
   const handleLogin = async (email, password) => {
     try {
       const res = await fetch('/api/auth/login', {
@@ -118,7 +133,11 @@ function App() {
         credentials: 'include',
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Login failed');
+      
+      if (!res.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+      
       // Store token in localStorage as backup (backend sets cookie)
       if (data.token) localStorage.setItem('jwt', data.token);
       setUser(data);
@@ -145,9 +164,18 @@ function App() {
       if (!res.ok) {
         throw new Error((data && data.message) || 'Signup failed');
       }
-      setUser(data);
-      setShowAuthModal(false);
-      navigate('/dashboard');
+      
+      // Check if email verification is required
+      if (data.requiresVerification) {
+        setPendingVerification({ email, fullName: name });
+        setAuthModalType('email-verification');
+        toast.success(data.message);
+      } else {
+        // If no verification required (fallback), proceed as before
+        setUser(data);
+        setShowAuthModal(false);
+        navigate('/dashboard');
+      }
     } catch (err) {
       toast.error(err.message || 'Signup failed');
     }
@@ -238,12 +266,15 @@ function App() {
             } />
 
             <Route path="/google-auth-callback" element={<GoogleAuthCallback onAuthSuccess={user => { setUser(user); navigate('/dashboard'); }} />} />
+            <Route path="/reset-password" element={<div>Redirecting...</div>} />
             <Route path="/offline-check" element={<div className="flex flex-col items-center justify-center min-h-screen"><h1 className="text-2xl font-bold mb-4">Offline Check Test Page</h1><p>If you go offline, you should see the offline message.</p></div>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
           <ToastContainer position="top-right" autoClose={3000} />
         </motion.main>
         <Footer user={user} onOpenAuthModal={openAuthModal} />
+
+
 
         {/* Auth Modal */}
         {showAuthModal && (
@@ -270,7 +301,22 @@ function App() {
             )}
             {authModalType === 'reset-password' && (
               <ResetPassword 
+                token={resetToken}
                 onBack={() => setAuthModalType('login')} 
+              />
+            )}
+            {authModalType === 'email-verification' && pendingVerification && (
+              <EmailVerification 
+                email={pendingVerification.email} 
+                onVerificationSuccess={() => {
+                  setPendingVerification(null);
+                  setShowAuthModal(false);
+                  toast.success('Email verified successfully! You can now log in to your account.');
+                }} 
+                onBack={() => {
+                  setPendingVerification(null);
+                  setAuthModalType('signup');
+                }}
               />
             )}
           </Modal>

@@ -322,17 +322,17 @@ const Bookmark = () => {
                       <div className="mb-4 text-black font-medium text-lg">{q.question}</div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
-                        {Object.entries(q.options).map(([key, val]) => {
-                          const isCorrect = Array.isArray(q.correctAnswers) && (q.correctAnswers.includes(val) || q.correctAnswers.includes(key));
+                        {q.options.map((option, index) => {
+                          const isCorrect = Array.isArray(q.correctAnswers) && q.correctAnswers.includes(option);
                           const btnClass = isCorrect
                             ? 'border-green-600 bg-green-50 text-green-800'
                             : 'border-gray-300';
                           return (
                             <div
-                              key={key}
+                              key={index}
                               className={`px-4 py-2 rounded border bg-gray-50 font-medium text-left transition ${btnClass}`}
                             >
-                              {key.toUpperCase()}. {val}
+                              {String.fromCharCode(65 + index)}. {option}
                             </div>
                           );
                         })}

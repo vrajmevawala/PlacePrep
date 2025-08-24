@@ -44,18 +44,18 @@ const GoogleAuthCallback = ({ onAuthSuccess }) => {
               navigate('/dashboard');
             }, 100);
           } else {
-            toast.error('Google Auth failed.');
+            alert('Google Auth failed.');
             navigate('/login');
           }
         })
         .catch((error) => {
-          toast.error('Google Auth failed.');
+          alert('Google Auth failed.');
           navigate('/login');
         });
     } else {
       // Only show error if we're not in a redirect flow
       if (hash && hash.length > 0) {
-      toast.error('No Google token found.');
+      alert('No Google token found.');
       navigate('/login');
     }
     }

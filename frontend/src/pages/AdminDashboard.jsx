@@ -28,12 +28,12 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const [pdfSubmitMsg, setPdfSubmitMsg] = useState('');
   const [videoSubmitMsg, setVideoSubmitMsg] = useState('');
   const [form, setForm] = useState({
+    question: '',
     category: 'Aptitude',
     subcategory: '',
     level: 'easy',
-    question: '',
-    options: { a: '', b: '', c: '', d: '' },
-    correctAnswers: [],
+    options: ['', '', '', ''], // Changed from { a: '', b: '', c: '', d: '' } to array
+    correctAnswers: [], // Array of correct answer strings
     explanation: ''
   });
   const [resourceView, setResourceView] = useState('questions'); // 'questions' | 'pdf' | 'video'
@@ -284,8 +284,8 @@ const AdminDashboard = ({ user, onNavigate }) => {
         subcategory: '',
         level: 'easy',
         question: '',
-        options: { a: '', b: '', c: '', d: '' },
-        correctAnswers: [],
+        options: ['', '', '', ''], // Changed from { a: '', b: '', c: '', d: '' } to array
+        correctAnswers: [], // Array of correct answer strings
         explanation: ''
       });
       // refresh questions list if present
@@ -642,7 +642,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
     e.preventDefault();
     // Validate all questions
     for (const q of contestForm.questions) {
-      if (!q.question || !q.options.a || !q.options.b || !q.options.c || !q.options.d || !q.correctAns || !q.explanation || !q.subcategory || !q.level) {
+      if (!q.question || !q.options[0] || !q.options[1] || !q.options[2] || !q.options[3] || !q.correctAnswers || q.correctAnswers.length === 0 || !q.explanation || !q.subcategory || !q.level) {
         alert('Please fill all fields (including subcategory and level) for every question in the contest.');
       return;
     }
@@ -785,21 +785,39 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const [editForm, setEditForm] = useState(null);
 
   const handleEditQuestion = (q) => {
-    const initialCorrect = Array.isArray(q.correctAnswers)
-      ? q.correctAnswers
-      : (q.correctAns ? [q.correctAns] : []);
-    setEditForm({ ...q, correctAnswers: initialCorrect, options: { ...q.options } });
+    // Convert options to array if it's an object
+    let optionsArray = q.options;
+    if (!Array.isArray(q.options)) {
+      optionsArray = [q.options.a || '', q.options.b || '', q.options.c || '', q.options.d || ''];
+    }
+    
+    // Convert correctAnswers to array if it's not already
+    let correctAnswersArray = q.correctAnswers;
+    if (!Array.isArray(q.correctAnswers)) {
+      correctAnswersArray = q.correctAns ? [q.correctAns] : [];
+    }
+    
+    setEditForm({ 
+      ...q, 
+      correctAnswers: correctAnswersArray, 
+      options: optionsArray 
+    });
     setEditModalOpen(true);
   };
   const handleEditFormChange = e => {
     const { name, value, type, checked } = e.target;
-    if (["a", "b", "c", "d"].includes(name)) {
-      setEditForm(f => ({ ...f, options: { ...f.options, [name]: value } }));
-    } else if (name.startsWith('edit-correct-')) {
-      const key = name.replace('edit-correct-', '');
+    if ([0, 1, 2, 3].includes(Number(name))) {
+      // Handle array-based options
+      setEditForm(f => ({ 
+        ...f, 
+        options: f.options.map((opt, i) => i === Number(name) ? value : opt) 
+      }));
+    } else if (name.startsWith('correct-')) {
+      // Handle correct answer checkboxes
+      const index = Number(name.replace('correct-', ''));
       setEditForm(f => {
         const next = new Set(f.correctAnswers || []);
-        const optVal = f.options[key] || '';
+        const optVal = f.options[index] || '';
         if (checked) next.add(optVal); else next.delete(optVal);
         return { ...f, correctAnswers: Array.from(next).filter(Boolean) };
       });
@@ -1306,6 +1324,63 @@ const AdminDashboard = ({ user, onNavigate }) => {
     }
   };
 
+  // Contest management states
+  const [showContestModal, setShowContestModal] = useState(false);
+  const [selectedContest, setSelectedContest] = useState(null);
+  const [contestExtension, setContestExtension] = useState(0); // minutes to extend
+
+  // Contest management functions
+  const handleExtendContest = async (contestId, extensionMinutes) => {
+    try {
+      const response = await fetch(`/api/testseries/${contestId}/extend`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ extensionMinutes })
+      });
+      
+      if (response.ok) {
+        alert(`Contest time extended by ${extensionMinutes} minutes successfully!`);
+        setShowContestModal(false);
+        setSelectedContest(null);
+        // Refresh contests list
+        fetchContests();
+      } else {
+        const data = await response.json();
+        alert(data.message || 'Failed to extend contest time');
+      }
+    } catch (error) {
+      console.error('Error extending contest:', error);
+      alert('Failed to extend contest time');
+    }
+  };
+
+  const handleRecalculateResults = async (contestId) => {
+    try {
+      const response = await fetch(`/api/testseries/${contestId}/recalculate-results`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        alert('Contest results recalculated successfully!');
+      } else {
+        const data = await response.json();
+        alert(data.message || 'Failed to recalculate results');
+      }
+    } catch (error) {
+      console.error('Error recalculating results:', error);
+      alert('Failed to recalculate results');
+    }
+  };
+
+  const openContestModal = (contest) => {
+    setSelectedContest(contest);
+    setContestExtension(0);
+    setShowContestModal(true);
+  };
+
   return (
     <div className="page">
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -1674,7 +1749,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                       Delete Selected ({selectedMCQIds.length})
                     </button>
                   )}
-                  <button
+                  {/* <button
                     onClick={() => {
                       if (window.confirm(`Delete ALL ${allQuestions.length} questions? This action cannot be undone!`)) {
                         handleDeleteAllQuestions();
@@ -1683,7 +1758,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                     className="px-3 py-1 bg-red-800 text-white text-sm rounded hover:bg-red-900 transition-colors"
                   >
                     Delete All ({allQuestions.length})
-                  </button>
+                  </button> */}
                 </div>
               </div>
               
@@ -1824,7 +1899,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                         Delete Selected ({selectedResourceIds.length})
                       </button>
                     )}
-                    <button
+                    {/* <button
                       onClick={() => {
                         if (window.confirm(`Delete ALL ${resources.length} ${resourceView === 'pdf' ? 'PDFs' : 'videos'}? This action cannot be undone!`)) {
                           handleDeleteAllResources();
@@ -1833,7 +1908,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                       className="px-3 py-1 bg-red-800 text-white text-sm rounded hover:bg-red-900 transition-colors"
                     >
                       Delete All ({resources.length})
-                    </button>
+                    </button> */}
                   </div>
                 </div>
                 
@@ -2023,7 +2098,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                     Delete Selected ({selectedContestIds.length})
                   </button>
                 )}
-                <button
+                {/* <button
                   onClick={() => {
                     if (window.confirm(`Delete ALL ${filteredContests.length} contests? This action cannot be undone!`)) {
                       handleDeleteAllContests();
@@ -2032,7 +2107,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   className="px-3 py-1 bg-red-800 text-white text-sm rounded hover:bg-red-900 transition-colors"
                 >
                   Delete All ({filteredContests.length})
-                </button>
+                </button> */}
               </div>
             </div>
             
@@ -2143,23 +2218,23 @@ const AdminDashboard = ({ user, onNavigate }) => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option A</label>
-                      <input name="a" value={form.options.a} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="correct-a" onChange={handleChange} checked={form.correctAnswers.includes(form.options.a)} /> Mark correct</label>
+                      <input name="0" value={form.options[0]} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-0" onChange={handleChange} checked={form.correctAnswers.includes(form.options[0])} /> Mark correct</label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option B</label>
-                      <input name="b" value={form.options.b} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="correct-b" onChange={handleChange} checked={form.correctAnswers.includes(form.options.b)} /> Mark correct</label>
+                      <input name="1" value={form.options[1]} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-1" onChange={handleChange} checked={form.correctAnswers.includes(form.options[1])} /> Mark correct</label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option C</label>
-                      <input name="c" value={form.options.c} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="correct-c" onChange={handleChange} checked={form.correctAnswers.includes(form.options.c)} /> Mark correct</label>
+                      <input name="2" value={form.options[2]} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-2" onChange={handleChange} checked={form.correctAnswers.includes(form.options[2])} /> Mark correct</label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option D</label>
-                      <input name="d" value={form.options.d} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="correct-d" onChange={handleChange} checked={form.correctAnswers.includes(form.options.d)} /> Mark correct</label>
+                      <input name="3" value={form.options[3]} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
+                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-3" onChange={handleChange} checked={form.correctAnswers.includes(form.options[3])} /> Mark correct</label>
                     </div>
                   </div>
                   <div className="mt-4">
@@ -2271,36 +2346,23 @@ const AdminDashboard = ({ user, onNavigate }) => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option A</label>
-                      <input name="a" value={contestForm.questions[currentQuestionIdx].options.a} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
+                      <input name="0" value={contestForm.questions[currentQuestionIdx].options[0]} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option B</label>
-                      <input name="b" value={contestForm.questions[currentQuestionIdx].options.b} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
+                      <input name="1" value={contestForm.questions[currentQuestionIdx].options[1]} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option C</label>
-                      <input name="c" value={contestForm.questions[currentQuestionIdx].options.c} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
+                      <input name="2" value={contestForm.questions[currentQuestionIdx].options[2]} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option D</label>
-                      <input name="d" value={contestForm.questions[currentQuestionIdx].options.d} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
+                      <input name="3" value={contestForm.questions[currentQuestionIdx].options[3]} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
                     </div>
                     <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
-                      <input name="subcategory" value={contestForm.questions[currentQuestionIdx].subcategory || ''} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 mb-2" placeholder="Subcategory" />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
-                      <select name="level" value={contestForm.questions[currentQuestionIdx].level || ''} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 mb-2">
-                        <option value="">Select Level</option>
-                        <option value="easy">Easy</option>
-                        <option value="medium">Medium</option>
-                        <option value="hard">Hard</option>
-                      </select>
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer (a/b/c/d)</label>
-                      <input name="correctAns" value={contestForm.questions[currentQuestionIdx].correctAns} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Correct Answer (a/b/c/d)" />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer</label>
+                      <input name="correctAnswers" value={contestForm.questions[currentQuestionIdx].correctAnswers[0]} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Enter the exact correct answer text" />
                     </div>
                     <div className="col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
@@ -2320,611 +2382,598 @@ const AdminDashboard = ({ user, onNavigate }) => {
         {/* Modal Form for Edit Question */}
         {editModalOpen && editForm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white rounded-sm border border-gray-200 p-6 w-full max-w-md relative animate-fadeIn" style={{maxHeight:'95vh',overflow:'auto'}}>
+            <div className="bg-white border border-gray-200 p-6 max-w-2xl w-full mx-4 relative rounded-md shadow-md">
               <button
                 onClick={() => setEditModalOpen(false)}
-                className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-lg font-bold"
                 aria-label="Close"
               >
                 ×
               </button>
-              <h2 className="text-xl font-bold mb-6 text-black-800 text-center">Edit Question</h2>
-              <form onSubmit={handleEditFormSubmit} className="space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <h2 className="text-lg font-bold mb-4 text-black text-center">Edit Question</h2>
+              <form onSubmit={handleEditFormSubmit} className="space-y-4">
+                {/* Question */}
+                <div>
+                  <label className="block text-sm font-semibold text-black mb-1">Question</label>
+                  <textarea
+                    name="question"
+                    value={editForm.question}
+                    onChange={handleEditFormChange}
+                    className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
+                    rows={3}
+                    placeholder="Enter the question"
+                    required
+                  />
+                </div>
+
+                {/* Topic + Difficulty */}
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
-                    <select name="category" value={editForm.category} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400">
-                      <option value="Aptitude">Aptitude</option>
-                      <option value="Technical">Technical</option>
-                    </select>
+                    <label className="block text-sm font-semibold text-black mb-1">Topic</label>
+                    <input
+                      name="subcategory"
+                      value={editForm.subcategory}
+                      onChange={handleEditFormChange}
+                      className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
+                      placeholder="Enter topic"
+                      required
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Subcategory</label>
-                    <input name="subcategory" value={editForm.subcategory} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Subcategory" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Level</label>
-                    <select name="level" value={editForm.level} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400">
+                    <label className="block text-sm font-semibold text-black mb-1">Difficulty</label>
+                    <select
+                      name="level"
+                      value={editForm.level}
+                      onChange={handleEditFormChange}
+                      className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
+                    >
                       <option value="easy">Easy</option>
                       <option value="medium">Medium</option>
                       <option value="hard">Hard</option>
                     </select>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4 mt-2">
-                  <label className="block text-base font-semibold text-gray-700 mb-2">Question</label>
-                  <input name="question" value={editForm.question} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-400" placeholder="Question" />
+
+                {/* Options */}
+                <div>
+                  <label className="block text-sm font-semibold text-black mb-2">Options</label>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option A</label>
-                      <input name="a" value={editForm.options.a} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-a" onChange={handleEditFormChange} checked={(editForm.correctAnswers || []).includes(editForm.options.a)} /> Mark correct</label>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option B</label>
-                      <input name="b" value={editForm.options.b} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-b" onChange={handleEditFormChange} checked={(editForm.correctAnswers || []).includes(editForm.options.b)} /> Mark correct</label>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option C</label>
-                      <input name="c" value={editForm.options.c} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-c" onChange={handleEditFormChange} checked={(editForm.correctAnswers || []).includes(editForm.options.c)} /> Mark correct</label>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option D</label>
-                      <input name="d" value={editForm.options.d} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-d" onChange={handleEditFormChange} checked={(editForm.correctAnswers || []).includes(editForm.options.d)} /> Mark correct</label>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
-                    <input name="explanation" value={editForm.explanation} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Explanation" />
+                    {[0, 1, 2, 3].map((index) => (
+                      <div key={index} className="flex items-center space-x-3">
+                        <input
+                          name={index}
+                          value={editForm.options[index] || ''}
+                          onChange={handleEditFormChange}
+                          className="flex-1 px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
+                          placeholder={`Option ${String.fromCharCode(65 + index)}`}
+                          required
+                        />
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            name={`correct-${index}`}
+                            checked={editForm.correctAnswers.includes(editForm.options[index])}
+                            onChange={handleChange}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">Mark correct</span>
+                        </label>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="flex gap-3 pt-4">
-                  <button type="submit" className="flex-1 px-4 py-2 bg-black text-white rounded-sm font-bold hover:bg-gray-800">Save</button>
-                  <button type="button" onClick={() => setEditModalOpen(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-sm font-bold">Cancel</button>
-              </div>
+
+                {/* Explanation */}
+                <div>
+                  <label className="block text-sm font-semibold text-black mb-1">Explanation</label>
+                  <textarea
+                    name="explanation"
+                    value={editForm.explanation}
+                    onChange={handleEditFormChange}
+                    className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
+                    rows={3}
+                    placeholder="Enter explanation"
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div className="flex justify-end pt-4">
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                  >
+                    Save Question
+                  </button>
+                </div>
               </form>
             </div>
           </div>
         )}
 
-        {/* selectedTab === 'results' && (
-          <div className="bg-white rounded-sm border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold">User Results & Analytics</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Test</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {userActivities.map((activity, index) => (
-                    <tr key={index}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium">{typeof activity.user === 'object' ? (activity.user?.fullName || activity.user?.email || 'User') : activity.user}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-gray-600">{activity.action}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs rounded ${
-                          activity.score !== null ? (activity.score >= 85 ? 'bg-green-100 text-green-800' :
-                          activity.score >= 70 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800') : 'bg-gray-100 text-gray-800'}`}>
-                          {activity.score !== null ? `${activity.score}%` : 'N/A'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-gray-600">{activity.timestamp}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-gray-600">{new Date(activity.timestamp).toLocaleDateString()}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button className="text-gray-600 hover:text-black">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
+        {showCreateModerator && (
+          <CreateModeratorForm
+            onSubmit={handleCreateModerator}
+            onCancel={() => setShowCreateModerator(false)}
+          />
+          )}
+        {/* Contest Questions Modal */}
+        {showContestQuestionsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full mx-4 relative">
+              <button
+                onClick={() => setShowContestQuestionsModal(false)}
+                className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+                aria-label="Close"
+              >
+                ×
+              </button>
+              <h2 className="text-xl font-bold mb-6 text-black-800 text-center">Questions in: {selectedContestTitle}</h2>
+              {selectedContestQuestions.length > 0 && selectedContestQuestions[0].testSeries && selectedContestQuestions[0].testSeries.requiresCode && (
+                <div className="mb-4 text-center">
+                  <span className="text-sm text-blue-700 font-mono">Contest Code: {selectedContestQuestions[0].testSeries.contestCode}</span>
+                </div>
+              )}
+              {loadingContestQuestions ? (
+                <div className="text-center py-8 text-gray-500">Loading...</div>
+              ) : selectedContestQuestions.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No questions found for this contest.</div>
+              ) : (
+                <div className="space-y-6 max-h-[60vh] overflow-y-auto">
+                  {selectedContestQuestions.map((q, idx) => (
+                    <div key={q.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="mb-2 text-sm text-gray-500">Question {idx + 1}</div>
+                      <div className="font-semibold text-gray-900 mb-2">{q.question}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+                        {q.options.map((option, index) => (
+                          <div key={index} className={`px-3 py-2 rounded border ${q.correctAnswers.includes(option) ? 'bg-green-100 border-green-300 font-semibold text-green-800' : 'bg-white border-gray-200'}`}>
+                            <span className="font-bold mr-2">{String.fromCharCode(65 + index)}.</span> {option}
+                            {q.correctAnswers.includes(option) && <span className="ml-2 text-green-600">✓</span>}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="text-sm text-gray-700"><span className="font-semibold">Explanation:</span> {q.explanation}</div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
           </div>
-        )} */}
-
-      {showCreateModerator && (
-        <CreateModeratorForm
-          onSubmit={handleCreateModerator}
-          onCancel={() => setShowCreateModerator(false)}
-        />
         )}
-      {/* Contest Questions Modal */}
-      {showContestQuestionsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full mx-4 relative">
-            <button
-              onClick={() => setShowContestQuestionsModal(false)}
-              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold"
-              aria-label="Close"
-            >
-              ×
-            </button>
-            <h2 className="text-xl font-bold mb-6 text-black-800 text-center">Questions in: {selectedContestTitle}</h2>
-            {selectedContestQuestions.length > 0 && selectedContestQuestions[0].testSeries && selectedContestQuestions[0].testSeries.requiresCode && (
-              <div className="mb-4 text-center">
-                <span className="text-sm text-blue-700 font-mono">Contest Code: {selectedContestQuestions[0].testSeries.contestCode}</span>
-              </div>
-            )}
-            {loadingContestQuestions ? (
-              <div className="text-center py-8 text-gray-500">Loading...</div>
-            ) : selectedContestQuestions.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">No questions found for this contest.</div>
-            ) : (
-              <div className="space-y-6 max-h-[60vh] overflow-y-auto">
-                {selectedContestQuestions.map((q, idx) => (
-                  <div key={q.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                    <div className="mb-2 text-sm text-gray-500">Question {idx + 1}</div>
-                    <div className="font-semibold text-gray-900 mb-2">{q.question}</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-                      {['a', 'b', 'c', 'd'].map(opt => (
-                        <div key={opt} className={`px-3 py-2 rounded border ${q.correctAns === opt ? 'bg-green-100 border-green-300 font-semibold text-green-800' : 'bg-white border-gray-200'}`}>
-                          <span className="font-bold mr-2">{opt.toUpperCase()}.</span> {q.options[opt]}
-                          {q.correctAns === opt && <span className="ml-2 text-green-600">✓</span>}
+
+        {/* Contest Statistics Modal */}
+        {showContestStatsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="bg-white rounded-xl shadow-xl p-6 max-w-4xl w-full mx-4 relative max-h-[90vh] overflow-y-auto">
+              <button
+                onClick={() => setShowContestStatsModal(false)}
+                className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+                aria-label="Close"
+              >
+                ×
+              </button>
+              <h2 className="text-xl font-bold mb-6 text-black text-center">Detailed Statistics: {selectedContestStats?.contestTitle || 'Contest'}</h2>
+              {loadingContestStats ? (
+                <div className="text-center py-8 text-gray-500">Loading statistics...</div>
+              ) : !selectedContestStats ? (
+                <div className="text-center py-8 text-gray-500">No statistics available for this contest.</div>
+              ) : (
+                <div className="space-y-8">
+                  {/* Charts Section */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                    {/* Bar Chart: Question-wise stats */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col items-center">
+                      <h3 className="font-semibold text-black mb-4 text-center">Question-wise Attempts</h3>
+                      <Bar
+                        data={{
+                          labels: selectedContestStats.questionStats.map((q, i) => `Q${i + 1}`),
+                          datasets: [
+                            {
+                              label: 'Correct',
+                              data: selectedContestStats.questionStats.map(q => q.correctAttempts),
+                              backgroundColor: '#22c55e',
+                              borderWidth: 1,
+                            },
+                            {
+                              label: 'Incorrect',
+                              data: selectedContestStats.questionStats.map(q => q.incorrectAttempts),
+                              backgroundColor: '#ef4444',
+                              borderWidth: 1,
+                            },
+                            {
+                              label: 'Not Attempted',
+                              data: selectedContestStats.questionStats.map(q => q.notAttempted),
+                              backgroundColor: '#f59e0b',
+                              borderWidth: 1,
+                            },
+                          ],
+                        }}
+                        options={{
+                          responsive: true,
+                          plugins: {
+                            legend: {
+                              labels: { color: '#374151', font: { weight: 'bold' } },
+                            },
+                            title: { display: false },
+                          },
+                          scales: {
+                            x: { ticks: { color: '#374151' }, grid: { color: '#e5e5e5' } },
+                            y: { ticks: { color: '#374151' }, grid: { color: '#e5e5e5' } },
+                          },
+                        }}
+                        height={220}
+                      />
+                    </div>
+                    {/* Pie Chart: Overall distribution */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col items-center">
+                      <h3 className="font-semibold text-black mb-4 text-center">Overall Answer Distribution</h3>
+                      <Pie
+                        data={{
+                          labels: ['Correct', 'Incorrect', 'Not Attempted'],
+                          datasets: [
+                            {
+                              data: [
+                                selectedContestStats.questionStats.reduce((a, q) => a + q.correctAttempts, 0),
+                                selectedContestStats.questionStats.reduce((a, q) => a + q.incorrectAttempts, 0),
+                                selectedContestStats.questionStats.reduce((a, q) => a + q.notAttempted, 0),
+                              ],
+                              backgroundColor: ['#22c55e', '#ef4444', '#f59e0b'],
+                              borderColor: ['#fff', '#fff', '#fff'],
+                              borderWidth: 2,
+                            },
+                          ],
+                        }}
+                        options={{
+                          plugins: {
+                            legend: {
+                              labels: { color: '#374151', font: { weight: 'bold' } },
+                            },
+                          },
+                          cutout: '50%', // This makes the pie chart hollow (donut chart)
+                        }}
+                        height={220}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Overall Statistics */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-black">{selectedContestStats.average?.toFixed(2) || '0'}</div>
+                      <div className="text-sm text-gray-700">Average Score</div>
+                    </div>
+                    <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-black">{selectedContestStats.averagePercentage?.toFixed(1) || '0'}%</div>
+                      <div className="text-sm text-gray-700">Average Percentage</div>
+                    </div>
+                    <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-black">{selectedContestStats.totalParticipants || '0'}</div>
+                      <div className="text-sm text-gray-700">Total Participants</div>
+                    </div>
+                    <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-black">{selectedContestStats.totalQuestions || '0'}</div>
+                      <div className="text-sm text-gray-700">Total Questions</div>
+                    </div>
+                  </div>
+
+                  {/* Question Highlights - Minimalist Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div className="bg-white border border-gray-300 rounded-lg p-4">
+                      <h3 className="font-semibold text-black mb-2 flex items-center gap-2">
+                        <span>Most Correctly Answered</span>
+                        <span className="inline-block w-4 h-4 border-2 border-black rounded-full flex items-center justify-center text-xs font-bold">✓</span>
+                      </h3>
+                      {selectedContestStats.mostCorrect ? (
+                        <div>
+                          <div className="font-medium text-black mb-1">{selectedContestStats.mostCorrect.question}</div>
+                          <div className="text-xs text-gray-700">Correct: {selectedContestStats.mostCorrect.correctAttempts} | Total: {selectedContestStats.mostCorrect.totalAttempts}</div>
                         </div>
-                      ))}
+                      ) : (
+                        <div className="text-sm text-gray-500">No data available</div>
+                      )}
                     </div>
-                    <div className="text-sm text-gray-700"><span className="font-semibold">Explanation:</span> {q.explanation}</div>
+                    <div className="bg-white border border-gray-300 rounded-lg p-4">
+                      <h3 className="font-semibold text-black mb-2 flex items-center gap-2">
+                        <span>Most Incorrectly Answered</span>
+                        <span className="inline-block w-4 h-4 border-2 border-black rounded-full flex items-center justify-center text-xs font-bold">✗</span>
+                      </h3>
+                      {selectedContestStats.mostIncorrect ? (
+                        <div>
+                          <div className="font-medium text-black mb-1">{selectedContestStats.mostIncorrect.question}</div>
+                          <div className="text-xs text-gray-700">Incorrect: {selectedContestStats.mostIncorrect.incorrectAttempts} | Total: {selectedContestStats.mostIncorrect.totalAttempts}</div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500">No data available</div>
+                      )}
+                    </div>
+                    <div className="bg-white border border-gray-300 rounded-lg p-4">
+                      <h3 className="font-semibold text-black mb-2 flex items-center gap-2">
+                        <span>Most Attempted</span>
+                        <span className="inline-block w-4 h-4 border-2 border-black rounded-full flex items-center justify-center text-xs font-bold">→</span>
+                      </h3>
+                      {selectedContestStats.mostAttempted ? (
+                        <div>
+                          <div className="font-medium text-black mb-1">{selectedContestStats.mostAttempted.question}</div>
+                          <div className="text-xs text-gray-700">Attempts: {selectedContestStats.mostAttempted.totalAttempts}</div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500">No data available</div>
+                      )}
+                    </div>
+                    <div className="bg-white border border-gray-300 rounded-lg p-4">
+                      <h3 className="font-semibold text-black mb-2 flex items-center gap-2">
+                        <span>Least Attempted</span>
+                        <span className="inline-block w-4 h-4 border-2 border-black rounded-full flex items-center justify-center text-xs font-bold">↓</span>
+                      </h3>
+                      {selectedContestStats.leastAttempted ? (
+                        <div>
+                          <div className="font-medium text-black mb-1">{selectedContestStats.leastAttempted.question}</div>
+                          <div className="text-xs text-gray-700">Attempts: {selectedContestStats.leastAttempted.totalAttempts}</div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500">No data available</div>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Contest Statistics Modal */}
-      {showContestStatsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded-xl shadow-xl p-6 max-w-4xl w-full mx-4 relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setShowContestStatsModal(false)}
-              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold"
-              aria-label="Close"
-            >
-              ×
-            </button>
-            <h2 className="text-xl font-bold mb-6 text-black text-center">Detailed Statistics: {selectedContestStats?.contestTitle || 'Contest'}</h2>
-            {loadingContestStats ? (
-              <div className="text-center py-8 text-gray-500">Loading statistics...</div>
-            ) : !selectedContestStats ? (
-              <div className="text-center py-8 text-gray-500">No statistics available for this contest.</div>
-            ) : (
-              <div className="space-y-8">
-                {/* Charts Section */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                  {/* Bar Chart: Question-wise stats */}
-                  <div className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col items-center">
-                    <h3 className="font-semibold text-black mb-4 text-center">Question-wise Attempts</h3>
-                    <Bar
-                      data={{
-                        labels: selectedContestStats.questionStats.map((q, i) => `Q${i + 1}`),
-                        datasets: [
-                          {
-                            label: 'Correct',
-                            data: selectedContestStats.questionStats.map(q => q.correctAttempts),
-                            backgroundColor: '#22c55e',
-                            borderWidth: 1,
-                          },
-                          {
-                            label: 'Incorrect',
-                            data: selectedContestStats.questionStats.map(q => q.incorrectAttempts),
-                            backgroundColor: '#ef4444',
-                            borderWidth: 1,
-                          },
-                          {
-                            label: 'Not Attempted',
-                            data: selectedContestStats.questionStats.map(q => q.notAttempted),
-                            backgroundColor: '#f59e0b',
-                            borderWidth: 1,
-                          },
-                        ],
-                      }}
-                      options={{
-                        responsive: true,
-                        plugins: {
-                          legend: {
-                            labels: { color: '#374151', font: { weight: 'bold' } },
-                          },
-                          title: { display: false },
-                        },
-                        scales: {
-                          x: { ticks: { color: '#374151' }, grid: { color: '#e5e5e5' } },
-                          y: { ticks: { color: '#374151' }, grid: { color: '#e5e5e5' } },
-                        },
-                      }}
-                      height={220}
-                    />
-                  </div>
-                  {/* Pie Chart: Overall distribution */}
-                  <div className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col items-center">
-                    <h3 className="font-semibold text-black mb-4 text-center">Overall Answer Distribution</h3>
-                    <Pie
-                      data={{
-                        labels: ['Correct', 'Incorrect', 'Not Attempted'],
-                        datasets: [
-                          {
-                            data: [
-                              selectedContestStats.questionStats.reduce((a, q) => a + q.correctAttempts, 0),
-                              selectedContestStats.questionStats.reduce((a, q) => a + q.incorrectAttempts, 0),
-                              selectedContestStats.questionStats.reduce((a, q) => a + q.notAttempted, 0),
-                            ],
-                            backgroundColor: ['#22c55e', '#ef4444', '#f59e0b'],
-                            borderColor: ['#fff', '#fff', '#fff'],
-                            borderWidth: 2,
-                          },
-                        ],
-                      }}
-                      options={{
-                        plugins: {
-                          legend: {
-                            labels: { color: '#374151', font: { weight: 'bold' } },
-                          },
-                        },
-                        cutout: '50%', // This makes the pie chart hollow (donut chart)
-                      }}
-                      height={220}
-                    />
-                  </div>
-                </div>
-
-                {/* Overall Statistics */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-black">{selectedContestStats.average?.toFixed(2) || '0'}</div>
-                    <div className="text-sm text-gray-700">Average Score</div>
-                  </div>
-                  <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-black">{selectedContestStats.averagePercentage?.toFixed(1) || '0'}%</div>
-                    <div className="text-sm text-gray-700">Average Percentage</div>
-                  </div>
-                  <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-black">{selectedContestStats.totalParticipants || '0'}</div>
-                    <div className="text-sm text-gray-700">Total Participants</div>
-                  </div>
-                  <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-black">{selectedContestStats.totalQuestions || '0'}</div>
-                    <div className="text-sm text-gray-700">Total Questions</div>
-                  </div>
-                </div>
-
-                {/* Question Highlights - Minimalist Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  <div className="bg-white border border-gray-300 rounded-lg p-4">
-                    <h3 className="font-semibold text-black mb-2 flex items-center gap-2">
-                      <span>Most Correctly Answered</span>
-                      <span className="inline-block w-4 h-4 border-2 border-black rounded-full flex items-center justify-center text-xs font-bold">✓</span>
-                    </h3>
-                    {selectedContestStats.mostCorrect ? (
-                      <div>
-                        <div className="font-medium text-black mb-1">{selectedContestStats.mostCorrect.question}</div>
-                        <div className="text-xs text-gray-700">Correct: {selectedContestStats.mostCorrect.correctAttempts} | Total: {selectedContestStats.mostCorrect.totalAttempts}</div>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-500">No data available</div>
-                    )}
-                  </div>
-                  <div className="bg-white border border-gray-300 rounded-lg p-4">
-                    <h3 className="font-semibold text-black mb-2 flex items-center gap-2">
-                      <span>Most Incorrectly Answered</span>
-                      <span className="inline-block w-4 h-4 border-2 border-black rounded-full flex items-center justify-center text-xs font-bold">✗</span>
-                    </h3>
-                    {selectedContestStats.mostIncorrect ? (
-                      <div>
-                        <div className="font-medium text-black mb-1">{selectedContestStats.mostIncorrect.question}</div>
-                        <div className="text-xs text-gray-700">Incorrect: {selectedContestStats.mostIncorrect.incorrectAttempts} | Total: {selectedContestStats.mostIncorrect.totalAttempts}</div>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-500">No data available</div>
-                    )}
-                  </div>
-                  <div className="bg-white border border-gray-300 rounded-lg p-4">
-                    <h3 className="font-semibold text-black mb-2 flex items-center gap-2">
-                      <span>Most Attempted</span>
-                      <span className="inline-block w-4 h-4 border-2 border-black rounded-full flex items-center justify-center text-xs font-bold">→</span>
-                    </h3>
-                    {selectedContestStats.mostAttempted ? (
-                      <div>
-                        <div className="font-medium text-black mb-1">{selectedContestStats.mostAttempted.question}</div>
-                        <div className="text-xs text-gray-700">Attempts: {selectedContestStats.mostAttempted.totalAttempts}</div>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-500">No data available</div>
-                    )}
-                  </div>
-                  <div className="bg-white border border-gray-300 rounded-lg p-4">
-                    <h3 className="font-semibold text-black mb-2 flex items-center gap-2">
-                      <span>Least Attempted</span>
-                      <span className="inline-block w-4 h-4 border-2 border-black rounded-full flex items-center justify-center text-xs font-bold">↓</span>
-                    </h3>
-                    {selectedContestStats.leastAttempted ? (
-                      <div>
-                        <div className="font-medium text-black mb-1">{selectedContestStats.leastAttempted.question}</div>
-                        <div className="text-xs text-gray-700">Attempts: {selectedContestStats.leastAttempted.totalAttempts}</div>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-500">No data available</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Question-wise Statistics Table */}
-                {selectedContestStats.questionStats && selectedContestStats.questionStats.length > 0 && (
-                  <div>
-                    <h3 className="font-semibold text-black mb-4">Question-wise Performance</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border border-gray-200 rounded-lg">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="py-3 px-4 font-medium text-black">Question</th>
-                            <th className="py-3 px-4 font-medium text-black">Correct</th>
-                            <th className="py-3 px-4 font-medium text-black">Incorrect</th>
-                            <th className="py-3 px-4 font-medium text-black">Not Attempted</th>
-                            <th className="py-3 px-4 font-medium text-black">Success Rate</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedContestStats.questionStats.map((q, idx) => (
-                            <tr key={q.questionId} className="border-t border-gray-200">
-                              <td className="py-3 px-4 max-w-xs truncate" title={q.question}>
-                                <span className="font-medium text-black">{q.question}</span>
-                              </td>
-                              <td className="py-3 px-4 text-black font-medium">{q.correctAttempts}</td>
-                              <td className="py-3 px-4 text-black font-medium">{q.incorrectAttempts}</td>
-                              <td className="py-3 px-4 text-black font-medium">{q.notAttempted}</td>
-                              <td className="py-3 px-4 font-medium text-black">
-                                {q.totalAttempts > 0 ? `${((q.correctAttempts / q.totalAttempts) * 100).toFixed(1)}%` : '0%'}
-                              </td>
+                  {/* Question-wise Statistics Table */}
+                  {selectedContestStats.questionStats && selectedContestStats.questionStats.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-black mb-4">Question-wise Performance</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border border-gray-200 rounded-lg">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="py-3 px-4 font-medium text-black">Question</th>
+                              <th className="py-3 px-4 font-medium text-black">Correct</th>
+                              <th className="py-3 px-4 font-medium text-black">Incorrect</th>
+                              <th className="py-3 px-4 font-medium text-black">Not Attempted</th>
+                              <th className="py-3 px-4 font-medium text-black">Success Rate</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {selectedContestStats.questionStats.map((q, idx) => (
+                              <tr key={q.questionId} className="border-t border-gray-200">
+                                <td className="py-3 px-4 max-w-xs truncate" title={q.question}>
+                                  <span className="font-medium text-black">{q.question}</span>
+                                </td>
+                                <td className="py-3 px-4 text-black font-medium">{q.correctAttempts}</td>
+                                <td className="py-3 px-4 text-black font-medium">{q.incorrectAttempts}</td>
+                                <td className="py-3 px-4 text-black font-medium">{q.notAttempted}</td>
+                                <td className="py-3 px-4 font-medium text-black">
+                                  {q.totalAttempts > 0 ? `${((q.correctAttempts / q.totalAttempts) * 100).toFixed(1)}%` : '0%'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* PDF Form Modal */}
-      {showPdfForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Add PDF Resource</h2>
-              <button
-                onClick={() => setShowPdfForm(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
+                  )}
+                </div>
+              )}
             </div>
-            <form onSubmit={handlePdfSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-                <input
-                  type="text"
-                  name="title"
-                  value={pdfForm.title}
-                  onChange={handlePdfChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  name="description"
-                  value={pdfForm.description}
-                  onChange={handlePdfChange}
-                  rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                  <select
-                    name="category"
-                    value={pdfForm.category}
-                    onChange={handlePdfChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                  >
-                    <option value="Aptitude">Aptitude</option>
-                    <option value="Technical">Technical</option>
-                    <option value="Logical">Logical</option>
-                    <option value="Verbal">Verbal</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
-                  <select
-                    name="level"
-                    value={pdfForm.level}
-                    onChange={handlePdfChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
-                <input
-                  type="text"
-                  name="subcategory"
-                  value={pdfForm.subcategory}
-                  onChange={handlePdfChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">PDF File *</label>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handlePdfFileChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <div className="flex justify-end space-x-3 pt-4">
+          </div>
+        )}
+
+        {/* PDF Form Modal */}
+        {showPdfForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Add PDF Resource</h2>
                 <button
-                  type="button"
                   onClick={() => setShowPdfForm(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  className="text-gray-500 hover:text-gray-700"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
-                >
-                  Add PDF
+                  <X className="w-6 h-6" />
                 </button>
               </div>
-              {pdfSubmitMsg && (
-                <p className="mt-3 text-sm text-red-600">{pdfSubmitMsg}</p>
-              )}
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Video Form Modal */}
-      {showVideoForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Add Video Resource</h2>
-              <button
-                onClick={() => setShowVideoForm(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <form onSubmit={handleVideoSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-                <input
-                  type="text"
-                  name="title"
-                  value={videoForm.title}
-                  onChange={handleVideoChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  name="description"
-                  value={videoForm.description}
-                  onChange={handleVideoChange}
-                  rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handlePdfSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                  <select
-                    name="category"
-                    value={videoForm.category}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                  <input
+                    type="text"
+                    name="title"
+                    value={pdfForm.title}
+                    onChange={handlePdfChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    name="description"
+                    value={pdfForm.description}
+                    onChange={handlePdfChange}
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                    <select
+                      name="category"
+                      value={pdfForm.category}
+                      onChange={handlePdfChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                    >
+                      <option value="Aptitude">Aptitude</option>
+                      <option value="Technical">Technical</option>
+                      <option value="Logical">Logical</option>
+                      <option value="Verbal">Verbal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+                    <select
+                      name="level"
+                      value={pdfForm.level}
+                      onChange={handlePdfChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                    >
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
+                  <input
+                    type="text"
+                    name="subcategory"
+                    value={pdfForm.subcategory}
+                    onChange={handlePdfChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">PDF File *</label>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handlePdfFileChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowPdfForm(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
+                  >
+                    Add PDF
+                  </button>
+                </div>
+                {pdfSubmitMsg && (
+                  <p className="mt-3 text-sm text-red-600">{pdfSubmitMsg}</p>
+                )}
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Video Form Modal */}
+        {showVideoForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Add Video Resource</h2>
+                <button
+                  onClick={() => setShowVideoForm(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <form onSubmit={handleVideoSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                  <input
+                    type="text"
+                    name="title"
+                    value={videoForm.title}
                     onChange={handleVideoChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                  >
-                    <option value="Aptitude">Aptitude</option>
-                    <option value="Technical">Technical</option>
-                    <option value="Logical">Logical</option>
-                    <option value="Verbal">Verbal</option>
-                  </select>
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
-                  <select
-                    name="level"
-                    value={videoForm.level}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    name="description"
+                    value={videoForm.description}
+                    onChange={handleVideoChange}
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                    <select
+                      name="category"
+                      value={videoForm.category}
+                      onChange={handleVideoChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                    >
+                      <option value="Aptitude">Aptitude</option>
+                      <option value="Technical">Technical</option>
+                      <option value="Logical">Logical</option>
+                      <option value="Verbal">Verbal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+                    <select
+                      name="level"
+                      value={videoForm.level}
+                      onChange={handleVideoChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                    >
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
+                  <input
+                    type="text"
+                    name="subcategory"
+                    value={videoForm.subcategory}
                     onChange={handleVideoChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
+                  />
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
-                <input
-                  type="text"
-                  name="subcategory"
-                  value={videoForm.subcategory}
-                  onChange={handleVideoChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Video URL *</label>
-                <input
-                  type="url"
-                  name="videoUrl"
-                  value={videoForm.videoUrl}
-                  onChange={handleVideoChange}
-                  required
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowVideoForm(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
-                >
-                  Add Video
-                </button>
-              </div>
-              {videoSubmitMsg && (
-                <p className="mt-3 text-sm text-red-600">{videoSubmitMsg}</p>
-              )}
-            </form>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Video URL *</label>
+                  <input
+                    type="url"
+                    name="videoUrl"
+                    value={videoForm.videoUrl}
+                    onChange={handleVideoChange}
+                    required
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowVideoForm(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
+                  >
+                    Add Video
+                  </button>
+                </div>
+                {videoSubmitMsg && (
+                  <p className="mt-3 text-sm text-red-600">{videoSubmitMsg}</p>
+                )}
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+
       </div>
     </div>
   );

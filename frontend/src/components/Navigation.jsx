@@ -298,7 +298,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                 {/* Contest Mode Warning */}
                 {isContestMode && (
                   <div className="flex items-center space-x-2 px-3 py-1 bg-yellow-100 border border-yellow-300 rounded-lg">
-                    <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                    <alertTriangle className="w-4 h-4 text-yellow-600" />
                     <span className="text-xs font-medium text-yellow-800">Contest Mode</span>
                   </div>
                 )}

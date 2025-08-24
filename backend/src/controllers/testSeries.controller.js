@@ -296,7 +296,8 @@ export const submitTestSeriesAnswers = async (req, res) => {
       
       if (hasAnswer) {
         attempted++;
-        if (correctMap[ans.questionId] && correctMap[ans.questionId] === ans.selectedOption) {
+        // Check if the selected answer matches any of the correct answers exactly
+        if (correctMap[ans.questionId] && correctMap[ans.questionId].includes(ans.selectedOption.trim())) {
           score++;
         }
       }
@@ -305,10 +306,10 @@ export const submitTestSeriesAnswers = async (req, res) => {
       questionResults.push({
         questionId: ans.questionId,
         question: questionMap[ans.questionId]?.question || '',
-        options: questionMap[ans.questionId]?.options || {},
+        options: questionMap[ans.questionId]?.options || [],
         userAnswer: ans.selectedOption || '',
         correctAnswer: (correctMap[ans.questionId] || []).join(', '),
-        isCorrect: hasAnswer && (correctMap[ans.questionId] || []).includes(ans.selectedOption),
+        isCorrect: hasAnswer && (correctMap[ans.questionId] || []).includes(ans.selectedOption.trim()),
         isAttempted: hasAnswer
       });
     });
@@ -598,7 +599,7 @@ export const getContestLeaderboard = async (req, res) => {
       if (!userScores[act.sid]) userScores[act.sid] = { correct: 0, attempted: 0 };
       const hasAnswer = act.selectedAnswer && act.selectedAnswer.trim() !== '' && act.selectedAnswer !== 'null';
       if (hasAnswer) userScores[act.sid].attempted++;
-      if (hasAnswer && correctMap[act.qid] === act.selectedAnswer) userScores[act.sid].correct++;
+      if (hasAnswer && Array.isArray(correctMap[act.qid]) && correctMap[act.qid].includes(act.selectedAnswer)) userScores[act.sid].correct++;
     });
 
     // Create leaderboard entries
@@ -772,7 +773,7 @@ export const getContestStats = async (req, res) => {
       if (!userScores[act.sid]) userScores[act.sid] = { correct: 0, attempted: 0 };
       const hasAnswer = act.selectedAnswer && act.selectedAnswer.trim() !== '' && act.selectedAnswer !== 'null';
       if (hasAnswer) userScores[act.sid].attempted++;
-      if (hasAnswer && correctMap[act.qid] === act.selectedAnswer) userScores[act.sid].correct++;
+      if (hasAnswer && Array.isArray(correctMap[act.qid]) && correctMap[act.qid].includes(act.selectedAnswer)) userScores[act.sid].correct++;
     });
 
     // Build array of scores
@@ -803,7 +804,8 @@ export const getContestStats = async (req, res) => {
         questionStats[act.qid].totalAttempts++;
         const hasAnswer = act.selectedAnswer && act.selectedAnswer.trim() !== '' && act.selectedAnswer !== 'null';
         if (hasAnswer) {
-          if (act.selectedAnswer === correctMap[act.qid]) {
+          const correctAnswers = correctMap[act.qid];
+          if (Array.isArray(correctAnswers) && correctAnswers.includes(act.selectedAnswer)) {
             questionStats[act.qid].correctAttempts++;
           } else {
             questionStats[act.qid].incorrectAttempts++;
@@ -923,7 +925,7 @@ export const getAllContestStats = async (req, res) => {
       allActivities.forEach(act => {
         if (!userScores[act.sid]) userScores[act.sid] = { correct: 0, attempted: 0 };
         if (act.selectedAnswer) userScores[act.sid].attempted++;
-        if (act.selectedAnswer && correctMap[act.qid] === act.selectedAnswer) userScores[act.sid].correct++;
+        if (act.selectedAnswer && Array.isArray(correctMap[act.qid]) && correctMap[act.qid].includes(act.selectedAnswer)) userScores[act.sid].correct++;
       });
 
       const scores = Object.values(userScores).map(u => u.correct);
@@ -1343,7 +1345,10 @@ export const getContestParticipants = async (req, res) => {
             }
           });
 
-          const correctAnswers = answers.filter(a => a.selectedAnswer === a.question.correctAnswers).length;
+          const correctAnswers = answers.filter(a => 
+            Array.isArray(a.question.correctAnswers) && 
+            a.question.correctAnswers.includes(a.selectedAnswer)
+          ).length;
           const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
           const timeTaken = participation.submittedAt && participation.startTime 
             ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / (1000 * 60))
@@ -1446,7 +1451,7 @@ export const getParticipantAnswers = async (req, res) => {
     const totalQuestions = participation.testSeries.questions.length;
     const correctAnswers = participation.testSeries.questions.reduce((acc, q) => {
       const ans = answersByQuestionId.get(q.id);
-      return acc + (ans && ans === q.correctAnswers ? 1 : 0);
+      return acc + (ans && Array.isArray(q.correctAnswers) && q.correctAnswers.includes(ans) ? 1 : 0);
     }, 0);
     const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
     const timeTaken = participation.submittedAt && participation.startTime 
@@ -1456,7 +1461,7 @@ export const getParticipantAnswers = async (req, res) => {
     // Map questions with user answers
     const questionsWithAnswers = participation.testSeries.questions.map((question, index) => {
       const userAnswer = answers[index] || null;
-      const isCorrect = userAnswer === question.correctAnswers;
+      const isCorrect = userAnswer && Array.isArray(question.correctAnswers) && question.correctAnswers.includes(userAnswer);
       
       return {
         id: question.id,
@@ -1659,7 +1664,10 @@ export const downloadContestResultsExcel = async (req, res) => {
         });
 
         const totalQuestions = contest.questions.length;
-        const correctAnswers = answers.filter(a => a.selectedAnswer === a.question.correctAnswers).length;
+        const correctAnswers = answers.filter(a => 
+          Array.isArray(a.question.correctAnswers) && 
+          a.question.correctAnswers.includes(a.selectedAnswer)
+        ).length;
         const percentage = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : '0';
         const timeTaken = participation.submittedAt && participation.startTime 
           ? Math.round((new Date(participation.submittedAt) - new Date(participation.startTime)) / 1000 / 60)
@@ -1682,7 +1690,7 @@ export const downloadContestResultsExcel = async (req, res) => {
             options: answer.question.options,
             userAnswer: answer.selectedAnswer,
             correctAnswer: answer.question.correctAnswers,
-            isCorrect: answer.selectedAnswer === answer.question.correctAnswers,
+            isCorrect: Array.isArray(answer.question.correctAnswers) && answer.question.correctAnswers.includes(answer.selectedAnswer),
             questionNumber: contest.questions.findIndex(q => q.id === answer.qid) + 1
           }))
         };
@@ -1859,22 +1867,50 @@ export const getDetailedAnalysis = async (req, res) => {
       const answersForQuestion = allAnswers.filter(a => a.qid === question.id);
 
       const correctAnswers = answersForQuestion.filter(a =>
-        a.selectedAnswer === question.correctAnswers
+        Array.isArray(question.correctAnswers) && question.correctAnswers.includes(a.selectedAnswer)
       ).length;
 
       const successRate = answersForQuestion.length > 0 ?
         (correctAnswers / answersForQuestion.length) * 100 : 0;
 
       // Count selections per option and not attempted
-      const optionCounts = { a: 0, b: 0, c: 0, d: 0, notAttempted: 0 };
+      const optionCounts = {};
+      
+      // Initialize optionCounts based on question structure
+      if (Array.isArray(question.options)) {
+        // New array-based structure
+        question.options.forEach((option, index) => {
+          optionCounts[option] = 0;
+        });
+        optionCounts.notAttempted = 0;
+      } else {
+        // Old object-based structure
+        optionCounts.a = 0;
+        optionCounts.b = 0;
+        optionCounts.c = 0;
+        optionCounts.d = 0;
+        optionCounts.notAttempted = 0;
+      }
+      
       answersForQuestion.forEach(a => {
-        const value = (a.selectedAnswer || '').toLowerCase();
-        if (!value || value === 'null') {
+        const value = a.selectedAnswer;
+        if (!value || value === 'null' || value === null) {
           optionCounts.notAttempted += 1;
-        } else if (['a','b','c','d'].includes(value)) {
-          optionCounts[value] += 1;
+        } else if (Array.isArray(question.options)) {
+          // New structure: count by actual option text
+          if (question.options.includes(value)) {
+            optionCounts[value] = (optionCounts[value] || 0) + 1;
+          } else {
+            optionCounts.notAttempted += 1;
+          }
         } else {
-          optionCounts.notAttempted += 1;
+          // Old structure: count by a/b/c/d keys
+          const key = value.toLowerCase();
+          if (['a','b','c','d'].includes(key)) {
+            optionCounts[key] += 1;
+          } else {
+            optionCounts.notAttempted += 1;
+          }
         }
       });
 
@@ -1906,7 +1942,8 @@ export const getDetailedAnalysis = async (req, res) => {
       const scores = participants.map(p => {
         const participantAnswers = allAnswers.filter(a => a.sid === p.sid);
         const correctAnswers = participantAnswers.filter(a => 
-          a.selectedAnswer === a.question.correctAnswers
+          Array.isArray(a.question.correctAnswers) && 
+          a.question.correctAnswers.includes(a.selectedAnswer)
         ).length;
         return correctAnswers;
       });
@@ -1956,7 +1993,8 @@ export const getDetailedAnalysis = async (req, res) => {
 
       categoryAnalysis[category].totalAttempts += answersForQuestion.length;
       categoryAnalysis[category].correctAttempts += answersForQuestion.filter(a =>
-        a.selectedAnswer === question.correctAnswers
+        Array.isArray(question.correctAnswers) && 
+        question.correctAnswers.includes(a.selectedAnswer)
       ).length;
     });
 
@@ -1977,6 +2015,145 @@ export const getDetailedAnalysis = async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting detailed analysis:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Extend contest time
+export const extendContestTime = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { extensionMinutes } = req.body;
+    
+    if (!extensionMinutes || extensionMinutes <= 0) {
+      return res.status(400).json({ message: 'Extension time must be positive' });
+    }
+    
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only admins can extend contest time' });
+    }
+    
+    const contest = await prisma.testSeries.findUnique({
+      where: { id: Number(id) }
+    });
+    
+    if (!contest) {
+      return res.status(404).json({ message: 'Contest not found' });
+    }
+    
+    // Calculate new end time
+    const currentEndTime = new Date(contest.endTime);
+    const newEndTime = new Date(currentEndTime.getTime() + (extensionMinutes * 60 * 1000));
+    
+    // Update contest end time
+    const updatedContest = await prisma.testSeries.update({
+      where: { id: Number(id) },
+      data: { endTime: newEndTime }
+    });
+    
+    // Send notification to all participants about time extension
+    try {
+      const participants = await prisma.participation.findMany({
+        where: { testSeriesId: Number(id) },
+        include: { user: true }
+      });
+      
+      for (const participant of participants) {
+        await prisma.notification.create({
+          data: {
+            userId: participant.sid,
+            title: 'Contest Time Extended',
+            message: `The contest "${contest.title}" has been extended by ${extensionMinutes} minutes. New end time: ${newEndTime.toLocaleString()}`,
+            type: 'CONTEST_ANNOUNCED',
+            data: { contestId: contest.id, extensionMinutes }
+          }
+        });
+      }
+    } catch (notificationError) {
+      console.error('Failed to send time extension notifications:', notificationError);
+      // Don't fail the main operation if notifications fail
+    }
+    
+    res.json({ 
+      message: `Contest time extended by ${extensionMinutes} minutes`,
+      contest: updatedContest
+    });
+  } catch (error) {
+    console.error('Error extending contest time:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Recalculate contest results after question changes
+export const recalculateContestResults = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only admins can recalculate results' });
+    }
+    
+    const contest = await prisma.testSeries.findUnique({
+      where: { id: Number(id) },
+      include: { questions: true }
+    });
+    
+    if (!contest) {
+      return res.status(404).json({ message: 'Contest not found' });
+    }
+    
+    // Get all participations for this contest
+    const participations = await prisma.participation.findMany({
+      where: { testSeriesId: Number(id) },
+      include: { studentActivities: true }
+    });
+    
+    let updatedCount = 0;
+    
+    // Recalculate results for each participation
+    for (const participation of participations) {
+      let correctCount = 0;
+      const questionResults = [];
+      
+      for (const question of contest.questions) {
+        const userAnswer = participation.studentActivities.find(
+          activity => activity.qid === question.id
+        );
+        
+        if (userAnswer && userAnswer.selectedAnswer) {
+          const isCorrect = Array.isArray(question.correctAnswers) && 
+            question.correctAnswers.includes(userAnswer.selectedAnswer.trim());
+          
+          if (isCorrect) correctCount++;
+          
+          questionResults.push({
+            questionId: question.id,
+            userAnswer: userAnswer.selectedAnswer,
+            isCorrect,
+            correctAnswers: question.correctAnswers
+          });
+        }
+      }
+      
+      // Update participation with new score
+      await prisma.participation.update({
+        where: { pid: participation.pid },
+        data: { 
+          score: contest.questions.length > 0 ? Math.round((correctCount / contest.questions.length) * 100) : 0
+        }
+      });
+      
+      updatedCount++;
+    }
+    
+    res.json({ 
+      message: `Results recalculated for ${updatedCount} participants`,
+      updatedCount
+    });
+  } catch (error) {
+    console.error('Error recalculating contest results:', error);
     res.status(500).json({ message: error.message });
   }
 };

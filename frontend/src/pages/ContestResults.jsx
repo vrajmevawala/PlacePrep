@@ -311,7 +311,7 @@ const ContestResults = () => {
           {finalResults?.hasParticipated && finalResults.violations > 0 && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center space-x-2 mb-2">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <alertTriangle className="w-5 h-5 text-red-600" />
                 <h4 className="text-lg font-semibold text-red-800">Security Violations</h4>
               </div>
               <p className="text-red-700">
@@ -397,18 +397,18 @@ const ContestResults = () => {
                       <p className="text-lg text-gray-900 font-medium mb-4">{result.question}</p>
                       
                       <div className="space-y-2">
-                        {Object.entries(options).map(([key, value]) => {
-                          const isCorrect = key === correctAnswer;
-                          const isSelected = key === userAnswer;
+                        {Array.isArray(options) ? options.map((option, index) => {
+                          const isCorrect = Array.isArray(result.correctAnswers) && result.correctAnswers.includes(option);
+                          const isSelected = userAnswer === option; // Fix: Check if this option was selected by user
                           const isWrongSelection = isSelected && !isCorrect;
                           
                           return (
                             <div
-                              key={key}
+                              key={index}
                               className={`p-3 border rounded-lg ${
                                 isCorrect 
                                   ? 'border-green-500 bg-green-100 text-green-800' 
-                                  : isWrongSelection
+                                  : isSelected && !isCorrect
                                   ? 'border-red-500 bg-red-100 text-red-800'
                                   : 'border-gray-200 bg-white text-gray-700'
                               }`}
@@ -417,7 +417,43 @@ const ContestResults = () => {
                                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
                                   isCorrect 
                                     ? 'bg-green-500 text-white' 
-                                    : isWrongSelection
+                                    : isSelected && !isCorrect
+                                    ? 'bg-red-500 text-white'
+                                    : 'bg-gray-200 text-gray-600'
+                                }`}>
+                                  {String.fromCharCode(65 + index)}
+                                </span>
+                                <span className="flex-1">{option}</span>
+                                {isCorrect && (
+                                  <CheckCircle className="w-5 h-5 text-green-600" />
+                                )}
+                                {isSelected && !isCorrect && (
+                                  <XCircle className="w-5 h-5 text-red-600" />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }) : Object.entries(options).map(([key, value]) => {
+                          const isCorrect = Array.isArray(result.correctAnswers) ? result.correctAnswers.includes(value) : key === correctAnswer;
+                          const isSelected = userAnswer === value; // Fix: Check if this option was selected by user
+                          const isWrongSelection = isSelected && !isCorrect;
+                          
+                          return (
+                            <div
+                              key={key}
+                              className={`p-3 border rounded-lg ${
+                                isCorrect 
+                                  ? 'border-green-500 bg-green-100 text-green-800' 
+                                  : isSelected && !isCorrect
+                                  ? 'border-red-500 bg-red-100 text-red-800'
+                                  : 'border-gray-200 bg-white text-gray-700'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
+                                  isCorrect 
+                                    ? 'bg-green-500 text-white' 
+                                    : isSelected && !isCorrect
                                     ? 'bg-red-500 text-white'
                                     : 'bg-gray-200 text-gray-600'
                                 }`}>
@@ -427,7 +463,7 @@ const ContestResults = () => {
                                 {isCorrect && (
                                   <CheckCircle className="w-5 h-5 text-green-600" />
                                 )}
-                                {isWrongSelection && (
+                                {isSelected && !isCorrect && (
                                   <XCircle className="w-5 h-5 text-red-600" />
                                 )}
                               </div>
@@ -497,7 +533,34 @@ const ContestResults = () => {
                       <p className="text-lg text-gray-900 font-medium mb-4">{result.question}</p>
                       
                       <div className="space-y-2">
-                        {Object.entries(options).map(([key, value]) => {
+                        {Array.isArray(options) ? options.map((option, index) => {
+                          const isCorrect = Array.isArray(result.correctAnswers) && result.correctAnswers.includes(option);
+                          
+                          return (
+                            <div
+                              key={index}
+                              className={`p-3 border rounded-lg ${
+                                isCorrect 
+                                  ? 'border-green-500 bg-green-100 text-green-800' 
+                                  : 'border-gray-200 bg-white text-gray-700'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
+                                  isCorrect 
+                                    ? 'bg-green-500 text-white' 
+                                    : 'bg-gray-200 text-gray-600'
+                                }`}>
+                                  {String.fromCharCode(65 + index)}
+                                </span>
+                                <span className="flex-1">{option}</span>
+                                {isCorrect && (
+                                  <CheckCircle className="w-5 h-5 text-green-600" />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }) : Object.entries(options).map(([key, value]) => {
                           const isCorrect = key === correctAnswer;
                           
                           return (

@@ -149,9 +149,25 @@ const Resource = ({ user }) => {
 
   // Initialize answers and explanations when questions change
   useEffect(() => {
-    setAnswers(Array(mcqs.length).fill(null));
+    setAnswers(Array(mcqs.length).fill(undefined));
     setShowExplanation(Array(mcqs.length).fill(false));
   }, [mcqs]);
+
+  // Clear answers when category changes
+  useEffect(() => {
+    clearAnswers();
+  }, [selectedCategory]);
+
+  // Clear answers when filters change
+  const clearAnswers = () => {
+    setAnswers(Array(mcqs.length).fill(undefined));
+    setShowExplanation(Array(mcqs.length).fill(false));
+  };
+
+  // Clear answers when filters change
+  useEffect(() => {
+    clearAnswers();
+  }, [mcqSubcategory, mcqLevel, searchQuery]);
 
   // Fetch bookmarks for the user
   useEffect(() => {
@@ -371,16 +387,17 @@ const Resource = ({ user }) => {
 
   // Handle option selection
   const handleOptionSelect = (qIdx, key, correctAns) => {
+    // Prevent multiple selections - only allow one answer per question
     const updated = [...answers];
     updated[qIdx] = key;
     setAnswers(updated);
-    if (key !== correctAns) {
+    
+    // Always show explanation after selection
       setShowExplanation(prev => {
         const updatedShow = [...prev];
         updatedShow[qIdx] = true;
         return updatedShow;
       });
-    }
   };
 
   // Handle show explanation
@@ -527,11 +544,11 @@ const Resource = ({ user }) => {
           category: 'Aptitude',
           subcategory: '',
           level: 'easy',
+          videoUrl: '',
           question: '',
           options: ['', '', '', ''],
           correctAnswer: 0,
-          explanation: '',
-          videoUrl: ''
+          explanation: ''
         });
         setSelectedFile(null);
         setResourceType('pdf');
@@ -857,8 +874,34 @@ const Resource = ({ user }) => {
               <div className="p-6">
                                 {activeTab === 'mcqs' && (
                   <div>
-                    <h2 className="text-2xl font-bold mb-4 text-black">Free Practice</h2>
-                    <div className="flex flex-wrap gap-4 mb-4">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">MCQ Practice</h2>
+                        <p className="text-sm text-gray-600">{filteredMCQs.length} questions available</p>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        {filteredMCQs.length > 0 && (
+                          <button
+                            onClick={clearAnswers}
+                            className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                          >
+                            Clear All Answers
+                          </button>
+                        )}
+                        {canAddResource && (
+                          <button
+                            onClick={() => setShowAddModal(true)}
+                            className="flex items-center space-x-2 px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Add MCQ</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Filter Controls */}
+                    <div className="flex flex-wrap gap-4 mb-6">
                       <div>
                         <label className="block text-sm font-semibold mb-1">Subcategory</label>
                         <select
@@ -958,26 +1001,56 @@ const Resource = ({ user }) => {
                             <div className="mb-4 text-black font-medium text-lg">{q.question}</div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
-                              {Object.entries(q.options).map(([key, option]) => {
+                              {Array.isArray(q.options) ? q.options.map((option, index) => {
                               const selected = answers[idx];
                               const isCorrect = Array.isArray(q.correctAnswers) && q.correctAnswers.includes(option);
-                                let btnClass = 'border-gray-300 bg-gray-50';
+                                let btnClass = 'border-gray-300 bg-gray-50 hover:bg-gray-100';
                                 
-                              if (selected) {
-                                  if (selected === key && isCorrect) {
-                                    btnClass = 'border-green-600 bg-green-50 text-green-800';
-                                  } else if (selected === key && !isCorrect) {
-                                    btnClass = 'border-red-600 bg-red-50 text-red-800';
-                                  } else if (isCorrect && selected !== key) {
-                                    btnClass = 'border-green-600 bg-green-50 text-green-800';
-                              }
+                                // Apply highlighting based on selection and correctness
+                                if (selected === index) {
+                                  // User selected this option
+                                  if (isCorrect) {
+                                    btnClass = 'border-green-600 bg-green-100 text-green-800';
+                                  } else {
+                                    btnClass = 'border-red-600 bg-red-100 text-red-800';
+                                  }
+                                } else if (isCorrect && selected !== undefined) {
+                                  // User selected wrong option, show correct answer
+                                  btnClass = 'border-green-600 bg-green-100 text-green-800';
+                                }
+                                
+                                return (
+                                  <button
+                                    key={index}
+                                    onClick={() => handleOptionSelect(idx, index)}
+                                    className={`px-4 py-2 rounded border font-medium text-left transition ${btnClass}`}
+                                  >
+                                    {String.fromCharCode(65 + index)}. {option}
+                                  </button>
+                                );
+                              }) : Object.entries(q.options).map(([key, option]) => {
+                                const selected = answers[idx];
+                                const isCorrect = Array.isArray(q.correctAnswers) && q.correctAnswers.includes(option);
+                                let btnClass = 'border-gray-300 bg-gray-50 hover:bg-gray-100';
+                                
+                                // Apply highlighting based on selection and correctness
+                                if (selected === key) {
+                                  // User selected this option
+                                  if (isCorrect) {
+                                    btnClass = 'border-green-600 bg-green-100 text-green-800';
+                                  } else {
+                                    btnClass = 'border-red-600 bg-red-100 text-red-800';
+                                  }
+                                } else if (isCorrect && selected !== undefined) {
+                                  // User selected wrong option, show correct answer
+                                  btnClass = 'border-green-600 bg-green-100 text-green-800';
                                 }
                                 
                               return (
                                   <button
                                     key={key}
-                                    onClick={() => handleOptionSelect(idx, key, (q.correctAnswers || []).map(v => v))}
-                                    className={`px-4 py-2 rounded border font-medium text-left transition ${btnClass} hover:bg-gray-100`}
+                                    onClick={() => handleOptionSelect(idx, key)}
+                                    className={`px-4 py-2 rounded border font-medium text-left transition ${btnClass}`}
                                   >
                                     {key.toUpperCase()}. {option}
                                   </button>
@@ -995,7 +1068,15 @@ const Resource = ({ user }) => {
                             {showExplanation[idx] && (
                               <div className="bg-black text-white p-4 mt-2 rounded">
                                 <div className="font-semibold mb-1">Explanation:</div>
-                                <div className="mb-1">Correct Answer(s): <span className="font-bold text-green-700">{Array.isArray(q.correctAnswers) ? q.correctAnswers.join(', ') : ''}</span></div>
+                                {answers[idx] !== undefined && (
+                                  <div className="mb-2">
+                                    <span className="text-gray-300">Your Answer: </span>
+                                    <span className={`font-bold ${Array.isArray(q.correctAnswers) && q.correctAnswers.includes(Array.isArray(q.options) ? q.options[answers[idx]] : q.options[answers[idx]]) ? 'text-green-400' : 'text-red-400'}`}>
+                                      {Array.isArray(q.options) ? q.options[answers[idx]] : q.options[answers[idx]]}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="mb-1">Correct Answer(s): <span className="font-bold text-green-400">{Array.isArray(q.correctAnswers) ? q.correctAnswers.join(', ') : ''}</span></div>
                                 <div>{q.explanation}</div>
                               </div>
                             )}

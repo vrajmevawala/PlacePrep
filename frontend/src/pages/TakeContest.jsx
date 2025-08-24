@@ -169,10 +169,26 @@ const TakeContest = () => {
     try {
       // Transform answers to the format the backend expects
       // Include ALL questions (even with empty answers)
-      const answersArray = questions.map(question => ({
-        questionId: question.id,
-        selectedOption: answers[question.id] && answers[question.id].trim() !== '' ? answers[question.id] : '' // Use empty string if no answer
-      }));
+      const answersArray = questions.map(question => {
+        const answerIndex = answers[question.id];
+        let selectedOption = '';
+        
+        if (answerIndex && answerIndex !== '') {
+          // Convert numeric index to actual option text
+          if (Array.isArray(question.options)) {
+            // New structure: get option text from index
+            selectedOption = question.options[answerIndex] || '';
+          } else {
+            // Old structure: get option text from key
+            selectedOption = question.options[answerIndex] || '';
+          }
+        }
+        
+        return {
+          questionId: question.id,
+          selectedOption: selectedOption
+        };
+      });
       const submissionData = {
         answers: answersArray,
         autoSubmitted: !hasAnswers, // Flag to indicate auto-submission
@@ -532,9 +548,11 @@ const TakeContest = () => {
   };
 
   const handleAnswerChange = (questionId, answer) => {
+    // Convert answer to number if it's a string representing an index
+    const answerValue = isNaN(answer) ? answer : Number(answer);
     setAnswers(prev => ({
       ...prev,
-      [questionId]: answer
+      [questionId]: answerValue
     }));
   };
 
@@ -613,7 +631,7 @@ const TakeContest = () => {
     return (
       <div className="page flex items-center justify-center">
         <div className="text-center">
-          <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <alertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
           <p className="text-red-600 font-medium">{error}</p>
           <button
             onClick={() => navigate('/contests')}
@@ -706,7 +724,7 @@ const TakeContest = () => {
             {/* Violation Counter */}
             {violationCount > 0 && (
               <div className="flex items-center space-x-2 px-3 py-2 border border-red-300 bg-red-50">
-                <AlertTriangle className="w-4 h-4 text-red-600" />
+                <alertTriangle className="w-4 h-4 text-red-600" />
                 <span className="text-sm font-semibold text-red-600">
                   Violations: {violationCount}/2
                 </span>
@@ -750,7 +768,30 @@ const TakeContest = () => {
 
             {/* Options */}
             <div className="space-y-3">
-              {Object.keys(currentQuestion.options)
+              {Array.isArray(currentQuestion.options) ? currentQuestion.options
+                .filter((option, index) => option && option.trim() !== '')
+                .map((option, index) => (
+                  <label
+                    key={index}
+                    className={`flex items-center space-x-3 p-4 border cursor-pointer transition-colors ${
+                      answers[currentQuestion.id] === index
+                        ? 'border-black bg-gray-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`question-${currentQuestion.id}`}
+                      value={index}
+                      checked={answers[currentQuestion.id] === index}
+                      onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
+                      className="w-4 h-4 text-black border-gray-300 focus:ring-black"
+                    />
+                    <span className="font-medium text-gray-900">
+                      {String.fromCharCode(65 + index)}. {option}
+                    </span>
+                  </label>
+                )) : Object.keys(currentQuestion.options)
                 .filter(option => currentQuestion.options[option] && currentQuestion.options[option].trim() !== '')
                 .map(option => (
                   <label
@@ -918,7 +959,7 @@ const TakeContest = () => {
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-lg max-w-md mx-4 text-center">
             <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-8 h-8 text-yellow-600" />
+              <alertTriangle className="w-8 h-8 text-yellow-600" />
             </div>
             <h3 className="text-xl font-bold text-black mb-2">Security Warning!</h3>
             <p className="text-gray-600 mb-4">
@@ -953,7 +994,7 @@ const TakeContest = () => {
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-lg max-w-md mx-4 text-center">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-8 h-8 text-red-600" />
+              <alertTriangle className="w-8 h-8 text-red-600" />
             </div>
             <h3 className="text-xl font-bold text-black mb-2">Final Security Violation!</h3>
             <p className="text-gray-600 mb-4">

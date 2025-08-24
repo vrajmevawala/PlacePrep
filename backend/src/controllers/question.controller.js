@@ -18,14 +18,38 @@ export const addQuestion = async (req, res) => {
       return res.status(403).json({ message: 'Only admin or moderator can add questions.' });
     }
 
-    if (!category || !subcategory || !level || !question || !options) {
-      return res.status(400).json({ message: 'All required fields must be provided.' });
+    if (!category || !subcategory || !level || !question || !options || !Array.isArray(options)) {
+      return res.status(400).json({ message: 'All required fields must be provided. Options must be an array.' });
     }
+    
+    // Validate options array has 4 elements
+    if (options.length !== 4) {
+      return res.status(400).json({ message: 'Options must be an array with exactly 4 elements.' });
+    }
+    
+    // Validate all options have content
+    if (options.some(opt => !opt || opt.trim() === '')) {
+      return res.status(400).json({ message: 'All options must have content.' });
+    }
+    
     const normalizedCorrectAnswers = Array.isArray(req.body.correctAnswers)
       ? req.body.correctAnswers.map(s => String(s).trim()).filter(Boolean)
       : (req.body.correctAnswers || req.body.correctAns)
         ? String(req.body.correctAnswers || req.body.correctAns).split(',').map(s => s.trim()).filter(Boolean)
         : [];
+
+    if (normalizedCorrectAnswers.length === 0) {
+      return res.status(400).json({ message: 'At least one correct answer must be provided.' });
+    }
+    
+    // Validate that correct answers exist in options
+    const validCorrectAnswers = normalizedCorrectAnswers.filter(correct => 
+      options.some(opt => opt.trim() === correct.trim())
+    );
+    
+    if (validCorrectAnswers.length === 0) {
+      return res.status(400).json({ message: 'Correct answers must match one of the provided options exactly.' });
+    }
 
     const newQuestion = await prisma.question.create({
       data: {
@@ -79,7 +103,7 @@ export const addQuestionsFromExcel = async (req, res) => {
         level: row.getCell(headerIndexMap.get('level') || 3).value ?? '',
         question: row.getCell(headerIndexMap.get('question') || 4).value ?? '',
         options: row.getCell(headerIndexMap.get('options') || 5).value ?? '',
-        correctAns: row.getCell(headerIndexMap.get('correctAns') || 6).value ?? '',
+        correctAnswers: row.getCell(headerIndexMap.get('correctAnswers') || 6).value ?? '',
         explanation: row.getCell(headerIndexMap.get('explanation') || 7).value ?? '',
         visibility: row.getCell(headerIndexMap.get('visibility') || 8).value
       };
@@ -104,18 +128,35 @@ export const addQuestionsFromExcel = async (req, res) => {
       subcategory: row.subcategory,
       level: row.level,
       question: row.question,
-      options: typeof row.options === 'string' ? JSON.parse(row.options) : row.options,
+      options: typeof row.options === 'string' ? 
+        (row.options.startsWith('[') ? JSON.parse(row.options) : row.options.split(',').map(s => s.trim())) : 
+        (Array.isArray(row.options) ? row.options : []),
       correctAnswers: row.correctAnswers
         ? (Array.isArray(row.correctAnswers) ? row.correctAnswers : String(row.correctAnswers).split(',').map(s => s.trim()).filter(Boolean))
-        : (row.correctAns ? String(row.correctAns).split(',').map(s => s.trim()).filter(Boolean) : []),
+        : [],
       explanation: row.explanation || '',
       visibility: row.visibility !== undefined ? row.visibility : defaultVisibility,
       createdBy: userId,
     }));
+    
     // Basic validation
     for (const q of questionsToInsert) {
-      if (!q.category || !q.subcategory || !q.level || !q.question || !q.options || !q.correctAnswers || q.correctAnswers.length === 0) {
-        return res.status(400).json({ message: 'Missing required fields in one or more rows.' });
+      if (!q.category || !q.subcategory || !q.level || !q.question || !Array.isArray(q.options) || q.options.length !== 4 || !q.correctAnswers || q.correctAnswers.length === 0) {
+        return res.status(400).json({ message: 'Missing required fields or invalid options structure in one or more rows.' });
+      }
+      
+      // Validate all options have content
+      if (q.options.some(opt => !opt || opt.trim() === '')) {
+        return res.status(400).json({ message: 'All options must have content in one or more rows.' });
+      }
+      
+      // Validate that correct answers exist in options
+      const validCorrectAnswers = q.correctAnswers.filter(correct => 
+        q.options.some(opt => opt.trim() === correct.trim())
+      );
+      
+      if (validCorrectAnswers.length === 0) {
+        return res.status(400).json({ message: 'Correct answers must match one of the provided options exactly in one or more rows.' });
       }
     }
     const createdQuestions = await prisma.question.createMany({ data: questionsToInsert });
@@ -149,22 +190,40 @@ export const addQuestionsFromJson = async (req, res) => {
     // Get visibility from form data or default to true
     const defaultVisibility = req.body.visibility === 'false' ? false : true;
     
-    const questionsToInsert = rows.map(row => ({
-      category: row.category,
-      subcategory: row.subcategory,
-      level: row.level,
-      question: row.question,
-      options: typeof row.options === 'string' ? JSON.parse(row.options) : row.options,
-      correctAnswers: row.correctAnswers
-        ? (Array.isArray(row.correctAnswers) ? row.correctAnswers : String(row.correctAnswers).split(',').map(s => s.trim()).filter(Boolean))
-        : (row.correctAns ? String(row.correctAns).split(',').map(s => s.trim()).filter(Boolean) : []),
-      explanation: row.explanation || '',
-      visibility: row.visibility !== undefined ? row.visibility : defaultVisibility,
+    // Validate and insert questions
+    const questionsToInsert = rows.map(q => ({
+      category: q.category,
+      subcategory: q.subcategory,
+      level: q.level,
+      question: q.question,
+      options: Array.isArray(q.options) ? q.options : 
+        (typeof q.options === 'string' ? q.options.split(',').map(s => s.trim()) : []),
+      correctAnswers: q.correctAnswers
+        ? (Array.isArray(q.correctAnswers) ? q.correctAnswers : String(q.correctAnswers).split(',').map(s => s.trim()).filter(Boolean))
+        : [],
+      explanation: q.explanation || '',
+      visibility: q.visibility !== undefined ? q.visibility : defaultVisibility,
       createdBy: userId,
     }));
+    
+    // Basic validation
     for (const q of questionsToInsert) {
-      if (!q.category || !q.subcategory || !q.level || !q.question || !q.options || !q.correctAnswers || q.correctAnswers.length === 0) {
-        return res.status(400).json({ message: 'Missing required fields in one or more rows.' });
+      if (!q.category || !q.subcategory || !q.level || !q.question || !Array.isArray(q.options) || q.options.length !== 4 || !q.correctAnswers || q.correctAnswers.length === 0) {
+        return res.status(400).json({ message: 'Missing required fields or invalid options structure in one or more questions.' });
+      }
+      
+      // Validate all options have content
+      if (q.options.some(opt => !opt || opt.trim() === '')) {
+        return res.status(400).json({ message: 'All options must have content in one or more questions.' });
+      }
+      
+      // Validate that correct answers exist in options
+      const validCorrectAnswers = q.correctAnswers.filter(correct => 
+        q.options.some(opt => opt.trim() === correct.trim())
+      );
+      
+      if (validCorrectAnswers.length === 0) {
+        return res.status(400).json({ message: 'Correct answers must match one of the provided options exactly in one or more questions.' });
       }
     }
     const createdQuestions = await prisma.question.createMany({ data: questionsToInsert });

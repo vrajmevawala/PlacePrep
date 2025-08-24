@@ -13,7 +13,9 @@ import {
     getModerators,
     getUserAnalytics,
     getActivityLogs,
-    deleteModerator
+    deleteModerator,
+    verifyEmail,
+    resendVerificationCode
 } from "../controllers/auth.controller.js";
 import { requireAdmin, requireAdminOrModerator } from "../middleware/role.middleware.js";
 import authMiddleware from '../middleware/auth.middleware.js';
@@ -25,6 +27,8 @@ router.post("/login", login);
 router.post("/logout", logout);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
+router.post("/verify-email", verifyEmail);
+router.post("/resend-verification", resendVerificationCode);
 
 router.post("/create-moderator", authMiddleware, requireAdmin, createModerator);
 router.delete("/moderators/:id", authMiddleware, requireAdmin, deleteModerator);

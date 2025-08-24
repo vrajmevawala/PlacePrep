@@ -60,7 +60,7 @@ export const NotificationProvider = ({ children, user }) => {
     newSocket.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
       setIsConnected(false);
-      toast.error(`Failed to connect to notification server: ${error.message}`);
+      alert(`Failed to connect to notification server: ${error.message}`);
     });
 
     newSocket.on('error', (error) => {

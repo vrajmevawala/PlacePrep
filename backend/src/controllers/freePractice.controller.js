@@ -172,41 +172,65 @@ export const submitPracticeTest = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
     const { answers } = req.body; // [{ questionId, selectedOption }]
+    
+    console.log('Received answers:', answers); // Debug log
+    
     // Only allow the creator to submit
-    const freePractice = await prisma.freePractice.findUnique({ where: { id: Number(id) } });
+    const freePractice = await prisma.freePractice.findUnique({ 
+      where: { id: Number(id) },
+      include: { questions: true }
+    });
     if (!freePractice || freePractice.createdBy !== userId) {
       return res.status(403).json({ message: 'Not authorized.' });
     }
+    
     // Set endTime
     await prisma.freePractice.update({
       where: { id: Number(id) },
       data: { endTime: new Date() },
     });
+    
     // Log student activity for each question
     const now = new Date();
     for (const ans of answers) {
+      // Handle both selectedOption (frontend) and selectedAnswer (backend)
+      const selectedAnswer = ans.selectedOption || ans.selectedAnswer;
+      
+      if (!selectedAnswer) {
+        console.warn('No selected answer for question:', ans.questionId);
+        continue;
+      }
+      
       await prisma.studentActivity.create({
         data: {
           sid: userId,
           qid: ans.questionId,
           freePracticeId: Number(id),
           time: now,
-          selectedAnswer: ans.selectedOption
+          selectedAnswer: String(selectedAnswer) // Ensure it's a string
         }
       });
     }
+    
     // Update endTime of latest Participation for this user and freePractice
-    await prisma.participation.updateMany({
+    // Only update if participation exists
+    const participation = await prisma.participation.findFirst({
       where: {
         sid: userId,
         freePracticeId: Number(id),
       },
-      data: {
-        endTime: now
-      }
     });
+    
+    if (participation) {
+      await prisma.participation.update({
+        where: { pid: participation.pid },
+        data: { endTime: now }
+      });
+    }
+    
     res.json({ message: 'Practice test submitted.' });
   } catch (error) {
+    console.error('Practice test submission error:', error);
     res.status(500).json({ message: error.message });
   }
 };

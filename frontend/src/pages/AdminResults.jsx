@@ -245,9 +245,17 @@ const AdminResults = ({ user, embedded = false }) => {
   };
 
   const getAnswerStatus = (userAnswer, correctAnswer) => {
-    if (userAnswer === correctAnswer) return 'correct';
-    if (userAnswer === null || userAnswer === undefined) return 'unanswered';
-    return 'incorrect';
+    if (Array.isArray(correctAnswer)) {
+      // New array-based structure
+      if (userAnswer && correctAnswer.includes(userAnswer)) return 'correct';
+      if (userAnswer === null || userAnswer === undefined) return 'unanswered';
+      return 'incorrect';
+    } else {
+      // Old string-based structure (backward compatibility)
+      if (userAnswer === correctAnswer) return 'correct';
+      if (userAnswer === null || userAnswer === undefined) return 'unanswered';
+      return 'incorrect';
+    }
   };
 
   const getAnswerStatusIcon = (status) => {
@@ -869,13 +877,21 @@ const AdminResults = ({ user, embedded = false }) => {
                                     </td>
                                     <td className="px-6 py-4">
                                       <div className="space-y-2">
-                                        {['a','b','c','d'].map((optKey) => (
-                                          <div key={optKey} className="flex items-start justify-between">
+                                        {Array.isArray(question.options) ? question.options.map((option, index) => (
+                                          <div key={index} className={`flex items-start justify-between ${Array.isArray(question.correctAnswers) && question.correctAnswers.includes(option) ? 'font-semibold text-green-700' : ''}`}>
                                             <div className="text-sm text-gray-700 pr-4">
-                                              <span className="font-medium uppercase">{optKey}) </span>
-                                              {question.options?.[optKey] || '-'}
+                                              <span className="font-medium uppercase">{String.fromCharCode(97 + index)} </span>
+                                              {option}
                                             </div>
-                                            <span className="ml-2 text-xs text-gray-600">selected: {question.optionCounts?.[optKey] || 0}</span>
+                                            <span className="ml-2 text-xs text-gray-600">selected: {question.optionCounts?.[option] || 0}</span>
+                                          </div>
+                                        )) : ['a','b','c','d'].map(key => (
+                                          <div key={key} className={`flex items-start justify-between ${question.correctAnswer === key ? 'font-semibold text-green-700' : ''}`}>
+                                            <div className="text-sm text-gray-700 pr-4">
+                                              <span className="font-medium uppercase">{key} </span>
+                                              {question.options?.[key] || '-'}
+                                            </div>
+                                            <span className="ml-2 text-xs text-gray-600">selected: {question.optionCounts?.[key] || 0}</span>
                                           </div>
                                         ))}
                                         <div className="flex items-center justify-between text-xs text-gray-500">
@@ -1143,7 +1159,12 @@ const AdminResults = ({ user, embedded = false }) => {
                         <div className="pr-4">
                           <div className="text-sm font-medium text-gray-900">Q{idx + 1}. {q.question}</div>
                           <div className="mt-2 space-y-1 text-sm text-gray-700">
-                            {['a','b','c','d'].map(key => (
+                            {Array.isArray(q.options) ? q.options.map((option, index) => (
+                              <div key={index} className={`flex items-center ${Array.isArray(q.correctAnswers) && q.correctAnswers.includes(option) ? 'font-semibold text-green-700' : ''}`}>
+                                <span className="uppercase mr-2">{String.fromCharCode(97 + index)})</span>
+                                <span>{option}</span>
+                              </div>
+                            )) : ['a','b','c','d'].map(key => (
                               <div key={key} className={`flex items-center ${q.correctAnswer === key ? 'font-semibold text-green-700' : ''}`}>
                                 <span className="uppercase mr-2">{key})</span>
                                 <span>{q.options?.[key]}</span>
@@ -1154,7 +1175,11 @@ const AdminResults = ({ user, embedded = false }) => {
                         <div className="min-w-[160px] text-right">
                           <div className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${q.isCorrect ? 'bg-green-100 text-green-800' : q.userAnswer ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>{q.isCorrect ? 'Correct' : q.userAnswer ? 'Incorrect' : 'Not answered'}</div>
                           <div className="text-xs text-gray-600 mt-2">Your answer: {q.userAnswer || '-'}</div>
-                          <div className="text-xs text-gray-600">Correct: {q.correctAnswer}</div>
+                          <div className="text-xs text-gray-600">Correct: {
+                            Array.isArray(q.correctAnswers) 
+                              ? q.correctAnswers.join(', ')
+                              : q.correctAnswer || 'Not available'
+                          }</div>
                         </div>
                       </div>
                       {q.explanation && (

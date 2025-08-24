@@ -88,7 +88,7 @@ const Contest = ({ user }) => {
       case 'completed':
         return <CheckCircle className="w-4 h-4" />;
       default:
-        return <AlertCircle className="w-4 h-4" />;
+        return <alertCircle className="w-4 h-4" />;
     }
   };
 
@@ -154,9 +154,9 @@ const Contest = ({ user }) => {
     
     if (status === 'upcoming') {
       return {
-        type: 'join',
-        label: contest.requiresCode ? 'Join with Code' : 'Join Contest',
-        className: 'bg-blue-600 text-white hover:bg-blue-700'
+        type: 'disabled',
+        label: 'Not Started Yet',
+        className: 'bg-gray-400 text-white cursor-not-allowed'
       };
     }
     
@@ -191,6 +191,12 @@ const Contest = ({ user }) => {
       if (status === 'completed') {
         // If contest is completed, navigate to results
         navigate(`/contest-results/${contest.id}`);
+        return;
+      }
+      
+      // Check if contest hasn't started yet
+      if (status === 'upcoming') {
+        setError('Contest has not started yet. Please wait until the start time.');
         return;
       }
       
@@ -281,7 +287,7 @@ const Contest = ({ user }) => {
         {error && (
           <div className="bg-red-50 border border-red-200 p-4 mb-6">
             <div className="flex items-center space-x-2">
-              <AlertCircle className="w-5 h-5 text-red-600" />
+              <alertCircle className="w-5 h-5 text-red-600" />
               <p className="text-red-700 font-medium">{error}</p>
             </div>
           </div>

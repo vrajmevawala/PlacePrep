@@ -1,20 +1,102 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, Activity, BarChart3, Eye, Plus, Trophy, FileText, Tag, Edit, Trash2, Video, X, Upload } from 'lucide-react';
+import { Users, Activity, BarChart3, Eye, Plus, Trophy, FileText, Tag, Edit, Trash2, Video, X, Upload, Pencil } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
+// Pagination component - moved outside main component
+const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+  const pages = [];
+  const maxVisiblePages = 5;
+
+  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+  if (endPage - startPage + 1 < maxVisiblePages) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+
+  for (let i = startPage; i <= endPage; i++) {
+    pages.push(i);
+  }
+
+  return (
+    <div className="flex items-center justify-center space-x-2 mt-6">
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Previous
+      </button>
+
+      {startPage > 1 && (
+        <>
+          <button
+            onClick={() => onPageChange(1)}
+            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            1
+          </button>
+          {startPage > 2 && (
+            <span className="px-2 text-gray-500">...</span>
+          )}
+        </>
+      )}
+
+      {pages.map(page => (
+        <button
+          key={page}
+          onClick={() => onPageChange(page)}
+          className={`px-3 py-2 text-sm font-medium rounded-md ${
+            currentPage === page
+              ? 'bg-black text-white'
+              : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          {page}
+        </button>
+      ))}
+
+      {endPage < totalPages && (
+        <>
+          {endPage < totalPages - 1 && (
+            <span className="px-2 text-gray-500">...</span>
+          )}
+          <button
+            onClick={() => onPageChange(totalPages)}
+            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            {totalPages}
+          </button>
+        </>
+      )}
+
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Next
+      </button>
+    </div>
+  );
+};
+
 const ModeratorDashboard = ({ user }) => {
+  console.log('ModeratorDashboard component loaded'); // Debug log
+  
   const location = useLocation();
+  const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState('overview');
   const [showForm, setShowForm] = useState(false);
   const [showPdfForm, setShowPdfForm] = useState(false);
   const [showVideoForm, setShowVideoForm] = useState(false);
   const [form, setForm] = useState({
+    question: '',
     category: 'Aptitude',
     subcategory: '',
     level: 'easy',
-    question: '',
-    options: { a: '', b: '', c: '', d: '' },
-    correctAns: '',
+    options: ['', '', '', ''], // Changed from { a: '', b: '', c: '', d: '' } to array
+    correctAnswers: [''], // Array of correct answer strings
     explanation: ''
   });
   const [pdfForm, setPdfForm] = useState({
@@ -40,8 +122,8 @@ const ModeratorDashboard = ({ user }) => {
     numberOfQuestions: 1,
     questions: [{
       question: '',
-      options: { a: '', b: '', c: '', d: '' },
-      correctAns: '',
+      options: ['', '', '', ''],
+      correctAnswers: [],
       explanation: '',
       subcategory: '',
       level: ''
@@ -63,6 +145,20 @@ const ModeratorDashboard = ({ user }) => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [userResults, setUserResults] = useState([]);
+  
+  // Add missing state variables for resources
+  const [resourceView, setResourceView] = useState('questions');
+  const [resources, setResources] = useState([]);
+  const [selectedMCQIds, setSelectedMCQIds] = useState([]);
+  const [selectedResourceIds, setSelectedResourceIds] = useState([]);
+  
+  // Add missing state variables for contests
+  const [contestSort, setContestSort] = useState({ field: 'startTime', order: 'desc' });
+  const [contestStatus, setContestStatus] = useState('all');
+  const [contestCodeFilter, setContestCodeFilter] = useState('all');
+  const [selectedContestIds, setSelectedContestIds] = useState([]);
+  
+  console.log('State variables defined:', { resourceView, selectedContestIds }); // Debug log
   
   // Helper to get contest status
   const getContestStatus = (contest) => {
@@ -182,6 +278,22 @@ const ModeratorDashboard = ({ user }) => {
     }
   }, [selectedTab]);
 
+  // Fetch resources
+  useEffect(() => {
+    if (selectedTab === 'resources') {
+      fetch('/api/resources', { credentials: 'include' })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to fetch resources');
+          return res.json();
+        })
+        .then(data => setResources(data.resources || []))
+        .catch(error => {
+          console.error('Error fetching resources:', error);
+          setResources([]);
+        });
+    }
+  }, [selectedTab]);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
@@ -193,9 +305,22 @@ const ModeratorDashboard = ({ user }) => {
 
   // Handlers for Add Question
   const handleChange = e => {
-    const { name, value } = e.target;
-    if (["a", "b", "c", "d"].includes(name)) {
-      setForm(f => ({ ...f, options: { ...f.options, [name]: value } }));
+    const { name, value, type, checked } = e.target;
+    if ([0, 1, 2, 3].includes(Number(name))) {
+      // Handle array-based options
+      setForm(f => ({ 
+        ...f, 
+        options: f.options.map((opt, i) => i === Number(name) ? value : opt) 
+      }));
+    } else if (name.startsWith('correct-')) {
+      // Handle correct answer checkboxes
+      const index = Number(name.replace('correct-', ''));
+      setForm(f => {
+        const next = new Set(f.correctAnswers || []);
+        const optVal = f.options[index] || '';
+        if (checked) next.add(optVal); else next.delete(optVal);
+        return { ...f, correctAnswers: Array.from(next).filter(Boolean) };
+      });
     } else {
       setForm(f => ({ ...f, [name]: value }));
     }
@@ -218,12 +343,12 @@ const ModeratorDashboard = ({ user }) => {
     setShowForm(false);
       // Reset form
       setForm({
+        question: '',
         category: 'Aptitude',
         subcategory: '',
         level: 'easy',
-        question: '',
-        options: { a: '', b: '', c: '', d: '' },
-        correctAns: '',
+        options: ['', '', '', ''], // Changed from { a: '', b: '', c: '', d: '' } to array
+        correctAnswers: [''], // Array of correct answer strings
         explanation: ''
       });
       
@@ -329,8 +454,8 @@ const ModeratorDashboard = ({ user }) => {
         numberOfQuestions: num,
         questions: Array.from({ length: num }, (_, i) => f.questions[i] || {
           question: '',
-          options: { a: '', b: '', c: '', d: '' },
-          correctAns: '',
+          options: ['', '', '', ''],
+          correctAnswers: [],
           explanation: '',
           subcategory: '',
           level: ''
@@ -342,14 +467,21 @@ const ModeratorDashboard = ({ user }) => {
     }
   };
   const handleContestQuestionChange = e => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setContestForm(f => {
       const updatedQuestions = [...f.questions];
-      if (["a", "b", "c", "d"].includes(name)) {
-        updatedQuestions[currentQuestionIdx].options = {
-          ...updatedQuestions[currentQuestionIdx].options,
-          [name]: value
-        };
+      if ([0, 1, 2, 3].includes(Number(name))) {
+        // Handle array-based options
+        updatedQuestions[currentQuestionIdx].options = updatedQuestions[currentQuestionIdx].options.map((opt, i) => 
+          i === Number(name) ? value : opt
+        );
+      } else if (name.startsWith('correct-')) {
+        // Handle correct answer checkboxes
+        const index = Number(name.replace('correct-', ''));
+        const next = new Set(updatedQuestions[currentQuestionIdx].correctAnswers || []);
+        const optVal = updatedQuestions[currentQuestionIdx].options[index] || '';
+        if (checked) next.add(optVal); else next.delete(optVal);
+        updatedQuestions[currentQuestionIdx].correctAnswers = Array.from(next).filter(Boolean);
       } else {
         updatedQuestions[currentQuestionIdx][name] = value;
       }
@@ -359,7 +491,7 @@ const ModeratorDashboard = ({ user }) => {
   const handleContestSubmit = async e => {
     e.preventDefault();
     for (const q of contestForm.questions) {
-      if (!q.question || !q.options.a || !q.options.b || !q.options.c || !q.options.d || !q.correctAns || !q.explanation || !q.subcategory || !q.level) {
+      if (!q.question || !q.options[0] || !q.options[1] || !q.options[2] || !q.options[3] || !q.correctAnswers || q.correctAnswers.length === 0 || !q.explanation || !q.subcategory || !q.level) {
         alert('Please fill all fields (including subcategory and level) for every question in the contest.');
         return;
       }
@@ -417,8 +549,8 @@ const ModeratorDashboard = ({ user }) => {
       numberOfQuestions: 1,
       questions: [{
         question: '',
-        options: { a: '', b: '', c: '', d: '' },
-        correctAns: '',
+        options: ['', '', '', ''],
+        correctAnswers: [],
         explanation: '',
         subcategory: '',
         level: ''
@@ -465,7 +597,23 @@ const ModeratorDashboard = ({ user }) => {
   };
 
   const handleEditQuestion = (q) => {
-    setEditForm(q);
+    // Convert options to array if it's an object
+    let optionsArray = q.options;
+    if (!Array.isArray(q.options)) {
+      optionsArray = [q.options.a || '', q.options.b || '', q.options.c || '', q.options.d || ''];
+    }
+    
+    // Convert correctAnswers to array if it's not already
+    let correctAnswersArray = q.correctAnswers;
+    if (!Array.isArray(q.correctAnswers)) {
+      correctAnswersArray = q.correctAns ? [q.correctAns] : [];
+    }
+    
+    setEditForm({ 
+      ...q, 
+      correctAnswers: correctAnswersArray, 
+      options: optionsArray 
+    });
     setEditModalOpen(true);
   };
 
@@ -564,89 +712,23 @@ const ModeratorDashboard = ({ user }) => {
     setCurrentPage(1);
   }, [selectedTab]);
 
-  // Pagination component
-  const Pagination = ({ currentPage, totalPages, onPageChange }) => {
-    const pages = [];
-    const maxVisiblePages = 5;
-
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-    if (endPage - startPage + 1 < maxVisiblePages) {
-      startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
-
-    return (
-      <div className="flex items-center justify-center space-x-2 mt-6">
-        <button
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Previous
-        </button>
-
-        {startPage > 1 && (
-          <>
-            <button
-              onClick={() => onPageChange(1)}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              1
-            </button>
-            {startPage > 2 && (
-              <span className="px-2 text-gray-500">...</span>
-            )}
-          </>
-        )}
-
-        {pages.map(page => (
-          <button
-            key={page}
-            onClick={() => onPageChange(page)}
-            className={`px-3 py-2 text-sm font-medium rounded-md ${
-              currentPage === page
-                ? 'bg-black text-white'
-                : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            {page}
-          </button>
-        ))}
-
-        {endPage < totalPages && (
-          <>
-            {endPage < totalPages - 1 && (
-              <span className="px-2 text-gray-500">...</span>
-            )}
-            <button
-              onClick={() => onPageChange(totalPages)}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              {totalPages}
-            </button>
-          </>
-        )}
-
-        <button
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Next
-        </button>
-      </div>
-    );
-  };
-
   const handleEditFormChange = e => {
-    const { name, value } = e.target;
-    if (["a", "b", "c", "d"].includes(name)) {
-      setEditForm(f => ({ ...f, options: { ...f.options, [name]: value } }));
+    const { name, value, type, checked } = e.target;
+    if ([0, 1, 2, 3].includes(Number(name))) {
+      // Handle array-based options
+      setEditForm(f => ({ 
+        ...f, 
+        options: f.options.map((opt, i) => i === Number(name) ? value : opt) 
+      }));
+    } else if (name.startsWith('correct-')) {
+      // Handle correct answer checkboxes
+      const index = Number(name.replace('correct-', ''));
+      setEditForm(f => {
+        const next = new Set(f.correctAnswers || []);
+        const optVal = f.options[index] || '';
+        if (checked) next.add(optVal); else next.delete(optVal);
+        return { ...f, correctAnswers: Array.from(next).filter(Boolean) };
+      });
     } else {
       setEditForm(f => ({ ...f, [name]: value }));
     }
@@ -664,7 +746,7 @@ const ModeratorDashboard = ({ user }) => {
           level: editForm.level,
           question: editForm.question,
           options: editForm.options,
-          correctAns: editForm.correctAns,
+          correctAnswers: editForm.correctAnswers || [],
           explanation: editForm.explanation,
           visibility: editForm.visibility
         })
@@ -693,12 +775,172 @@ const ModeratorDashboard = ({ user }) => {
     { id: 'results', label: 'Results' },
   ];
 
+  // Add missing functions for contest management
+  const toggleSelectContest = (contestId) => {
+    setSelectedContestIds(prev => 
+      prev.includes(contestId) 
+        ? prev.filter(id => id !== contestId)
+        : [...prev, contestId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedContestIds.length === filteredContests.length) {
+      setSelectedContestIds([]);
+    } else {
+      setSelectedContestIds(filteredContests.map(c => c.id));
+    }
+  };
+
+  const handleDeleteContest = async (contest) => {
+    if (!window.confirm(`Are you sure you want to delete contest "${contest.title}"?`)) return;
+    try {
+      const res = await fetch(`/api/testseries/${contest.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        setAllContests(prev => prev.filter(c => c.id !== contest.id));
+        alert('Contest deleted successfully.');
+      } else {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to delete contest');
+      }
+    } catch (err) {
+      console.error('Error deleting contest:', err);
+      alert(err.message || 'Failed to delete contest.');
+    }
+  };
+
+  const handleBulkDeleteContests = async () => {
+    try {
+      const promises = selectedContestIds.map(id => 
+        fetch(`/api/testseries/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })
+      );
+      await Promise.all(promises);
+      setAllContests(prev => prev.filter(c => !selectedContestIds.includes(c.id)));
+      setSelectedContestIds([]);
+      alert(`${selectedContestIds.length} contests deleted successfully.`);
+    } catch (err) {
+      console.error('Error bulk deleting contests:', err);
+      alert('Failed to delete some contests.');
+    }
+  };
+
+  const handleViewContestQuestions = (contest) => {
+    // Navigate to contest details or open modal
+    navigate(`/contest/${contest.id}`);
+  };
+
+  // Add missing functions for resource management
+  const handleBulkDeleteQuestions = async () => {
+    try {
+      const promises = selectedMCQIds.map(id => 
+        fetch(`/api/questions/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })
+      );
+      await Promise.all(promises);
+      setAllQuestions(prev => prev.filter(q => !selectedMCQIds.includes(q.id)));
+      setSelectedMCQIds([]);
+      alert(`${selectedMCQIds.length} questions deleted successfully.`);
+    } catch (err) {
+      console.error('Error bulk deleting questions:', err);
+      alert('Failed to delete some questions.');
+    }
+  };
+
+  const handleBulkDeleteResources = async () => {
+    try {
+      const promises = selectedResourceIds.map(id => 
+        fetch(`/api/resources/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })
+      );
+      await Promise.all(promises);
+      setResources(prev => prev.filter(r => !selectedResourceIds.includes(r.id)));
+      setSelectedResourceIds([]);
+      alert(`${selectedResourceIds.length} resources deleted successfully.`);
+    } catch (err) {
+      console.error('Error bulk deleting resources:', err);
+      alert('Failed to delete some resources.');
+    }
+  };
+
+  const handleResourceDelete = async (resourceId) => {
+    if (!window.confirm('Are you sure you want to delete this resource?')) return;
+    try {
+      const res = await fetch(`/api/resources/${resourceId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        setResources(prev => prev.filter(r => r.id !== resourceId));
+        alert('Resource deleted successfully.');
+      } else {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to delete resource');
+      }
+    } catch (err) {
+      console.error('Error deleting resource:', err);
+      alert(err.message || 'Failed to delete resource.');
+    }
+  };
+
+  const handleResourceDownload = async (resourceId, fileName) => {
+    try {
+      const response = await fetch(`/api/resources/${resourceId}/download`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (err) {
+      console.error('Error downloading resource:', err);
+      alert('Failed to download resource.');
+    }
+  };
+
+  // Add computed properties
+  const filteredContests = allContests.filter(contest => {
+    if (contestStatus !== 'all' && getContestStatus(contest) !== contestStatus) return false;
+    if (contestCodeFilter === 'with' && !contest.requiresCode) return false;
+    if (contestCodeFilter === 'without' && contest.requiresCode) return false;
+    return true;
+  }).sort((a, b) => {
+    const aValue = a[contestSort.field];
+    const bValue = b[contestSort.field];
+    if (contestSort.order === 'asc') {
+      return new Date(aValue) - new Date(bValue);
+    } else {
+      return new Date(bValue) - new Date(aValue);
+    }
+  });
+
+  const allSelected = filteredContests.length > 0 && selectedContestIds.length === filteredContests.length;
+
   return (
     <div className="page">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold">Moderator Dashboard</h1>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Moderator Dashboard</h1>
         <p className="text-gray-600 mt-2">Manage questions, contests, and view user analytics</p>
-        <div className="my-6">
+        </div>
+        
+        <div className="mb-8">
           <div className="border-b border-gray-200">
             <nav className="flex space-x-8">
               {tabs.map((tab) => (
@@ -844,26 +1086,18 @@ const ModeratorDashboard = ({ user }) => {
           </div>
         )}
         {selectedTab === 'resources' && (
-          <div className="bg-white rounded-sm border border-gray-200">
+          <div className="bg-white rounded-lg border border-gray-200">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold mb-4">Resource Management</h2>
+              <h2 className="text-xl font-semibold text-black mb-4">Resource Management</h2>
               
               {/* Add Resource Buttons */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <button
                   onClick={() => setShowForm(true)}
                   className="flex items-center justify-center space-x-2 bg-black text-white px-6 py-4 rounded-lg hover:bg-gray-800 transition-colors"
                 >
                   <Plus className="w-5 h-5" />
                   <span>Add Question</span>
-                </button>
-                
-                <button
-                  onClick={() => setShowFileUpload(true)}
-                  className="flex items-center justify-center space-x-2 bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <Upload className="w-5 h-5" />
-                  <span>Upload Files</span>
                 </button>
                 
                 <button
@@ -882,12 +1116,93 @@ const ModeratorDashboard = ({ user }) => {
                   <span>Add Video</span>
                 </button>
               </div>
+
+              {/* Resource switcher */}
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="text-sm text-gray-600 mr-2">View:</span>
+                <button onClick={() => setResourceView('questions')} className={`px-3 py-1 rounded border ${resourceView==='questions'?'bg-black text-white border-black':'bg-white text-gray-700 border-gray-300'}`}>Questions</button>
+                <button onClick={() => setResourceView('pdf')} className={`px-3 py-1 rounded border ${resourceView==='pdf'?'bg-black text-white border-black':'bg-white text-gray-700 border-gray-300'}`}>PDFs</button>
+                <button onClick={() => setResourceView('video')} className={`px-3 py-1 rounded border ${resourceView==='video'?'bg-black text-white border-black':'bg-white text-gray-700 border-gray-300'}`}>Videos</button>
             </div>
             
+              {/* Bulk Upload */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {/* Excel Card */}
+                <form className="bg-gray-50 border border-gray-200 rounded-lg p-4" onSubmit={handleExcelUpload}>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Upload Questions (Excel)</label>
+                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <input type="file" accept=".xlsx, .xls" ref={fileInputRef} className="border rounded px-3 py-2 w-full sm:w-auto" />
+                    <button type="submit" className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 border border-black">Upload</button>
+                  </div>
+                  {excelUploadStatus && <p className="mt-2 text-sm text-gray-600">{excelUploadStatus}</p>}
+                </form>
+
+                {/* JSON Card */}
+                <form className="bg-gray-50 border border-gray-200 rounded-lg p-4" onSubmit={handleJsonUpload}>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Upload Questions (JSON)</label>
+                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <input type="file" accept=".json" ref={jsonFileInputRef} className="border rounded px-3 py-2 w-full sm:w-auto" />
+                    <button type="submit" className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 border border-black">Upload</button>
+                  </div>
+                  {jsonUploadStatus && <p className="mt-2 text-sm text-gray-600">{jsonUploadStatus}</p>}
+                </form>
+              </div>
+            </div>
+            
+            {/* Data tables based on view */}
+            {resourceView === 'questions' && (
             <div className="overflow-x-auto">
+              {/* Bulk Actions for Questions */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 border-b">
+                <div className="flex items-center space-x-4">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={getCurrentPageData(allQuestions).length > 0 && selectedMCQIds.length === getCurrentPageData(allQuestions).length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedMCQIds(getCurrentPageData(allQuestions).map(q => q.id));
+                        } else {
+                          setSelectedMCQIds([]);
+                        }
+                      }}
+                      className="w-4 h-4 text-black"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Select All ({selectedMCQIds.length} of {getCurrentPageData(allQuestions).length})
+                    </span>
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {selectedMCQIds.length > 0 && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Delete ${selectedMCQIds.length} selected question(s)?`)) {
+                          handleBulkDeleteQuestions();
+                        }
+                      }}
+                      className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                    >
+                      Delete Selected ({selectedMCQIds.length})
+                    </button>
+                  )}
+                  {/* <button
+                    onClick={() => {
+                      if (window.confirm(`Delete ALL ${allQuestions.length} questions? This action cannot be undone!`)) {
+                        handleDeleteAllQuestions();
+                      }
+                    }}
+                    className="px-3 py-1 bg-red-800 text-white text-sm rounded hover:bg-red-900 transition-colors"
+                  >
+                    Delete All ({allQuestions.length})
+                  </button> */}
+                </div>
+              </div>
+              
               <table className="w-full text-left border rounded overflow-hidden">
                 <thead>
                   <tr className="bg-gray-100 border-b">
+                  <th className="py-2 px-3"></th>
                     <th className="py-2 px-3">Question</th>
                     <th className="py-2 px-3">Category</th>
                     <th className="py-2 px-3">Subcategory</th>
@@ -896,14 +1211,46 @@ const ModeratorDashboard = ({ user }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {getCurrentPageData(allQuestions).map((q, index) => {
-                    const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                {allQuestions.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-6 text-center text-gray-500"
+                    >
+                      No questions found
+                    </td>
+                  </tr>
+                ) : (
+                  getCurrentPageData(allQuestions).map((q, index) => {
+                    const actualIndex =
+                      (currentPage - 1) * itemsPerPage + index + 1;
                     return (
-                      <tr key={q.id} className="border-b hover:bg-gray-50 transition">
+                      <tr
+                        key={q.id}
+                        className="border-b hover:bg-gray-50 transition"
+                      >
+                        <td className="py-2 px-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedMCQIds.includes(q.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMCQIds([...selectedMCQIds, q.id]);
+                              } else {
+                                setSelectedMCQIds(
+                                  selectedMCQIds.filter((id) => id !== q.id)
+                                );
+                              }
+                            }}
+                            className="w-4 h-4 text-black"
+                          />
+                        </td>
                         <td className="py-2 px-3">
                           <div className="flex items-center space-x-3">
                             <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                              <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
+                              <span className="text-xs font-medium text-gray-600">
+                                {actualIndex}
+                              </span>
                             </div>
                             <div>{q.question}</div>
                           </div>
@@ -912,21 +1259,27 @@ const ModeratorDashboard = ({ user }) => {
                         <td className="py-2 px-3">{q.subcategory}</td>
                         <td className="py-2 px-3">{q.level}</td>
                         <td className="py-2 px-3 flex gap-2">
-                        <button onClick={() => handleEditQuestion(q)} className="text-gray-600 hover:text-black mr-3">
+                          <button
+                            onClick={() => handleEditQuestion(q)}
+                            className="text-gray-600 hover:text-black mr-3"
+                          >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDeleteQuestion(q.id)} className="text-gray-600 hover:text-red-600">
+                          <button
+                            onClick={() => handleDeleteQuestion(q.id)}
+                            className="text-gray-600 hover:text-red-600"
+                          >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
                   );
-                })}
+                  })
+                )}
                 </tbody>
               </table>
-            </div>
             
-            {/* Pagination for Resources */}
+            {/* Pagination for Questions */}
             {getTotalPages(allQuestions) > 1 && (
               <div className="px-6 py-4 border-t border-gray-200">
                 <div className="flex items-center justify-between">
@@ -946,85 +1299,167 @@ const ModeratorDashboard = ({ user }) => {
             )}
           </div>
         )}
-        {selectedTab === 'contests' && (
-          <div className="bg-white rounded-sm border border-gray-200">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold">All Contests</h2>
+
+            {(resourceView === 'pdf' || resourceView === 'video') && (
+              <div className="overflow-x-auto">
+                {/* Bulk Actions for PDFs/Videos */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 border-b">
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={getCurrentPageData(resources).length > 0 && selectedResourceIds.length === getCurrentPageData(resources).length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedResourceIds(getCurrentPageData(resources).map(r => r.id));
+                          } else {
+                            setSelectedResourceIds([]);
+                          }
+                        }}
+                        className="w-4 h-4 text-black"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Select All ({selectedResourceIds.length} of {getCurrentPageData(resources).length})
+                      </span>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {selectedResourceIds.length > 0 && (
               <button
-                onClick={() => navigate('/create-contest')}
-                className="flex items-center space-x-2 bg-black text-white px-4 py-2 rounded-sm hover:bg-gray-800"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Create Contest</span>
+                        onClick={() => {
+                          if (window.confirm(`Delete ${selectedResourceIds.length} selected ${resourceView === 'pdf' ? 'PDF' : 'video'}(s)?`)) {
+                            handleBulkDeleteResources();
+                          }
+                        }}
+                        className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                      >
+                        Delete Selected ({selectedResourceIds.length})
               </button>
+                    )}
+                    {/* <button
+                      onClick={() => {
+                        if (window.confirm(`Delete ALL ${resources.length} ${resourceView === 'pdf' ? 'PDFs' : 'videos'}? This action cannot be undone!`)) {
+                          handleDeleteAllResources();
+                        }
+                      }}
+                      className="px-3 py-1 bg-red-800 text-white text-sm rounded hover:bg-red-900 transition-colors"
+                    >
+                      Delete All ({resources.length})
+                    </button> */}
             </div>
-            <div className="overflow-x-auto">
+                </div>
+                
               <table className="w-full text-left border rounded overflow-hidden">
                 <thead>
                   <tr className="bg-gray-100 border-b">
-                    <th className="py-2 px-3">Name</th>
-                    <th className="py-2 px-3">Start Time</th>
-                    <th className="py-2 px-3">End Time</th>
-                    <th className="py-2 px-3">Status</th>
-                    <th className="py-2 px-3">Created By</th>
+                      <th className="py-2 px-3">
+                      </th>
+                      <th className="py-2 px-3">Title</th>
+                      <th className="py-2 px-3">Category</th>
+                      <th className="py-2 px-3">Subcategory</th>
+                      <th className="py-2 px-3">Level</th>
+                      <th className="py-2 px-3">Type</th>
                     <th className="py-2 px-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {getCurrentPageData(allContests).map((contest, index) => {
+                    {resources.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="py-4 text-center text-gray-500">
+                          No {resourceView === 'pdf' ? 'PDF' : 'video'} resources found
+                        </td>
+                      </tr>
+                    ) : (
+                      getCurrentPageData(resources).map((resource, index) => {
                     const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
                     return (
-                      <tr key={contest.id} className="border-b hover:bg-gray-50 transition">
+                          <tr key={resource.id} className="border-b hover:bg-gray-50 transition">
+                            <td className="py-2 px-3">
+                              <input
+                                type="checkbox"
+                                checked={selectedResourceIds.includes(resource.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedResourceIds([...selectedResourceIds, resource.id]);
+                                  } else {
+                                    setSelectedResourceIds(selectedResourceIds.filter(id => id !== resource.id));
+                                  }
+                                }}
+                                className="w-4 h-4 text-black"
+                              />
+                            </td>
                         <td className="py-2 px-3">
                           <div className="flex items-center space-x-3">
                             <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
                               <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
                             </div>
-                            <div className="font-semibold">{contest.title}</div>
+                                <div className="font-medium">{resource.title}</div>
                           </div>
                         </td>
-                        <td className="py-2 px-3">{new Date(contest.startTime).toLocaleString()}</td>
-                        <td className="py-2 px-3">{new Date(contest.endTime).toLocaleString()}</td>
-                        <td className="py-2 px-3">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            getContestStatus(contest) === 'upcoming' ? 'bg-blue-100 text-blue-800' :
-                            getContestStatus(contest) === 'live' ? 'bg-green-100 text-green-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {getContestStatus(contest).charAt(0).toUpperCase() + getContestStatus(contest).slice(1)}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3">{contest.creator?.fullName || 'Unknown'}</td>
-                        <td className="py-2 px-3">
-                          {getContestStatus(contest) === 'upcoming' && (
+                            <td className="py-2 px-3">{resource.category}</td>
+                            <td className="py-2 px-3">{resource.subcategory || '-'}</td>
+                            <td className="py-2 px-3">{resource.level}</td>
+                            <td className="py-2 px-3">{resource.type}</td>
+                            <td className="py-2 px-3 flex gap-2">
+                              {resourceView === 'pdf' && resource.fileName && (
+                                <a 
+                                  href={`http://localhost:5001/uploads/resources/${resource.fileName}`} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  View
+                                </a>
+                              )}
+                              {resourceView === 'video' && resource.videoUrl && (
+                                <a 
+                                  href={resource.videoUrl} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  {resource.videoUrl.includes('youtube.com') || resource.videoUrl.includes('youtu.be') ? (
+                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                    </svg>
+                                  ) : 'Watch Video'}
+                                </a>
+                              )}
+                              {resourceView === 'pdf' && resource.fileName && (
                             <button
-                              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold"
-                              onClick={() => navigate(`/edit-contest/${contest.id}`)}
+                                  onClick={() => handleResourceDownload(resource.id, resource.fileName)}
+                                  className="text-blue-600 hover:underline"
                             >
-                              Edit
+                                  Download
                             </button>
                           )}
+                              <button 
+                                onClick={() => handleResourceDelete(resource.id)} 
+                                className="text-gray-600 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                         </td>
                       </tr>
                     );
-                  })}
+                      })
+                    )}
                 </tbody>
               </table>
-            </div>
             
-            {/* Pagination for Contests */}
-            {getTotalPages(allContests) > 1 && (
+                {/* Pagination for PDFs/Videos */}
+                {getTotalPages(resources) > 1 && (
               <div className="px-6 py-4 border-t border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-600">
-                    Showing {getCurrentPageData(allContests).length} of {allContests.length} contests
-                    {getTotalPages(allContests) > 1 && (
-                      <span> (Page {currentPage} of {getTotalPages(allContests)})</span>
+                        Showing {getCurrentPageData(resources).length} of {resources.length} {resourceView === 'pdf' ? 'PDFs' : 'videos'}
+                        {getTotalPages(resources) > 1 && (
+                          <span> (Page {currentPage} of {getTotalPages(resources)})</span>
                     )}
                   </div>
                   <Pagination
                     currentPage={currentPage}
-                    totalPages={getTotalPages(allContests)}
+                        totalPages={getTotalPages(resources)}
                     onPageChange={handlePageChange}
                   />
                 </div>
@@ -1032,62 +1467,154 @@ const ModeratorDashboard = ({ user }) => {
             )}
           </div>
         )}
-        {selectedTab === 'results' && (
-          <div className="bg-white rounded-sm border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold mb-4">User Results</h2>
-              <table className="min-w-full bg-white rounded shadow overflow-hidden">
+          </div>
+        )}
+       {selectedTab === 'contests' && (
+          <div className="bg-white rounded-lg border border-gray-200">
+            <div className="p-6 border-b border-gray-200 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+              <h2 className="text-xl font-semibold text-black">All Contests</h2>
+              <div className="flex flex-wrap gap-2 items-center">
+                <label className="text-sm">Sort by:</label>
+                <select value={contestSort.field} onChange={e => setContestSort(s => ({ ...s, field: e.target.value }))} className="border rounded px-2 py-1">
+                  <option value="startTime">Start Time</option>
+                  <option value="endTime">End Time</option>
+                </select>
+                <select value={contestSort.order} onChange={e => setContestSort(s => ({ ...s, order: e.target.value }))} className="border rounded px-2 py-1">
+                  <option value="desc">Desc</option>
+                  <option value="asc">Asc</option>
+                </select>
+                <label className="text-sm ml-2">Status:</label>
+                <select value={contestStatus} onChange={e => setContestStatus(e.target.value)} className="border rounded px-2 py-1">
+                  <option value="all">All</option>
+                  <option value="completed">Completed</option>
+                  <option value="upcoming">Upcoming</option>
+                  <option value="live">Live</option>
+                </select>
+                <label className="text-sm ml-2">Requires Code:</label>
+                <select value={contestCodeFilter} onChange={e => setContestCodeFilter(e.target.value)} className="border rounded px-2 py-1">
+                  <option value="all">All</option>
+                  <option value="with">With Code</option>
+                  <option value="without">Without Code</option>
+                </select>
+                <button
+                  onClick={() => navigate('/create-contest')}
+                  className="flex items-center space-x-2 bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Contest</span>
+                </button>
+              </div>
+            </div>
+            
+            {/* Bulk Actions for Contests */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 border-b">
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 text-black"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Select All ({selectedContestIds.length} of {filteredContests.length})
+                  </span>
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                {selectedContestIds.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Delete ${selectedContestIds.length} selected contest(s)?`)) {
+                        handleBulkDeleteContests();
+                      }
+                    }}
+                    className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                  >
+                    Delete Selected ({selectedContestIds.length})
+                  </button>
+                )}
+                {/* <button
+                  onClick={() => {
+                    if (window.confirm(`Delete ALL ${filteredContests.length} contests? This action cannot be undone!`)) {
+                      handleDeleteAllContests();
+                    }
+                  }}
+                  className="px-3 py-1 bg-red-800 text-white text-sm rounded hover:bg-red-900 transition-colors"
+                >
+                  Delete All ({filteredContests.length})
+                </button> */}
+              </div>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border rounded overflow-hidden">
                 <thead>
-                  <tr className="bg-gray-100 text-left">
-                    <th className="py-2 px-4">User</th>
-                    <th className="py-2 px-4">Test</th>
-                    <th className="py-2 px-4">Score</th>
-                    <th className="py-2 px-4">Time</th>
-                    <th className="py-2 px-4">Date</th>
+                  <tr className="bg-gray-100 border-b">
+                    <th className="py-2 px-3">
+                    </th>
+                    <th className="py-2 px-3">Name</th>
+                    <th className="py-2 px-3">Start Time</th>
+                    <th className="py-2 px-3">End Time</th>
+                    <th className="py-2 px-3">Code</th>
+                    <th className="py-2 px-3">Status</th>
+                    <th className="py-2 px-3">Created By</th>
+                    <th className="py-2 px-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {getCurrentPageData(userResults).map((r, idx) => {
-                    const actualIndex = (currentPage - 1) * itemsPerPage + idx + 1;
-                    return (
-                      <tr key={idx} className="border-b">
-                        <td className="py-2 px-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                              <span className="text-xs font-medium text-gray-600">{actualIndex}</span>
-                            </div>
-                            <div>{r.user}</div>
+                  {filteredContests.map(contest => (
+                    <tr key={contest.id} className="border-b hover:bg-gray-50 transition">
+                      <td className="py-2 px-3">
+                        <input type="checkbox" checked={selectedContestIds?.includes(contest.id)} onChange={() => toggleSelectContest(contest.id)} />
+                      </td>
+                      <td className="py-2 px-3 font-semibold">{contest.title}</td>
+                      <td className="py-2 px-3">{new Date(contest.startTime).toLocaleString()}</td>
+                      <td className="py-2 px-3">{new Date(contest.endTime).toLocaleString()}</td>
+                      <td className="py-2 px-3 font-mono text-blue-700">{contest.requiresCode ? contest.contestCode : '-'}</td>
+                      <td className="py-2 px-3">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          getContestStatus(contest) === 'upcoming' ? 'bg-blue-100 text-blue-800' :
+                          getContestStatus(contest) === 'live' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {getContestStatus(contest).charAt(0).toUpperCase() + getContestStatus(contest).slice(1)}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3">{contest.creator?.fullName || 'Unknown'}</td>
+                      <td className="py-2 px-3">
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => navigate(`/edit-contest/${contest.id}`)} title="Edit">
+                            <Pencil className="w-5 h-5 text-gray-800" />
+                          </button>
+                          <button onClick={() => handleDeleteContest(contest)} title="Delete">
+                            <Trash2 className="w-5 h-5 text-red-600" />
+                          </button>
+                          <button onClick={() => handleViewContestQuestions(contest)} title="View Details" className="flex items-center gap-2">
+                            <Eye className="w-5 h-5 text-gray-800" />
+                            <span className="text-sm font-medium">View Details</span>
+                          </button>
                           </div>
                         </td>
-                        <td className="py-2 px-4">{r.test}</td>
-                        <td className="py-2 px-4">{r.score}</td>
-                        <td className="py-2 px-4">{r.time}</td>
-                        <td className="py-2 px-4">{r.date}</td>
                       </tr>
-                    );
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>
-            
-            {/* Pagination for Results */}
-            {getTotalPages(userResults) > 1 && (
-              <div className="px-6 py-4 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    Showing {getCurrentPageData(userResults).length} of {userResults.length} results
-                    {getTotalPages(userResults) > 1 && (
-                      <span> (Page {currentPage} of {getTotalPages(userResults)})</span>
-                    )}
+          </div>
+        )}
+
+        {selectedTab === 'results' && (
+          <div className="bg-white rounded-lg border border-gray-200">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-black">Contest Results</h2>
                   </div>
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={getTotalPages(userResults)}
-                    onPageChange={handlePageChange}
-                  />
+            <div className="p-6">
+              <div className="text-center text-gray-500">
+                <p>Contest results functionality will be available here.</p>
+                <p className="text-sm mt-2">This feature is under development.</p>
                 </div>
               </div>
-            )}
           </div>
         )}
         {/* Modals for create question/contest */}
@@ -1128,26 +1655,28 @@ const ModeratorDashboard = ({ user }) => {
                   <label className="block text-base font-semibold text-gray-700 mb-2">Question</label>
                   <input name="question" value={form.question} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-400" placeholder="Question" />
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option A</label>
-                      <input name="a" value={form.options.a} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
+                    {[0, 1, 2, 3].map((index) => (
+                      <div key={index}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Option {String.fromCharCode(65 + index)}</label>
+                        <input 
+                          name={index} 
+                          value={form.options[index]} 
+                          onChange={handleChange} 
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" 
+                          placeholder={`Option ${String.fromCharCode(65 + index)}`} 
+                        />
+                        <label className="flex items-center space-x-2 mt-2">
+                          <input
+                            type="checkbox"
+                            name={`correct-${index}`}
+                            checked={form.correctAnswers.includes(form.options[index])}
+                            onChange={handleChange}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">Mark correct</span>
+                        </label>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option B</label>
-                      <input name="b" value={form.options.b} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option C</label>
-                      <input name="c" value={form.options.c} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option D</label>
-                      <input name="d" value={form.options.d} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer (a/b/c/d)</label>
-                    <input name="correctAns" value={form.correctAns} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Correct Answer (a/b/c/d)" />
+                    ))}
                   </div>
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
@@ -1253,19 +1782,59 @@ const ModeratorDashboard = ({ user }) => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option A</label>
-                      <input name="a" value={contestForm.questions[currentQuestionIdx].options.a} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
+                      <input name="0" value={contestForm.questions[currentQuestionIdx].options[0]} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
+                      <label className="flex items-center space-x-2 mt-2">
+                        <input
+                          type="checkbox"
+                          name={`correct-0`}
+                          checked={contestForm.questions[currentQuestionIdx].correctAnswers.includes(contestForm.questions[currentQuestionIdx].options[0])}
+                          onChange={handleContestQuestionChange}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Mark correct</span>
+                      </label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option B</label>
-                      <input name="b" value={contestForm.questions[currentQuestionIdx].options.b} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
+                      <input name="1" value={contestForm.questions[currentQuestionIdx].options[1]} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
+                      <label className="flex items-center space-x-2 mt-2">
+                        <input
+                          type="checkbox"
+                          name={`correct-1`}
+                          checked={contestForm.questions[currentQuestionIdx].correctAnswers.includes(contestForm.questions[currentQuestionIdx].options[1])}
+                          onChange={handleContestQuestionChange}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Mark correct</span>
+                      </label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option C</label>
-                      <input name="c" value={contestForm.questions[currentQuestionIdx].options.c} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
+                      <input name="2" value={contestForm.questions[currentQuestionIdx].options[2]} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
+                      <label className="flex items-center space-x-2 mt-2">
+                        <input
+                          type="checkbox"
+                          name={`correct-2`}
+                          checked={contestForm.questions[currentQuestionIdx].correctAnswers.includes(contestForm.questions[currentQuestionIdx].options[2])}
+                          onChange={handleContestQuestionChange}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Mark correct</span>
+                      </label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Option D</label>
-                      <input name="d" value={contestForm.questions[currentQuestionIdx].options.d} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
+                      <input name="3" value={contestForm.questions[currentQuestionIdx].options[3]} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
+                      <label className="flex items-center space-x-2 mt-2">
+                        <input
+                          type="checkbox"
+                          name={`correct-3`}
+                          checked={contestForm.questions[currentQuestionIdx].correctAnswers.includes(contestForm.questions[currentQuestionIdx].options[3])}
+                          onChange={handleContestQuestionChange}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Mark correct</span>
+                      </label>
                     </div>
                     <div className="col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
@@ -1280,10 +1849,7 @@ const ModeratorDashboard = ({ user }) => {
                         <option value="hard">Hard</option>
                       </select>
                     </div>
-                    <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer (a/b/c/d)</label>
-                      <input name="correctAns" value={contestForm.questions[currentQuestionIdx].correctAns} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Correct Answer (a/b/c/d)" />
-                    </div>
+
                     <div className="col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
                       <input name="explanation" value={contestForm.questions[currentQuestionIdx].explanation} onChange={handleContestQuestionChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Explanation" />
@@ -1300,70 +1866,108 @@ const ModeratorDashboard = ({ user }) => {
         )}
         {editModalOpen && editForm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white rounded-sm border border-gray-200 p-6 w-full max-w-md relative animate-fadeIn" style={{maxHeight:'95vh',overflow:'auto'}}>
+            <div className="bg-white border border-gray-200 p-4 max-w-sm w-full mx-2 relative rounded-md shadow-md">
               <button
                 onClick={() => setEditModalOpen(false)}
-                className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-lg font-bold"
                 aria-label="Close"
               >
                 ×
               </button>
-              <h2 className="text-xl font-bold mb-6 text-black-800 text-center">Edit Question</h2>
-              <form onSubmit={handleEditFormSubmit} className="space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <h2 className="text-lg font-bold mb-4 text-black text-center">Edit Question</h2>
+              <form onSubmit={handleEditFormSubmit} className="space-y-3">
+                {/* Question */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
-                    <select name="category" value={editForm.category} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400">
-                      <option value="Aptitude">Aptitude</option>
-                      <option value="Technical">Technical</option>
-                    </select>
+                  <label className="block text-xs font-semibold text-black mb-1">Question</label>
+                  <textarea
+                    name="question"
+                    value={editForm.question}
+                    onChange={handleEditFormChange}
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    rows={2}
+                    placeholder="Question"
+                    required
+                  />
+                  </div>
+
+                {/* Topic + Difficulty */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-black mb-1">Topic</label>
+                    <input
+                      name="subcategory"
+                      value={editForm.subcategory}
+                      onChange={handleEditFormChange}
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                      placeholder="Topic"
+                      required
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Subcategory</label>
-                    <input name="subcategory" value={editForm.subcategory} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Subcategory" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Level</label>
-                    <select name="level" value={editForm.level} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400">
+                    <label className="block text-xs font-semibold text-black mb-1">Difficulty</label>
+                    <select
+                      name="level"
+                      value={editForm.level}
+                      onChange={handleEditFormChange}
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    >
                       <option value="easy">Easy</option>
                       <option value="medium">Medium</option>
                       <option value="hard">Hard</option>
                     </select>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4 mt-2">
-                  <label className="block text-base font-semibold text-gray-700 mb-2">Question</label>
-                  <input name="question" value={editForm.question} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-400" placeholder="Question" />
+
+                {/* Options */}
+                    <div>
+                  <label className="block text-sm font-semibold text-black mb-2">Options</label>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option A</label>
-                      <input name="a" value={editForm.options.a} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
+                    {[0, 1, 2, 3].map((index) => (
+                      <div key={index} className="flex items-center space-x-3">
+                        <input
+                          name={index}
+                          value={editForm.options[index] || ''}
+                          onChange={handleEditFormChange}
+                          className="flex-1 px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
+                          placeholder={`Option ${String.fromCharCode(65 + index)}`}
+                          required
+                        />
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            name={`correct-${index}`}
+                            checked={editForm.correctAnswers.includes(editForm.options[index])}
+                            onChange={handleEditFormChange}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">Mark correct</span>
+                        </label>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option B</label>
-                      <input name="b" value={editForm.options.b} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
+                    ))}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option C</label>
-                      <input name="c" value={editForm.options.c} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
                     </div>
+
+                {/* Explanation */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option D</label>
-                      <input name="d" value={editForm.options.d} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
+                  <label className="block text-xs font-semibold text-black mb-1">Explanation</label>
+                  <textarea
+                    name="explanation"
+                    value={editForm.explanation}
+                    onChange={handleEditFormChange}
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    rows={2}
+                    placeholder="Explanation"
+                  />
                     </div>
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer (a/b/c/d)</label>
-                    <input name="correctAns" value={editForm.correctAns} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Correct Answer (a/b/c/d)" />
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
-                    <input name="explanation" value={editForm.explanation} onChange={handleEditFormChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Explanation" />
-                  </div>
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button type="submit" className="flex-1 px-4 py-2 bg-black text-white rounded-sm font-bold hover:bg-gray-800">Save</button>
-                  <button type="button" onClick={() => setEditModalOpen(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-sm font-bold">Cancel</button>
+
+                {/* Buttons */}
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                  >
+                    Save Question
+                  </button>
                 </div>
               </form>
             </div>

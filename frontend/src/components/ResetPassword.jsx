@@ -1,13 +1,10 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 
-const ResetPassword = ({ onBack }) => {
+const ResetPassword = ({ token, onBack }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const token = urlParams.get('token');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,6 +30,7 @@ const ResetPassword = ({ onBack }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to reset password');
       toast.success(data.message || 'Password reset successful!');
+      // Close modal and redirect to home
       onBack();
     } catch (err) {
       toast.error(err.message);
@@ -40,6 +38,23 @@ const ResetPassword = ({ onBack }) => {
       setLoading(false);
     }
   };
+
+  // If no token, show error message
+  if (!token) {
+    return (
+      <div className="w-full flex flex-col items-center">
+        <div className="w-full flex flex-col items-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">Invalid Reset Link</h2>
+          <p className="text-gray-500 text-sm mb-6">This reset link is invalid or has expired.</p>
+        </div>
+        <div className="w-full text-center mt-4 text-sm text-gray-500">
+          <button type="button" className="text-black font-medium hover:underline" onClick={onBack}>
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full flex flex-col items-center">

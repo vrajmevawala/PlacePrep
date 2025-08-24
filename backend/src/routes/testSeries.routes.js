@@ -1,5 +1,30 @@
 import express from 'express';
-import { createTestSeries, getAllTestSeries, getTestSeriesById, getTestSeriesQuestions, submitTestSeriesAnswers, joinTestSeries, getUserContestResult, getContestStats, getContestLeaderboard, getAllContestStats, getUserParticipations, getUpcomingContests, joinContestByCode, updateTestSeries, recordViolation, getContestParticipants, getParticipantAnswers, exportContestResults, downloadContestResultsExcel, getDetailedAnalysis, deleteTestSeries, deleteMultipleTestSeries } from '../controllers/testSeries.controller.js';
+import { 
+  createTestSeries, 
+  getAllTestSeries, 
+  getTestSeriesById, 
+  getTestSeriesQuestions, 
+  submitTestSeriesAnswers, 
+  joinTestSeries, 
+  getUserContestResult, 
+  getContestStats, 
+  getContestLeaderboard, 
+  getAllContestStats, 
+  getUserParticipations, 
+  getUpcomingContests, 
+  joinContestByCode, 
+  updateTestSeries, 
+  recordViolation, 
+  getContestParticipants, 
+  getParticipantAnswers,
+  exportContestResults,
+  downloadContestResultsExcel,
+  getDetailedAnalysis,
+  deleteTestSeries,
+  deleteMultipleTestSeries,
+  extendContestTime,
+  recalculateContestResults
+} from '../controllers/testSeries.controller.js';
 import authMiddleware from '../middleware/auth.middleware.js';
 import { requireAdminOrModerator } from '../middleware/role.middleware.js';
 
@@ -31,5 +56,9 @@ router.put('/:id', requireAdminOrModerator, updateTestSeries);
 router.delete('/:id', requireAdminOrModerator, deleteTestSeries);
 router.post('/bulk-delete', requireAdminOrModerator, deleteMultipleTestSeries);
 router.get('/:id', getTestSeriesById);
+
+// Admin contest management routes
+router.put('/:id/extend', authMiddleware, extendContestTime);
+router.post('/:id/recalculate-results', authMiddleware, recalculateContestResults);
 
 export default router;                                                                  

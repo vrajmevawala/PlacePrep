@@ -942,10 +942,52 @@ const Result = () => {
                             <div className="mb-4">
                               <p className="text-lg text-gray-900 font-medium mb-4">{detail.question}</p>
                               
-                              {Object.keys(options).length > 0 && (
+                              {Array.isArray(options) ? options.length > 0 && (
+                                <div className="space-y-2">
+                                  {options.map((option, index) => {
+                                    const isCorrect = Array.isArray(correctAnswer) && correctAnswer.includes(option);
+                                    const isSelected = userAnswer === option;
+                                    const isWrongSelection = isSelected && !isCorrect;
+                                    
+                                    return (
+                                      <div
+                                        key={index}
+                                        className={`p-3 border rounded-lg ${
+                                          isCorrect 
+                                            ? 'border-gray-900 bg-gray-900 text-white' 
+                                            : isWrongSelection
+                                            ? 'border-gray-300 bg-gray-300 text-gray-900'
+                                            : 'border-gray-200 bg-white text-gray-700'
+                                        }`}
+                                      >
+                                        <div className="flex items-center space-x-3">
+                                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
+                                            isCorrect 
+                                              ? 'bg-gray-900 text-white' 
+                                              : isWrongSelection
+                                              ? 'bg-gray-300 text-gray-900'
+                                              : 'bg-gray-200 text-gray-600'
+                                          }`}>
+                                            {String.fromCharCode(65 + index)}
+                                          </span>
+                                          <span className="flex-1">{option}</span>
+                                          {isCorrect && (
+                                            <CheckCircle className="w-5 h-5 text-gray-900" />
+                                          )}
+                                          {isWrongSelection && (
+                                            <XCircle className="w-5 h-5 text-gray-900" />
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : Object.keys(options).length > 0 && (
                                 <div className="space-y-2">
                                   {Object.entries(options).map(([key, value]) => {
-                                    const isCorrect = key === correctAnswer;
+                                    const isCorrect = Array.isArray(correctAnswer) 
+                                      ? correctAnswer.includes(value)
+                                      : key === correctAnswer;
                                     const isSelected = key === userAnswer;
                                     const isWrongSelection = isSelected && !isCorrect;
                                     
@@ -966,7 +1008,7 @@ const Result = () => {
                                               ? 'bg-gray-900 text-white' 
                                               : isWrongSelection
                                               ? 'bg-gray-300 text-gray-900'
-                                              : 'bg-gray-200 text-gray-600'
+                                              : 'border-gray-200 text-gray-600'
                                           }`}>
                                             {key.toUpperCase()}
                                           </span>
@@ -988,12 +1030,24 @@ const Result = () => {
                             <div className="text-sm space-y-2 text-gray-600">
                               {isAttempted && (
                                 <p>
-                                  <span className="font-medium">Your Answer:</span> {userAnswer ? `${userAnswer.toUpperCase()}. ${options[userAnswer] || userAnswer}` : 'Not answered'}
+                                  <span className="font-medium">Your Answer:</span> {
+                                    Array.isArray(options) 
+                                      ? userAnswer || 'Not answered'
+                                      : userAnswer 
+                                        ? `${(userAnswer || '').toUpperCase()}. ${options[userAnswer] || userAnswer}` 
+                                        : 'Not answered'
+                                  }
                                 </p>
                               )}
                               {!detail.isCorrect && isAttempted && (
                                 <p>
-                                  <span className="font-medium text-gray-900">Correct Answer:</span> {correctAnswer ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer] || correctAnswer}` : 'Not available'}
+                                  <span className="font-medium text-gray-900">Correct Answer:</span> {
+                                    Array.isArray(correctAnswer) 
+                                      ? correctAnswer.join(', ')
+                                      : correctAnswer 
+                                        ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer] || correctAnswer}` 
+                                        : 'Not available'
+                                  }
                                 </p>
                               )}
                             </div>

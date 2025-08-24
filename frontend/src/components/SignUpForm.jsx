@@ -14,7 +14,7 @@ const SignUpForm = ({ onSignUp, onBack, onGoogleAuth, onSignIn }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
+      alert('Passwords do not match');
       return;
     }
     onSignUp(name, email, password);

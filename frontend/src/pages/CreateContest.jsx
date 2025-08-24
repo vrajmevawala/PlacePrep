@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Filter, X, Check, Eye, EyeOff, Trophy, Users, Clock, Upload, FileText, Edit } from 'lucide-react';
+import { Plus, Filter, X, Check, Eye, EyeOff, Trophy, Users, Clock, Upload, FileText, Edit, RefreshCw } from 'lucide-react';
+import { toast } from 'react-toastify';
 
 const CreateContest = () => {
   const [contestName, setContestName] = useState('');
@@ -29,8 +30,8 @@ const CreateContest = () => {
     question: '',
     subcategory: '',
     level: 'easy',
-    options: { a: '', b: '', c: '', d: '' },
-    correctAns: 'a',
+    options: ['', '', '', ''], // Changed from { a: '', b: '', c: '', d: '' } to array
+    correctAnswers: [''], // Changed from 'a' to array of correct answer strings
     explanation: ''
   });
   const [addingQuestion, setAddingQuestion] = useState(false);
@@ -49,8 +50,8 @@ const CreateContest = () => {
     question: '',
     subcategory: '',
     level: 'easy',
-    options: { a: '', b: '', c: '', d: '' },
-    correctAns: 'a',
+    options: ['', '', '', ''], // Changed from { a: '', b: '', c: '', d: '' } to array
+    correctAnswers: [''], // Changed from 'a' to array of correct answer strings
     explanation: ''
   });
   const [savingQuestion, setSavingQuestion] = useState(false);
@@ -156,7 +157,7 @@ const CreateContest = () => {
           // Suggest updating number of questions if current selection is less than available
           if (numQuestions < newQuestions.length) {
             setTimeout(() => {
-              if (confirm(`Would you like to update the number of questions from ${numQuestions} to ${newQuestions.length}?`)) {
+              if (window.confirm(`Would you like to update the number of questions from ${numQuestions} to ${newQuestions.length}?`)) {
                 setNumQuestions(newQuestions.length);
                 setDraftNumQuestions(newQuestions.length);
               }
@@ -222,7 +223,7 @@ const CreateContest = () => {
           // Suggest updating number of questions if current selection is less than available
           if (numQuestions < newQuestions.length) {
             setTimeout(() => {
-              if (confirm(`Would you like to update the number of questions from ${numQuestions} to ${newQuestions.length}?`)) {
+              if (window.confirm(`Would you like to update the number of questions from ${numQuestions} to ${newQuestions.length}?`)) {
                 setNumQuestions(newQuestions.length);
                 setDraftNumQuestions(newQuestions.length);
               }
@@ -245,14 +246,14 @@ const CreateContest = () => {
       subcategory: question.subcategory,
       level: question.level,
       options: question.options,
-      correctAns: question.correctAns,
+      correctAnswers: Array.isArray(question.correctAnswers) ? question.correctAnswers : [question.correctAnswers || ''],
       explanation: question.explanation || ''
     });
     setShowEditQuestionModal(true);
   };
 
   const handleDeleteQuestion = async (questionId) => {
-    if (confirm('Are you sure you want to delete this question? This action cannot be undone.')) {
+    if (window.confirm('Are you sure you want to delete this question? This action cannot be undone.')) {
       try {
         const res = await fetch(`/api/questions/${questionId}`, {
           method: 'DELETE',
@@ -268,10 +269,10 @@ const CreateContest = () => {
           setTopics([...new Set(updatedQuestions.map(q => q.subcategory).filter(Boolean))]);
           setDifficulties([...new Set(updatedQuestions.map(q => q.level).filter(Boolean))]);
         } else {
-          alert('Failed to delete question');
+          toast.error('Failed to delete question');
         }
       } catch (err) {
-        alert('Failed to delete question');
+        toast.error('Failed to delete question');
       }
     }
   };
@@ -297,11 +298,12 @@ const CreateContest = () => {
         setDifficulties([...new Set(allQuestions.map(q => q.level).filter(Boolean))]);
         setShowEditQuestionModal(false);
         setEditingQuestion(null);
+        toast.success('Question updated successfully');
       } else {
-        alert('Failed to update question');
+        toast.error('Failed to update question');
       }
     } catch (err) {
-      alert('Failed to update question');
+      toast.error('Failed to update question');
     }
     setSavingQuestion(false);
   };
@@ -646,14 +648,16 @@ const CreateContest = () => {
     }
     
     // Validate start and end times
-    const startValidation = validateStartDateTime();
-    const endValidation = validateEndDateTime();
-    
-    if (!startValidation.isValid) {
-      setError(startValidation.message);
-      return;
+    if (!isEditMode) {
+      // Only validate start time for new contests
+      const startValidation = validateStartDateTime();
+      if (!startValidation.isValid) {
+        setError(startValidation.message);
+        return;
+      }
     }
     
+    const endValidation = validateEndDateTime();
     if (!endValidation.isValid) {
       setError(endValidation.message);
       return;
@@ -692,12 +696,34 @@ const CreateContest = () => {
         : (requiresCode 
           ? `Contest created successfully! Contest Code: ${data.testSeries.contestCode}`
           : 'Contest created successfully!');
-      alert(message);
+      toast.success(message);
       navigate('/admin-dashboard');
     } else {
       const data = await res.json();
       const action = isEditMode ? 'update' : 'create';
       setError(data.message || `Failed to ${action} contest`);
+    }
+  };
+
+  const handleRecalculateResults = async () => {
+    if (window.confirm('Are you sure you want to recalculate results for this contest? This will re-evaluate all participants and update their scores and ranks.')) {
+      try {
+        const res = await fetch(`/api/testseries/${contestId}/recalculate-results`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          toast.success('Results recalculated successfully!');
+          // Optionally, refresh the contest data to show updated results
+          // For now, we'll just show a success message.
+        } else {
+          const data = await res.json();
+          toast.error(data.message || 'Failed to recalculate results.');
+        }
+      } catch (err) {
+        toast.error('Failed to recalculate results.');
+      }
     }
   };
 
@@ -790,22 +816,35 @@ const CreateContest = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <input
                     type="date"
-                    className="px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
+                    className={`px-4 py-3 border transition-colors ${
+                      isEditMode 
+                        ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed' 
+                        : 'border-gray-300 focus:ring-2 focus:ring-black focus:border-black'
+                    }`}
                     value={startDate}
                     min={getCurrentDateTime().date}
                     onChange={e => setStartDate(e.target.value)}
                     required
+                    disabled={isEditMode}
                   />
                   <input
                     type="time"
-                    className="px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black transition-colors"
+                    className={`px-4 py-3 border transition-colors ${
+                      isEditMode 
+                        ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed' 
+                        : 'border-gray-300 focus:ring-2 focus:ring-black focus:border-black'
+                    }`}
                     value={startTime}
                     onChange={e => setStartTime(e.target.value)}
                     required
+                    disabled={isEditMode}
                   />
                 </div>
-                {startDate && startTime && !validateStartDateTime().isValid && (
+                {!isEditMode && startDate && startTime && !validateStartDateTime().isValid && (
                   <p className="text-red-600 text-sm mt-1">{validateStartDateTime().message}</p>
+                )}
+                {isEditMode && (
+                  <p className="text-gray-500 text-sm mt-1">Start time cannot be changed after contest creation</p>
                 )}
               </div>
               <div>
@@ -829,6 +868,9 @@ const CreateContest = () => {
                 </div>
                 {endDate && endTime && !validateEndDateTime().isValid && (
                   <p className="text-red-600 text-sm mt-1">{validateEndDateTime().message}</p>
+                )}
+                {isEditMode && (
+                  <p className="text-blue-600 text-sm mt-1">You can extend contest time by setting a later end date/time</p>
                 )}
               </div>
             </div>
@@ -1134,24 +1176,24 @@ const CreateContest = () => {
                                 Options
                               </h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {['a', 'b', 'c', 'd'].map(option => (
-                                  <div key={option} className={`p-4 border ${
-                                    q.correctAns === option 
+                                {q.options.map((option, index) => (
+                                  <div key={index} className={`p-4 border ${
+                                    q.correctAnswers.includes(option) 
                                       ? 'bg-black text-white' 
                                       : 'bg-white border-gray-200'
                                   }`}>
                                     <div className="flex items-start space-x-2">
                                       <span className={`font-bold text-sm ${
-                                        q.correctAns === option ? 'text-white' : 'text-gray-500'
+                                        q.correctAnswers.includes(option) ? 'text-white' : 'text-gray-500'
                                       }`}>
-                                        {option.toUpperCase()}.
+                                        {String.fromCharCode(65 + index)}.
                                       </span>
                                       <span className={`text-sm ${
-                                        q.correctAns === option ? 'text-white font-medium' : 'text-gray-700'
+                                        q.correctAnswers.includes(option) ? 'text-white font-medium' : 'text-gray-700'
                                       }`}>
-                                        {q.options[option]}
+                                        {option}
                                       </span>
-                                      {q.correctAns === option && (
+                                      {q.correctAnswers.includes(option) && (
                                         <Check className="w-4 h-4 text-white flex-shrink-0 mt-0.5" />
                                       )}
                                     </div>
@@ -1167,7 +1209,7 @@ const CreateContest = () => {
                                 </h4>
                                 <div className="inline-flex items-center space-x-2 px-3 py-2 bg-black text-white">
                                   <Check className="w-4 h-4" />
-                                  <span className="font-medium">Option {q.correctAns.toUpperCase()}</span>
+                                  <span className="font-medium">{q.correctAnswers.join(', ')}</span>
                                 </div>
                               </div>
                             
@@ -1224,7 +1266,17 @@ const CreateContest = () => {
           )}
 
           {/* Submit Button */}
-          <div className="flex justify-end">
+          <div className="flex justify-end space-x-4">
+            {isEditMode && (
+              <button 
+                type="button"
+                onClick={handleRecalculateResults}
+                className="flex items-center space-x-2 px-6 py-3 bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors"
+              >
+                <RefreshCw className="w-5 h-5" />
+                <span>Recalculate Results</span>
+              </button>
+            )}
             <button 
               type="submit" 
               className="flex items-center space-x-2 px-8 py-3 bg-black text-white font-semibold hover:bg-gray-800 transition-colors"
@@ -1431,7 +1483,7 @@ const CreateContest = () => {
                   </div>
 
                                   <div className="text-xs text-gray-500 text-center">
-                    <p>• Excel files should have columns: question, subcategory, level, options (JSON), correctAns, explanation</p>
+                    <p>• Excel files should have columns: question, subcategory, level, options (JSON array), correctAnswers (comma-separated), explanation</p>
                     <p>• JSON files should contain an array of question objects with the same structure</p>
                     <p className="text-black font-medium mt-2">⚠️ Questions uploaded here will be hidden from the general question bank until the contest ends</p>
                   </div>
@@ -1441,128 +1493,118 @@ const CreateContest = () => {
         )}
 
         {/* Edit Question Modal */}
-          {showEditQuestionModal && editingQuestion && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-              <div className="bg-white border border-gray-200 p-4 max-w-sm w-full mx-2 relative rounded-md shadow-md">
-                {/* Close */}
-                <button
-                  onClick={() => setShowEditQuestionModal(false)}
-                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-lg font-bold"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
+        {showEditQuestionModal && editingQuestion && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="bg-white border border-gray-200 p-4 max-w-sm w-full mx-2 relative rounded-md shadow-md">
+              {/* Close */}
+              <button
+                onClick={() => setShowEditQuestionModal(false)}
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-lg font-bold"
+                aria-label="Close"
+              >
+                ×
+              </button>
 
-                <h2 className="text-lg font-bold mb-4 text-black text-center">Edit Question</h2>
+              <h2 className="text-lg font-bold mb-4 text-black text-center">Edit Question</h2>
 
-                <form
-                  onSubmit={handleSaveEditedQuestion}
-                  className="space-y-3"
-                >
-                  {/* Question text */}
+              <form
+                onSubmit={handleSaveEditedQuestion}
+                className="space-y-3"
+              >
+                {/* Question */}
+                <div>
+                  <label className="block text-xs font-semibold text-black mb-1">Question</label>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    rows={2}
+                    value={editingQuestionData.question}
+                    onChange={e => setEditingQuestionData(q => ({ ...q, question: e.target.value }))}
+                    required
+                  />
+                </div>
+
+                {/* Topic + Difficulty */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-black mb-1">Question</label>
-                    <textarea
-                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black focus:border-black text-sm"
-                      rows={2}
-                      value={editingQuestionData.question}
-                      onChange={e => setEditingQuestionData(q => ({ ...q, question: e.target.value }))}
+                    <label className="block text-xs font-semibold text-black mb-1">Topic</label>
+                    <input
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                      value={editingQuestionData.subcategory}
+                      onChange={e => setEditingQuestionData(q => ({ ...q, subcategory: e.target.value }))}
                       required
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-black mb-1">Difficulty</label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                      value={editingQuestionData.level}
+                      onChange={e => setEditingQuestionData(q => ({ ...q, level: e.target.value }))}
+                    >
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                  </div>
+                </div>
 
-                  {/* Topic + Difficulty */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-black mb-1">Topic</label>
+                {/* Options */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[0, 1, 2, 3].map((index) => (
+                    <div key={index}>
+                      <label className="block text-xs font-semibold text-black mb-1">Option {String.fromCharCode(65 + index)}</label>
                       <input
                         className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
-                        value={editingQuestionData.subcategory}
-                        onChange={e => setEditingQuestionData(q => ({ ...q, subcategory: e.target.value }))}
+                        value={editingQuestionData.options[index]}
+                        onChange={e =>
+                          setEditingQuestionData(q => ({
+                            ...q,
+                            options: q.options.map((opt, i) => i === index ? e.target.value : opt)
+                          }))
+                        }
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-black mb-1">Difficulty</label>
-                      <select
-                        className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
-                        value={editingQuestionData.level}
-                        onChange={e => setEditingQuestionData(q => ({ ...q, level: e.target.value }))}
-                      >
-                        <option value="easy">Easy</option>
-                        <option value="medium">Medium</option>
-                        <option value="hard">Hard</option>
-                      </select>
-                    </div>
-                  </div>
+                  ))}
+                </div>
 
-                  {/* Options */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {['a', 'b', 'c', 'd'].map(opt => (
-                      <div key={opt}>
-                        <label className="block text-xs font-semibold text-black mb-1">Option {opt.toUpperCase()}</label>
-                        <input
-                          className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
-                          value={editingQuestionData.options[opt]}
-                          onChange={e =>
-                            setEditingQuestionData(q => ({
-                              ...q,
-                              options: { ...q.options, [opt]: e.target.value }
-                            }))
-                          }
-                          required
-                        />
-                      </div>
-                    ))}
-                  </div>
+                {/* Correct Answer */}
+                <div>
+                  <label className="block text-xs font-semibold text-black mb-1">Correct Answer</label>
+                  <input
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    value={editingQuestionData.correctAnswers[0]}
+                    onChange={e => setEditingQuestionData(q => ({ ...q, correctAnswers: [e.target.value] }))}
+                    placeholder="Enter the exact correct answer text"
+                    required
+                  />
+                </div>
 
-                  {/* Correct Answer */}
-                  <div>
-                    <label className="block text-xs font-semibold text-black mb-1">Correct Option</label>
-                    <select
-                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
-                      value={editingQuestionData.correctAns}
-                      onChange={e => setEditingQuestionData(q => ({ ...q, correctAns: e.target.value }))}
-                    >
-                      <option value="a">A</option>
-                      <option value="b">B</option>
-                      <option value="c">C</option>
-                      <option value="d">D</option>
-                    </select>
-                  </div>
+                {/* Explanation */}
+                <div>
+                  <label className="block text-xs font-semibold text-black mb-1">Explanation</label>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    rows={2}
+                    value={editingQuestionData.explanation}
+                    onChange={e => setEditingQuestionData(q => ({ ...q, explanation: e.target.value }))}
+                  />
+                </div>
 
-                  {/* Explanation */}
-                  <div>
-                    <label className="block text-xs font-semibold text-black mb-1">Explanation</label>
-                    <textarea
-                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
-                      rows={2}
-                      value={editingQuestionData.explanation}
-                      onChange={e => setEditingQuestionData(q => ({ ...q, explanation: e.target.value }))}
-                    />
-                  </div>
-
-                  {/* Buttons */}
-                  <div className="flex justify-end space-x-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowEditQuestionModal(false)}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-300 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
-                      disabled={savingQuestion}
-                    >
-                      {savingQuestion ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                </form>
-              </div>
+                {/* Buttons */}
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                    disabled={savingQuestion}
+                  >
+                    {savingQuestion ? 'Saving...' : 'Save Question'}
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
+          </div>
+        )}
 
        {/* Add New Question Modal */}
         {showAddQuestionModal && (
@@ -1598,12 +1640,12 @@ const CreateContest = () => {
                       question: '',
                       subcategory: '',
                       level: 'easy',
-                      options: { a: '', b: '', c: '', d: '' },
-                      correctAns: 'a',
+                      options: ['', '', '', ''], // Changed from { a: '', b: '', c: '', d: '' } to array
+                      correctAnswers: [''], // Changed from 'a' to array of correct answer strings
                       explanation: ''
                     });
                   } else {
-                    alert('Failed to add question');
+                    toast.error('Failed to add question');
                   }
                   setAddingQuestion(false);
                 }}
@@ -1648,16 +1690,16 @@ const CreateContest = () => {
 
                 {/* Options */}
                 <div className="grid grid-cols-2 gap-3">
-                  {['a', 'b', 'c', 'd'].map(opt => (
-                    <div key={opt}>
-                      <label className="block text-xs font-semibold text-black mb-1">Option {opt.toUpperCase()}</label>
+                  {[0, 1, 2, 3].map((index) => (
+                    <div key={index}>
+                      <label className="block text-xs font-semibold text-black mb-1">Option {String.fromCharCode(65 + index)}</label>
                       <input
                         className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
-                        value={newQuestion.options[opt]}
+                        value={newQuestion.options[index]}
                         onChange={e =>
                           setNewQuestion(q => ({
                             ...q,
-                            options: { ...q.options, [opt]: e.target.value }
+                            options: q.options.map((opt, i) => i === index ? e.target.value : opt)
                           }))
                         }
                         required
@@ -1668,17 +1710,14 @@ const CreateContest = () => {
 
                 {/* Correct Answer */}
                 <div>
-                  <label className="block text-xs font-semibold text-black mb-1">Correct Option</label>
-                  <select
+                  <label className="block text-xs font-semibold text-black mb-1">Correct Answer</label>
+                  <input
                     className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
-                    value={newQuestion.correctAns}
-                    onChange={e => setNewQuestion(q => ({ ...q, correctAns: e.target.value }))}
-                  >
-                    <option value="a">A</option>
-                    <option value="b">B</option>
-                    <option value="c">C</option>
-                    <option value="d">D</option>
-                  </select>
+                    value={newQuestion.correctAnswers[0]}
+                    onChange={e => setNewQuestion(q => ({ ...q, correctAnswers: [e.target.value] }))}
+                    placeholder="Enter the exact correct answer text"
+                    required
+                  />
                 </div>
 
                 {/* Explanation */}

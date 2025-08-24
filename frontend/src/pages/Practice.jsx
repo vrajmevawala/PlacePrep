@@ -146,12 +146,23 @@ const Practice = ({ user }) => {
   // Option click handler
   const handleOptionClick = (idx, option) => {
     if (userAnswers[idx]) return; // Prevent changing answer
-    const isCorrect = Array.isArray(questions[idx].correctAnswers)
-      ? questions[idx].correctAnswers.includes(questions[idx].options[option]) || questions[idx].correctAnswers.includes(option)
-      : false;
+    
+    let isCorrect = false;
+    if (Array.isArray(questions[idx].correctAnswers)) {
+      // New structure: check if selected option text matches any correct answer
+      const selectedOptionText = Array.isArray(questions[idx].options) 
+        ? questions[idx].options[option] 
+        : questions[idx].options[option];
+      isCorrect = questions[idx].correctAnswers.includes(selectedOptionText);
+    } else {
+      // Old structure: check if option index matches correct answer
+      isCorrect = questions[idx].correctAnswers.includes(questions[idx].options[option]) || questions[idx].correctAnswers.includes(option);
+    }
+    
     const updated = [...userAnswers];
     updated[idx] = { selected: option, isCorrect };
     setUserAnswers(updated);
+    
     // If wrong answer, show explanation automatically
     if (!isCorrect) {
       setShowExplanation(prev => {
@@ -160,6 +171,7 @@ const Practice = ({ user }) => {
         return updatedShow;
       });
     }
+    
     // Save to localStorage
     localStorage.setItem('practiceTestState', JSON.stringify({
       questions,
@@ -184,7 +196,25 @@ const Practice = ({ user }) => {
     setLoading(true);
     setError(null);
     try {
-      const answers = questions.map((q, i) => ({ questionId: q.id, selectedOption: userAnswers[i]?.selected || '' }));
+      const answers = questions.map((q, i) => {
+        const userAnswer = userAnswers[i];
+        if (!userAnswer || userAnswer.selected === undefined) {
+          return { questionId: q.id, selectedOption: '' };
+        }
+        
+        // Send the actual option text instead of index
+        let selectedOption = '';
+        if (Array.isArray(q.options)) {
+          // New structure: get option text from index
+          selectedOption = q.options[userAnswer.selected] || '';
+        } else {
+          // Old structure: get option text from key
+          selectedOption = q.options[userAnswer.selected] || '';
+        }
+        
+        return { questionId: q.id, selectedOption };
+      });
+      
       const res = await fetch(`/api/free-practice/${practiceTestId}/practice-submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -393,10 +423,10 @@ const Practice = ({ user }) => {
                   </div>
                   <div className="mb-4 text-lg text-black font-medium">{questions[currentQ].question}</div>
                   <div className="grid grid-cols-1 gap-2 mb-4">
-                    {Object.entries(questions[currentQ].options).map(([key, val]) => {
+                    {questions[currentQ].options.map((option, index) => {
                       const userAns = userAnswers[currentQ];
-                      const isSelected = userAns && userAns.selected === key;
-                      const isCorrect = questions[currentQ].correctAns === key;
+                      const isSelected = userAns && userAns.selected === index;
+                      const isCorrect = Array.isArray(questions[currentQ].correctAnswers) && questions[currentQ].correctAnswers.includes(option);
                       let btnClass = 'border-gray-300 bg-white';
                       if (userAns) {
                         if (isSelected && isCorrect) btnClass = 'border-green-600 bg-green-50 text-green-800';
@@ -405,12 +435,12 @@ const Practice = ({ user }) => {
                       }
                       return (
                         <button
-                          key={key}
+                          key={index}
                           className={`w-full text-left px-4 py-2 rounded border font-medium transition ${btnClass}`}
                           disabled={!!userAns}
-                          onClick={() => handleOptionClick(currentQ, key)}
+                          onClick={() => handleOptionClick(currentQ, index)}
                         >
-                          {key.toUpperCase()}. {val}
+                          {String.fromCharCode(65 + index)}. {option}
                         </button>
                       );
                     })}
@@ -429,7 +459,7 @@ const Practice = ({ user }) => {
                         <div className="bg-black text-white p-4 mt-2 rounded">
                           <div className="font-semibold mb-1">Explanation:</div>
                           <div className="mb-1">
-                            Correct Option: <span className="font-bold text-green-400">{questions[currentQ].correctAns?.toUpperCase()}</span>
+                            Correct Option: <span className="font-bold text-green-400">{Array.isArray(questions[currentQ].correctAnswers) ? questions[currentQ].correctAnswers.join(', ') : ''}</span>
                           </div>
                           <div>{questions[currentQ].explanation || 'No explanation available for this question.'}</div>
                         </div>

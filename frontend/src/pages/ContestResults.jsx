@@ -476,12 +476,12 @@ const ContestResults = () => {
                     <div className="text-sm space-y-2 text-gray-600">
                       {isAttempted && (
                         <p>
-                          <span className="font-medium">Your Answer:</span> {userAnswer ? `${userAnswer.toUpperCase()}. ${options[userAnswer]}` : 'Not answered'}
+                          <span className="font-medium">Your Answer:</span> {userAnswer ? (options[userAnswer] ? `${userAnswer.toUpperCase()}. ${options[userAnswer]}` : userAnswer) : 'Not answered'}
                         </p>
                       )}
                       {!result.isCorrect && isAttempted && (
                         <p>
-                          <span className="font-medium text-green-600">Correct Answer:</span> {correctAnswer ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer]}` : 'Not available'}
+                          <span className="font-medium text-green-600">Correct Answer:</span> {correctAnswer ? (options[correctAnswer] ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer]}` : correctAnswer) : 'Not available'}
                         </p>
                       )}
                     </div>
@@ -594,7 +594,7 @@ const ContestResults = () => {
                     {correctAnswer && (
                       <div className="text-sm text-gray-600">
                         <p>
-                          <span className="font-medium text-green-600">Correct Answer:</span> {correctAnswer ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer]}` : 'Not available'}
+                          <span className="font-medium text-green-600">Correct Answer:</span> {correctAnswer ? (options[correctAnswer] ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer]}` : correctAnswer) : 'Not available'}
                         </p>
                       </div>
                     )}

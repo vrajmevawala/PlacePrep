@@ -3,6 +3,7 @@ import AdminResults from './AdminResults';
 import { Users, UserPlus, Activity, BarChart3, Eye, Plus, Settings, Trophy, Users as UsersIcon, FileText, Tag, Edit, Trash2, Video, X, Upload, Pencil } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Bar, Pie } from 'react-chartjs-2';
+import { toast } from 'react-toastify';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -24,7 +25,6 @@ const AdminDashboard = ({ user, onNavigate }) => {
   const [showForm, setShowForm] = useState(false);
   const [showPdfForm, setShowPdfForm] = useState(false);
   const [showVideoForm, setShowVideoForm] = useState(false);
-  const [questionSubmitMsg, setQuestionSubmitMsg] = useState('');
   const [pdfSubmitMsg, setPdfSubmitMsg] = useState('');
   const [videoSubmitMsg, setVideoSubmitMsg] = useState('');
   const [form, setForm] = useState({
@@ -225,39 +225,37 @@ const AdminDashboard = ({ user, onNavigate }) => {
 
   // Handlers for Add Question
   const handleChange = e => {
-    const { name, value, type, checked } = e.target;
-    if (["a", "b", "c", "d"].includes(name)) {
-      setForm(f => ({ ...f, options: { ...f.options, [name]: value } }));
-    } else if (name.startsWith('correct-')) {
-      const key = name.replace('correct-', '');
-      setForm(f => {
-        const next = new Set(f.correctAnswers);
-        if (checked) next.add(f.options[key] || ''); else next.delete(f.options[key] || '');
-        return { ...f, correctAnswers: Array.from(next).filter(Boolean) };
-      });
+    const { name, value } = e.target;
+    if (["0", "1", "2", "3"].includes(name)) {
+      // Handle option changes
+      setForm(f => ({
+        ...f,
+        options: f.options.map((opt, index) => 
+          index === parseInt(name) ? value : opt
+        )
+      }));
     } else {
+      // Handle other form fields
       setForm(f => ({ ...f, [name]: value }));
     }
   };
   const handleSubmit = async e => {
     e.preventDefault();
-    setQuestionSubmitMsg('');
     // basic validation
-    if (!form.category || !form.subcategory || !form.level || !form.question) {
-      setQuestionSubmitMsg('Please fill all required fields.');
+    if (!form.subcategory || !form.level || !form.question) {
+      toast.error('Please fill all required fields.');
       return;
     }
-    const opts = form.options || {};
-    if (!opts.a || !opts.b || !opts.c || !opts.d) {
-      setQuestionSubmitMsg('Please provide all four options.');
+    if (!form.options || form.options.length < 4 || form.options.some(opt => !opt.trim())) {
+      toast.error('Please provide all four options.');
       return;
     }
-    if (!form.correctAnswers || form.correctAnswers.length === 0) {
-      setQuestionSubmitMsg('Please select at least one correct answer.');
+    if (!form.correctAnswers || form.correctAnswers.length === 0 || !form.correctAnswers[0].trim()) {
+      toast.error('Please provide a correct answer.');
       return;
     }
     const payload = {
-      category: form.category,
+      category: 'Aptitude', // Default category
       subcategory: form.subcategory,
       level: form.level,
       question: form.question,
@@ -275,17 +273,18 @@ const AdminDashboard = ({ user, onNavigate }) => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setQuestionSubmitMsg(data.message || 'Failed to add question.');
+        toast.error(data.message || 'Failed to add question.');
         return;
       }
+      toast.success('Question added successfully!');
       setShowForm(false);
       setForm({
         category: 'Aptitude',
         subcategory: '',
         level: 'easy',
         question: '',
-        options: ['', '', '', ''], // Changed from { a: '', b: '', c: '', d: '' } to array
-        correctAnswers: [], // Array of correct answer strings
+        options: ['', '', '', ''],
+        correctAnswers: [''],
         explanation: ''
       });
       // refresh questions list if present
@@ -294,7 +293,7 @@ const AdminDashboard = ({ user, onNavigate }) => {
         .then(d => setAllQuestions(d.questions || []))
         .catch(() => {});
     } catch (err) {
-      setQuestionSubmitMsg('Network error while adding question.');
+      toast.error('Network error while adding question.');
     }
   };
 
@@ -805,35 +804,44 @@ const AdminDashboard = ({ user, onNavigate }) => {
     setEditModalOpen(true);
   };
   const handleEditFormChange = e => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target;
     if ([0, 1, 2, 3].includes(Number(name))) {
       // Handle array-based options
       setEditForm(f => ({ 
         ...f, 
         options: f.options.map((opt, i) => i === Number(name) ? value : opt) 
       }));
-    } else if (name.startsWith('correct-')) {
-      // Handle correct answer checkboxes
-      const index = Number(name.replace('correct-', ''));
-      setEditForm(f => {
-        const next = new Set(f.correctAnswers || []);
-        const optVal = f.options[index] || '';
-        if (checked) next.add(optVal); else next.delete(optVal);
-        return { ...f, correctAnswers: Array.from(next).filter(Boolean) };
-      });
+    } else if (name === 'correctAnswer') {
+      // Handle correct answer input
+      setEditForm(f => ({ ...f, correctAnswers: [value] }));
     } else {
       setEditForm(f => ({ ...f, [name]: value }));
     }
   };
   const handleEditFormSubmit = async e => {
     e.preventDefault();
+    
+    // Validation
+    if (!editForm.subcategory || !editForm.level || !editForm.question) {
+      toast.error('Please fill all required fields.');
+      return;
+    }
+    if (!editForm.options || editForm.options.length < 4 || editForm.options.some(opt => !opt.trim())) {
+      toast.error('Please provide all four options.');
+      return;
+    }
+    if (!editForm.correctAnswers || editForm.correctAnswers.length === 0 || !editForm.correctAnswers[0].trim()) {
+      toast.error('Please provide a correct answer.');
+      return;
+    }
+    
     try {
       const res = await fetch(`/api/questions/${editForm.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          category: editForm.category,
+          category: 'Aptitude', // Default category
           subcategory: editForm.subcategory,
           level: editForm.level,
           question: editForm.question,
@@ -843,8 +851,22 @@ const AdminDashboard = ({ user, onNavigate }) => {
           visibility: editForm.visibility
         })
       });
-      if (res.ok) setEditModalOpen(false);
-    } catch (err) {}
+      
+      if (res.ok) {
+        toast.success('Question updated successfully!');
+        setEditModalOpen(false);
+        // Refresh questions list
+        fetch('/api/questions', { credentials: 'include' })
+          .then(r => r.json())
+          .then(d => setAllQuestions(d.questions || []))
+          .catch(() => {});
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.message || 'Failed to update question.');
+      }
+    } catch (err) {
+      toast.error('Network error while updating question.');
+    }
   };
 
   useEffect(() => {
@@ -1504,91 +1526,79 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 <span>Create Moderator</span>
               </button>
             </div>
-            {resourceView === 'questions' && (
+            
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tests Created
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Last Active
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {moderators.map((moderator, index) => (
-                    <tr key={index}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium">{moderator.name}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-gray-600">{moderator.email}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs rounded ${
-                          moderator.status === 'Active' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {moderator.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>{moderator.testsCreated}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-gray-600">
-                          {moderator.lastActive ? new Date(moderator.lastActive).toLocaleDateString() : 'Never'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button 
-                          onClick={() => handleDeleteModerator(moderator.id)} 
-                          className="text-gray-600 hover:text-red-600 transition-colors"
-                          title="Delete moderator"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
+              {moderators.length > 0 ? (
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tests Created
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Last Active
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              
-              {/* Pagination for Resources */}
-              {getTotalPages(resources) > 1 && (
-                <div className="px-6 py-4 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                      Showing {getCurrentPageData(resources).length} of {resources.length} resources
-                      {getTotalPages(resources) > 1 && (
-                        <span> (Page {currentPage} of {getTotalPages(resources)})</span>
-                      )}
-                    </div>
-                    <Pagination
-                      currentPage={currentPage}
-                      totalPages={getTotalPages(resources)}
-                      onPageChange={handlePageChange}
-                    />
-                  </div>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {moderators.map((moderator, index) => (
+                      <tr key={index}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="font-medium">{moderator.name}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-gray-600">{moderator.email}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs rounded ${
+                            moderator.status === 'Active' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {moderator.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>{moderator.testsCreated}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-gray-600">
+                            {moderator.lastActive ? new Date(moderator.lastActive).toLocaleDateString() : 'Never'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button 
+                            onClick={() => handleDeleteModerator(moderator.id)} 
+                            className="text-gray-600 hover:text-red-600 transition-colors"
+                            title="Delete moderator"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-12">
+                  <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <div className="text-lg font-medium text-gray-500 mb-2">No recent activity</div>
+                  <div className="text-gray-400">No moderators found. Create your first moderator to get started.</div>
                 </div>
               )}
             </div>
-            )}
           </div>
         )}
 
@@ -1598,52 +1608,60 @@ const AdminDashboard = ({ user, onNavigate }) => {
               <h2 className="text-xl font-semibold text-black">User Analytics</h2>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Activity
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Score
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {allUsers.filter(u => u.role === 'user').map(u => (
-                    <tr key={u.id} className="border-b hover:bg-gray-50 transition">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium">{u.fullName}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium">{u.email}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium">{u.role}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {u.score !== null ? (
-                        <span className={`px-2 py-1 text-xs rounded ${
-                            u.score >= 85 ? 'bg-green-100 text-green-800' :
-                            u.score >= 70 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                            {u.score}%
-                        </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
+              {allUsers.filter(u => u.role === 'user').length > 0 ? (
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Activity
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Score
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {allUsers.filter(u => u.role === 'user').map(u => (
+                      <tr key={u.id} className="border-b hover:bg-gray-50 transition">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="font-medium">{u.fullName}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="font-medium">{u.email}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="font-medium">{u.role}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {u.score !== null ? (
+                          <span className={`px-2 py-1 text-xs rounded ${
+                              u.score >= 85 ? 'bg-green-100 text-green-800' :
+                              u.score >= 70 ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                              {u.score}%
+                          </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-12">
+                  <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <div className="text-lg font-medium text-gray-500 mb-2">No recent activity</div>
+                  <div className="text-gray-400">No users found. Users will appear here once they register.</div>
+                </div>
+              )}
             </div>
             </div>
         )}
@@ -2112,58 +2130,66 @@ const AdminDashboard = ({ user, onNavigate }) => {
             </div>
             
             <div className="overflow-x-auto">
-              <table className="w-full text-left border rounded overflow-hidden">
-                <thead>
-                  <tr className="bg-gray-100 border-b">
-                    <th className="py-2 px-3">
-                    </th>
-                    <th className="py-2 px-3">Name</th>
-                    <th className="py-2 px-3">Start Time</th>
-                    <th className="py-2 px-3">End Time</th>
-                    <th className="py-2 px-3">Code</th>
-                    <th className="py-2 px-3">Status</th>
-                    <th className="py-2 px-3">Created By</th>
-                    <th className="py-2 px-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredContests.map(contest => (
-                    <tr key={contest.id} className="border-b hover:bg-gray-50 transition">
-                      <td className="py-2 px-3">
-                        <input type="checkbox" checked={selectedContestIds?.includes(contest.id)} onChange={() => toggleSelectContest(contest.id)} />
-                      </td>
-                      <td className="py-2 px-3 font-semibold">{contest.title}</td>
-                      <td className="py-2 px-3">{new Date(contest.startTime).toLocaleString()}</td>
-                      <td className="py-2 px-3">{new Date(contest.endTime).toLocaleString()}</td>
-                      <td className="py-2 px-3 font-mono text-blue-700">{contest.requiresCode ? contest.contestCode : '-'}</td>
-                      <td className="py-2 px-3">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          getContestStatus(contest) === 'upcoming' ? 'bg-blue-100 text-blue-800' :
-                          getContestStatus(contest) === 'live' ? 'bg-green-100 text-green-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {getContestStatus(contest).charAt(0).toUpperCase() + getContestStatus(contest).slice(1)}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3">{contest.creator?.fullName || 'Unknown'}</td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-3">
-                          <button onClick={() => navigate(`/edit-contest/${contest.id}`)} title="Edit">
-                            <Pencil className="w-5 h-5 text-gray-800" />
-                          </button>
-                          <button onClick={() => handleDeleteContest(contest)} title="Delete">
-                            <Trash2 className="w-5 h-5 text-red-600" />
-                          </button>
-                          <button onClick={() => handleViewContestQuestions(contest)} title="View Details" className="flex items-center gap-2">
-                            <Eye className="w-5 h-5 text-gray-800" />
-                            <span className="text-sm font-medium">View Details</span>
-                          </button>
-                        </div>
-                      </td>
+              {filteredContests.length > 0 ? (
+                <table className="w-full text-left border rounded overflow-hidden">
+                  <thead>
+                    <tr className="bg-gray-100 border-b">
+                      <th className="py-2 px-3">
+                      </th>
+                      <th className="py-2 px-3">Name</th>
+                      <th className="py-2 px-3">Start Time</th>
+                      <th className="py-2 px-3">End Time</th>
+                      <th className="py-2 px-3">Code</th>
+                      <th className="py-2 px-3">Status</th>
+                      <th className="py-2 px-3">Created By</th>
+                      <th className="py-2 px-3">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredContests.map(contest => (
+                      <tr key={contest.id} className="border-b hover:bg-gray-50 transition">
+                        <td className="py-2 px-3">
+                          <input type="checkbox" checked={selectedContestIds?.includes(contest.id)} onChange={() => toggleSelectContest(contest.id)} />
+                        </td>
+                        <td className="py-2 px-3 font-semibold">{contest.title}</td>
+                        <td className="py-2 px-3">{new Date(contest.startTime).toLocaleString()}</td>
+                        <td className="py-2 px-3">{new Date(contest.endTime).toLocaleString()}</td>
+                        <td className="py-2 px-3 font-mono text-blue-700">{contest.requiresCode ? contest.contestCode : '-'}</td>
+                        <td className="py-2 px-3">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            getContestStatus(contest) === 'upcoming' ? 'bg-blue-100 text-blue-800' :
+                            getContestStatus(contest) === 'live' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {getContestStatus(contest).charAt(0).toUpperCase() + getContestStatus(contest).slice(1)}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3">{contest.creator?.fullName || 'Unknown'}</td>
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-3">
+                            <button onClick={() => navigate(`/edit-contest/${contest.id}`)} title="Edit">
+                              <Pencil className="w-5 h-5 text-gray-800" />
+                            </button>
+                            <button onClick={() => handleDeleteContest(contest)} title="Delete">
+                              <Trash2 className="w-5 h-5 text-red-600" />
+                            </button>
+                            <button onClick={() => handleViewContestQuestions(contest)} title="View Details" className="flex items-center gap-2">
+                              <Eye className="w-5 h-5 text-gray-800" />
+                              <span className="text-sm font-medium">View Details</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-12">
+                  <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <div className="text-lg font-medium text-gray-500 mb-2">No recent activity</div>
+                  <div className="text-gray-400">No contests found. Create your first contest to get started.</div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -2181,74 +2207,126 @@ const AdminDashboard = ({ user, onNavigate }) => {
 
         {showForm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white rounded-sm border border-gray-200 p-6 w-full max-w-md relative animate-fadeIn" style={{maxHeight:'95vh',overflow:'auto'}}>
+            <div className="bg-white border border-gray-200 p-4 max-w-sm w-full mx-2 relative rounded-md shadow-md">
+              {/* Close */}
               <button
                 onClick={() => setShowForm(false)}
-                className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-lg font-bold"
                 aria-label="Close"
               >
                 ×
               </button>
-              <h2 className="text-xl font-bold mb-6 text-black-800 text-center">Create New Question</h2>
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              <h2 className="text-lg font-bold mb-4 text-black text-center">
+                Add New Question
+              </h2>
+
+              <form
+                onSubmit={handleSubmit}
+                className="space-y-3"
+              >
+                {/* Question */}
+                <div>
+                  <label className="block text-xs font-semibold text-black mb-1">
+                    Question
+                  </label>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    rows={2}
+                    name="question"
+                    value={form.question}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                {/* Topic + Difficulty */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
-                    <select name="category" value={form.category} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400">
-                      <option value="Aptitude">Aptitude</option>
-                      <option value="Technical">Technical</option>
-                    </select>
+                    <label className="block text-xs font-semibold text-black mb-1">
+                      Topic
+                    </label>
+                    <input
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                      name="subcategory"
+                      value={form.subcategory}
+                      onChange={handleChange}
+                      required
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Subcategory</label>
-                    <input name="subcategory" value={form.subcategory} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Subcategory" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Level</label>
-                    <select name="level" value={form.level} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400">
+                    <label className="block text-xs font-semibold text-black mb-1">
+                      Difficulty
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                      name="level"
+                      value={form.level}
+                      onChange={handleChange}
+                    >
                       <option value="easy">Easy</option>
                       <option value="medium">Medium</option>
                       <option value="hard">Hard</option>
                     </select>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4 mt-2">
-                  <label className="block text-base font-semibold text-gray-700 mb-2">Question</label>
-                  <input name="question" value={form.question} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-400" placeholder="Question" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option A</label>
-                      <input name="0" value={form.options[0]} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option A" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-0" onChange={handleChange} checked={form.correctAnswers.includes(form.options[0])} /> Mark correct</label>
+
+                {/* Options */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[0, 1, 2, 3].map((index) => (
+                    <div key={index}>
+                      <label className="block text-xs font-semibold text-black mb-1">
+                        Option {String.fromCharCode(65 + index)}
+                      </label>
+                      <input
+                        className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                        name={index.toString()}
+                        value={form.options[index]}
+                        onChange={handleChange}
+                        required
+                      />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option B</label>
-                      <input name="1" value={form.options[1]} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option B" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-1" onChange={handleChange} checked={form.correctAnswers.includes(form.options[1])} /> Mark correct</label>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option C</label>
-                      <input name="2" value={form.options[2]} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option C" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-2" onChange={handleChange} checked={form.correctAnswers.includes(form.options[2])} /> Mark correct</label>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Option D</label>
-                      <input name="3" value={form.options[3]} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Option D" />
-                      <label className="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="edit-correct-3" onChange={handleChange} checked={form.correctAnswers.includes(form.options[3])} /> Mark correct</label>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
-                    <input name="explanation" value={form.explanation} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Explanation" />
-                  </div>
+                  ))}
                 </div>
-                <div className="flex gap-3 pt-4">
-                  <button type="submit" className="flex-1 px-4 py-2 bg-black text-white rounded-sm font-bold hover:bg-gray-800">Add</button>
-                  <button type="button" onClick={() => setShowForm(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-sm font-bold">Cancel</button>
+
+                {/* Correct Answer */}
+                <div>
+                  <label className="block text-xs font-semibold text-black mb-1">
+                    Correct Answer
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    name="correctAnswer"
+                    value={form.correctAnswers[0] || ''}
+                    onChange={(e) => setForm(f => ({ ...f, correctAnswers: [e.target.value] }))}
+                    placeholder="Enter the exact correct answer text"
+                    required
+                  />
                 </div>
-                {questionSubmitMsg && (
-                  <p className="mt-3 text-sm text-red-600">{questionSubmitMsg}</p>
-                )}
+
+                {/* Explanation */}
+                <div>
+                  <label className="block text-xs font-semibold text-black mb-1">
+                    Explanation
+                  </label>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    rows={2}
+                    name="explanation"
+                    value={form.explanation}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                  >
+                    Add Question
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -2382,7 +2460,8 @@ const AdminDashboard = ({ user, onNavigate }) => {
         {/* Modal Form for Edit Question */}
         {editModalOpen && editForm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white border border-gray-200 p-6 max-w-2xl w-full mx-4 relative rounded-md shadow-md">
+            <div className="bg-white border border-gray-200 p-4 max-w-sm w-full mx-2 relative rounded-md shadow-md">
+              {/* Close */}
               <button
                 onClick={() => setEditModalOpen(false)}
                 className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-lg font-bold"
@@ -2390,42 +2469,53 @@ const AdminDashboard = ({ user, onNavigate }) => {
               >
                 ×
               </button>
-              <h2 className="text-lg font-bold mb-4 text-black text-center">Edit Question</h2>
-              <form onSubmit={handleEditFormSubmit} className="space-y-4">
+
+              <h2 className="text-lg font-bold mb-4 text-black text-center">
+                Edit Question
+              </h2>
+
+              <form
+                onSubmit={handleEditFormSubmit}
+                className="space-y-3"
+              >
                 {/* Question */}
                 <div>
-                  <label className="block text-sm font-semibold text-black mb-1">Question</label>
+                  <label className="block text-xs font-semibold text-black mb-1">
+                    Question
+                  </label>
                   <textarea
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    rows={2}
                     name="question"
                     value={editForm.question}
                     onChange={handleEditFormChange}
-                    className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
-                    rows={3}
-                    placeholder="Enter the question"
                     required
                   />
                 </div>
 
                 {/* Topic + Difficulty */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold text-black mb-1">Topic</label>
+                    <label className="block text-xs font-semibold text-black mb-1">
+                      Topic
+                    </label>
                     <input
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
                       name="subcategory"
                       value={editForm.subcategory}
                       onChange={handleEditFormChange}
-                      className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
-                      placeholder="Enter topic"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-black mb-1">Difficulty</label>
+                    <label className="block text-xs font-semibold text-black mb-1">
+                      Difficulty
+                    </label>
                     <select
+                      className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
                       name="level"
                       value={editForm.level}
                       onChange={handleEditFormChange}
-                      className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
                     >
                       <option value="easy">Easy</option>
                       <option value="medium">Medium</option>
@@ -2435,52 +2525,57 @@ const AdminDashboard = ({ user, onNavigate }) => {
                 </div>
 
                 {/* Options */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[0, 1, 2, 3].map((index) => (
+                    <div key={index}>
+                      <label className="block text-xs font-semibold text-black mb-1">
+                        Option {String.fromCharCode(65 + index)}
+                      </label>
+                      <input
+                        className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                        name={index.toString()}
+                        value={editForm.options[index]}
+                        onChange={handleEditFormChange}
+                        required
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Correct Answer */}
                 <div>
-                  <label className="block text-sm font-semibold text-black mb-2">Options</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[0, 1, 2, 3].map((index) => (
-                      <div key={index} className="flex items-center space-x-3">
-                        <input
-                          name={index}
-                          value={editForm.options[index] || ''}
-                          onChange={handleEditFormChange}
-                          className="flex-1 px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
-                          placeholder={`Option ${String.fromCharCode(65 + index)}`}
-                          required
-                        />
-                        <label className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            name={`correct-${index}`}
-                            checked={editForm.correctAnswers.includes(editForm.options[index])}
-                            onChange={handleChange}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-700">Mark correct</span>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
+                  <label className="block text-xs font-semibold text-black mb-1">
+                    Correct Answer
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    name="correctAnswer"
+                    value={editForm.correctAnswers[0] || ''}
+                    onChange={(e) => setEditForm(f => ({ ...f, correctAnswers: [e.target.value] }))}
+                    placeholder="Enter the exact correct answer text"
+                    required
+                  />
                 </div>
 
                 {/* Explanation */}
                 <div>
-                  <label className="block text-sm font-semibold text-black mb-1">Explanation</label>
+                  <label className="block text-xs font-semibold text-black mb-1">
+                    Explanation
+                  </label>
                   <textarea
+                    className="w-full px-3 py-2 border border-gray-300 focus:ring-1 focus:ring-black text-sm"
+                    rows={2}
                     name="explanation"
                     value={editForm.explanation}
                     onChange={handleEditFormChange}
-                    className="w-full px-4 py-3 border border-gray-300 focus:ring-2 focus:ring-blue-400 text-sm"
-                    rows={3}
-                    placeholder="Enter explanation"
                   />
                 </div>
 
                 {/* Buttons */}
-                <div className="flex justify-end pt-4">
+                <div className="flex justify-end pt-2">
                   <button
                     type="submit"
-                    className="px-6 py-3 bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
                   >
                     Save Question
                   </button>
@@ -2972,7 +3067,6 @@ const AdminDashboard = ({ user, onNavigate }) => {
             </div>
           </div>
         )}
-
 
       </div>
     </div>

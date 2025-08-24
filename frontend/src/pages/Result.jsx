@@ -1034,7 +1034,9 @@ const Result = () => {
                                     Array.isArray(options) 
                                       ? userAnswer || 'Not answered'
                                       : userAnswer 
-                                        ? `${(userAnswer || '').toUpperCase()}. ${options[userAnswer] || userAnswer}` 
+                                        ? (options[userAnswer] 
+                                            ? `${(userAnswer || '').toUpperCase()}. ${options[userAnswer]}` 
+                                            : userAnswer)
                                         : 'Not answered'
                                   }
                                 </p>
@@ -1045,7 +1047,9 @@ const Result = () => {
                                     Array.isArray(correctAnswer) 
                                       ? correctAnswer.join(', ')
                                       : correctAnswer 
-                                        ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer] || correctAnswer}` 
+                                        ? (options[correctAnswer] 
+                                            ? `${correctAnswer.toUpperCase()}. ${options[correctAnswer]}` 
+                                            : correctAnswer)
                                         : 'Not available'
                                   }
                                 </p>

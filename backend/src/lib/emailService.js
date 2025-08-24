@@ -135,7 +135,7 @@ export const sendWelcomeEmail = async (email, fullName) => {
                   <tr>
                     <td style="background-color: #2c3e50; padding: 30px; text-align: center;">
                       <p style="color: #bdc3c7; margin: 0 0 10px 0; font-size: 14px;">
-                        © 2024 PlacePrep. All rights reserved.
+                        © ${new Date().getFullYear()} PlacePrep. All rights reserved.
                       </p>
                       <p style="color: #95a5a6; margin: 0; font-size: 12px;">
                         This email was sent to ${email}. If you didn't create an account, please ignore this email.
@@ -250,7 +250,7 @@ export const sendPasswordResetEmail = async (email, resetToken) => {
                   <tr>
                     <td style="background-color: #2c3e50; padding: 30px; text-align: center;">
                       <p style="color: #bdc3c7; margin: 0 0 10px 0; font-size: 14px;">
-                        © 2024 PlacePrep. All rights reserved.
+                        © ${new Date().getFullYear()} PlacePrep. All rights reserved.
                       </p>
                       <p style="color: #95a5a6; margin: 0; font-size: 12px;">
                         This email was sent to ${email}. If you didn't request a password reset, please ignore this email.
@@ -366,7 +366,7 @@ export const sendEmailVerificationEmail = async (email, fullName, verificationCo
                   <tr>
                     <td style="background-color: #2c3e50; padding: 30px; text-align: center;">
                       <p style="color: #bdc3c7; margin: 0 0 10px 0; font-size: 14px;">
-                        © 2024 PlacePrep. All rights reserved.
+                        ©  PlacePrep. All rights reserved.
                       </p>
                       <p style="color: #95a5a6; margin: 0; font-size: 12px;">
                         This email was sent to ${email}. If you didn't create an account, please ignore this email.
@@ -499,7 +499,7 @@ export const sendModeratorRoleEmail = async (email, fullName, password) => {
                   <tr>
                     <td style="background-color: #2c3e50; padding: 30px; text-align: center;">
                       <p style="color: #bdc3c7; margin: 0 0 10px 0; font-size: 14px;">
-                        © 2024 PlacePrep. All rights reserved.
+                        © ${new Date().getFullYear()} PlacePrep. All rights reserved.
                       </p>
                       <p style="color: #95a5a6; margin: 0; font-size: 12px;">
                         This email was sent to ${email}. If you didn't expect this email, please contact the admin.

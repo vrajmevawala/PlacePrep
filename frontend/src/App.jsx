@@ -312,6 +312,13 @@ function App() {
                   setPendingVerification(null);
                   setShowAuthModal(false);
                   toast.success('Email verified successfully! You can now log in to your account.');
+                  // Redirect to home page and show login modal
+                  navigate('/');
+                  // Automatically open login modal after a short delay
+                  setTimeout(() => {
+                    setAuthModalType('login');
+                    setShowAuthModal(true);
+                  }, 1000);
                 }} 
                 onBack={() => {
                   setPendingVerification(null);

@@ -9,7 +9,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:5001', 
+      '/api': process.env.NODE_ENV === 'production' 
+        ? process.env.VITE_API_URL || 'http://localhost:5001'
+        : 'http://localhost:5001', 
     },
   },
   build: {

@@ -5,8 +5,9 @@
   "main": "index.js",
 
   "scripts": {
-    "build": "npm install --prefix backend && npm run prisma:generate --prefix backend && npm run prisma:migrate:deploy --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
-    "start": "npm run start --prefix backend"
+    "build": "npm install --prefix backend && npm run prisma:generate --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
+    "start": "cd backend && NODE_ENV=production node src/server.js",
+    "dev": "cd backend && npm run dev"
   },
   "dependencies": {}
 }

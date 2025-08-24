@@ -32,12 +32,14 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: process.env.NODE_ENV === 'production' 
+      ? ['https://placeprep-otc4.onrender.com', 'http://localhost:5173'] 
+      : "http://localhost:5173",
     credentials: true
   }
 });
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5001;
 
 // Resolve __dirname for ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -48,7 +50,9 @@ app.use(morgan('dev'));
 app.use(cookieParser());
 app.use(express.json());
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: process.env.NODE_ENV === 'production' 
+      ? ['https://placeprep-otc4.onrender.com', 'http://localhost:5173'] 
+      : 'http://localhost:5173',
     credentials: true
 }));
 
@@ -104,6 +108,8 @@ app.set('notificationService', notificationService);
 
 server.listen(PORT, () => {
   console.log("Server is running on port " + PORT);
+  console.log("Environment:", process.env.NODE_ENV || 'development');
+  console.log("Database URL:", process.env.DATABASE_URL ? 'Set' : 'Not set');
 });
 
 // Cron job for contest management and notifications

@@ -49,12 +49,12 @@ const Home = ({ user, onOpenAuthModal }) => {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, delay: 0.2 }}
       >
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+        <div className="container-sm text-center">
+          <h1 className="text-hero mb-6">
             Prepare for Your
             <span className="block mt-2">Dream Placement</span>
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+          <p className="text-body-large mb-8 max-w-2xl mx-auto">
             Master aptitude, technical, and DSA skills with our comprehensive platform. 
             Get placement-ready with expert-curated content and real-time assessments.
           </p>
@@ -71,7 +71,7 @@ const Home = ({ user, onOpenAuthModal }) => {
               whileTap={{ scale: 0.95 }}
             >
               <span>Get Started</span>
-              <ArrowRight className="w-5 h-5" />
+              <ArrowRight className="icon-button" />
             </motion.button>
             <motion.button
               onClick={() => onOpenAuthModal('login')}
@@ -118,17 +118,17 @@ const Home = ({ user, onOpenAuthModal }) => {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, delay: 0.6 }}
       >
-        <div className="max-w-6xl mx-auto">
+        <div className="container-md">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            <h2 className="text-section-title mb-4">
               Everything You Need to Succeed
             </h2>
-            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+            <p className="text-body-large max-w-2xl mx-auto">
               Our platform provides all the tools and resources you need to excel in placement tests
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid-features">
             <motion.div 
               className="text-center group cursor-pointer" 
               onClick={() => { if (user) { navigate('/practice'); } else { onOpenAuthModal('login'); } }}
@@ -142,10 +142,10 @@ const Home = ({ user, onOpenAuthModal }) => {
                 className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors"
                 whileHover={{ rotate: 5 }}
               >
-                <Target className="w-8 h-8 text-white" />
+                <Target className="icon-medium text-white" />
               </motion.div>
-              <h3 className="text-xl font-semibold mb-2">Practice Tests</h3>
-              <p className="text-gray-600">Comprehensive aptitude, technical, and DSA questions</p>
+              <h3 className="text-card-title mb-2">Practice Tests</h3>
+              <p className="text-body">Comprehensive aptitude, technical, and DSA questions</p>
             </motion.div>
             <motion.div 
               className="text-center group cursor-pointer" 
@@ -160,10 +160,10 @@ const Home = ({ user, onOpenAuthModal }) => {
                 className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors"
                 whileHover={{ rotate: 5 }}
               >
-                <Trophy className="w-8 h-8 text-white" />
+                <Trophy className="icon-medium text-white" />
               </motion.div>
-              <h3 className="text-xl font-semibold mb-2">Live Contests</h3>
-              <p className="text-gray-600">Compete with peers in real-time coding challenges</p>
+              <h3 className="text-card-title mb-2">Live Contests</h3>
+              <p className="text-body">Compete with peers in real-time coding challenges</p>
             </motion.div>
             <motion.div 
               className="text-center group cursor-pointer" 
@@ -178,10 +178,10 @@ const Home = ({ user, onOpenAuthModal }) => {
                 className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors"
                 whileHover={{ rotate: 5 }}
               >
-                <BarChart3 className="w-8 h-8 text-white" />
+                <BarChart3 className="icon-medium text-white" />
               </motion.div>
-              <h3 className="text-xl font-semibold mb-2">Analytics</h3>
-              <p className="text-gray-600">Detailed performance tracking and insights</p>
+              <h3 className="text-card-title mb-2">Analytics</h3>
+              <p className="text-body">Detailed performance tracking and insights</p>
             </motion.div>
             <motion.div 
               className="text-center group cursor-pointer" 
@@ -196,10 +196,10 @@ const Home = ({ user, onOpenAuthModal }) => {
                 className="w-16 h-16 bg-black rounded-sm flex items-center justify-center mx-auto mb-4 group-hover:bg-gray-800 transition-colors"
                 whileHover={{ rotate: 5 }}
               >
-                <BookOpen className="w-8 h-8 text-white" />
+                <BookOpen className="icon-medium text-white" />
               </motion.div>
-              <h3 className="text-xl font-semibold mb-2">Resources</h3>
-              <p className="text-gray-600">Curated learning materials and study guides</p>
+              <h3 className="text-card-title mb-2">Resources</h3>
+              <p className="text-body">Curated learning materials and study guides</p>
             </motion.div>
           </div>
         </div>

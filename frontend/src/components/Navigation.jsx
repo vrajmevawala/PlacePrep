@@ -97,7 +97,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
               className="flex items-center space-x-2 cursor-pointer"
               onClick={(e) => handleNavigationClick(e, '/')}
             >
-              <img src={logo} alt="PlacePrep Logo" className="w-32 h-auto" />
+              <img src={logo} alt="PlacePrep Logo" className="w-28 h-auto md:w-32" />
             </Link>
           </motion.div>
 
@@ -109,7 +109,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`text-sm font-medium transition-colors ${
+                    className={`text-body font-medium transition-colors ${
                       location.pathname === item.path
                         ? 'text-black border-b-2 border-black'
                         : isContestMode 
@@ -161,7 +161,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                         onMouseLeave={() => setShowPracticeDropdown(false)}
                       >
                         <button
-                          className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
+                          className={`flex items-center space-x-1 text-body font-medium transition-colors ${
                             location.pathname === '/practice'
                               ? 'text-black border-b-2 border-black'
                               : isContestMode 
@@ -177,9 +177,9 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                           }}
                           disabled={isContestMode}
                         >
-                          <Target className="w-4 h-4" />
+                          <Target className="icon-nav" />
                           <span>Practice</span>
-                          <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${showPracticeDropdown ? 'rotate-180' : ''}`} />
+                          <ChevronDown className={`icon-nav ml-1 transition-transform ${showPracticeDropdown ? 'rotate-180' : ''}`} />
                         </button>
                         <AnimatePresence>
                           {showPracticeDropdown && !isContestMode && (
@@ -191,15 +191,15 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                               transition={{ duration: 0.2 }}
                             >
                             <button
-                              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                              className="block w-full text-left px-4 py-2 text-body hover:bg-gray-100"
                               onClick={() => { setShowPracticeDropdown(false); navigate('/practice?category=Aptitude'); }}
                             >Aptitude Test</button>
                             <button
-                              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                              className="block w-full text-left px-4 py-2 text-body hover:bg-gray-100"
                               onClick={() => { setShowPracticeDropdown(false); navigate('/practice?category=Technical'); }}
                             >Technical Test</button>
                             <button
-                              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                              className="block w-full text-left px-4 py-2 text-body hover:bg-gray-100"
                               onClick={() => { setShowPracticeDropdown(false); navigate('/practice?category=DSA'); }}
                             >DSA Round</button>
                             </motion.div>
@@ -216,7 +216,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                       <Link
                         key={item.path}
                         to={adminTabHref}
-                        className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
+                        className={`flex items-center space-x-1 text-body font-medium transition-colors ${
                           isAdminTabActive
                             ? 'text-black border-b-2 border-black'
                             : isContestMode 
@@ -225,7 +225,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                         }`}
                         onClick={(e) => handleNavigationClick(e, adminTabHref)}
                       >
-                        {Icon && <Icon className="w-4 h-4" />}
+                        {Icon && <Icon className="icon-nav" />}
                         <span>{item.name}</span>
                       </Link>
                     );
@@ -236,7 +236,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                     <Link
                       key={item.path}
                       to={item.path}
-                      className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
+                      className={`flex items-center space-x-1 text-body font-medium transition-colors ${
                         location.pathname === item.path
                           ? 'text-black border-b-2 border-black'
                           : isContestMode 
@@ -245,7 +245,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                       }`}
                       onClick={(e) => handleNavigationClick(e, item.path)}
                     >
-                      {Icon && <Icon className="w-4 h-4" />}
+                      {Icon && <Icon className="icon-nav" />}
                       <span>{item.name}</span>
                     </Link>
                   );
@@ -259,7 +259,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
             {!user ? (
               <>
                 <button
-                  className={`text-sm font-medium transition-colors ${
+                  className={`text-body font-medium transition-colors ${
                     isContestMode 
                       ? 'text-gray-400 cursor-not-allowed'
                       : 'text-gray-600 hover:text-black'
@@ -276,7 +276,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                   Login
                 </button>
                 <button
-                  className={`px-4 py-2 rounded-sm text-sm font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-sm text-body font-medium transition-colors ${
                     isContestMode 
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-black text-white hover:bg-gray-800'
@@ -298,8 +298,8 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                 {/* Contest Mode Warning */}
                 {isContestMode && (
                   <div className="flex items-center space-x-2 px-3 py-1 bg-yellow-100 border border-yellow-300 rounded-lg">
-                    <alertTriangle className="w-4 h-4 text-yellow-600" />
-                    <span className="text-xs font-medium text-yellow-800">Contest Mode</span>
+                    <AlertTriangle className="icon-xs text-yellow-600" />
+                    <span className="text-caption font-medium text-yellow-800">Contest Mode</span>
                   </div>
                 )}
 
@@ -315,7 +315,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                   }`}
                   onClick={(e) => handleNavigationClick(e, '/bookmarks')}
                 >
-                  <Bookmark className="w-5 h-5" />
+                  <Bookmark className="icon-nav" />
                 </Link>
 
                 {/* Notification Bell */}
@@ -323,7 +323,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                   <NotificationBell />
                 ) : (
                   <div className="p-2 text-gray-400 cursor-not-allowed" title="Notifications disabled during contest">
-                    <Bell className="w-5 h-5" />
+                    <Bell className="icon-nav" />
                   </div>
                 )}
 
@@ -344,7 +344,7 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                       }
                     }}
                   >
-                    <User className="w-4 h-4 text-white" />
+                    <User className="icon-xs text-white" />
                   </div>
                   <AnimatePresence>
                     {showUserDropdown && !isContestMode && (
@@ -358,15 +358,15 @@ const Navigation = ({ user, onLogout, isContestMode = false, onOpenAuthModal }) 
                         transition={{ duration: 0.2 }}
                       >
                       <div className="p-3 border-b border-gray-200">
-                        <p className="text-sm font-medium text-gray-900">{user.fullName}</p>
-                        <p className="text-xs text-gray-500">{user.role}</p>
+                        <p className="text-body font-medium text-gray-900">{user.fullName}</p>
+                        <p className="text-caption text-gray-500">{user.role}</p>
                       </div>
                       <div className="p-1">
                         <button
                           onClick={handleLogout}
-                          className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                          className="w-full flex items-center space-x-2 px-3 py-2 text-body text-gray-700 hover:bg-gray-100 rounded transition-colors"
                         >
-                          <LogOut className="w-4 h-4" />
+                          <LogOut className="icon-xs" />
                           <span>Logout</span>
                         </button>
                       </div>

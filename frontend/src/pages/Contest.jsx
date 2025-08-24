@@ -203,7 +203,7 @@ const Contest = ({ user }) => {
       // Check if user has already participated in this contest
       if (hasUserParticipated(contest.id)) {
         // If already participated, navigate to results
-        navigate(`/contest-results/${contest.id}`);
+        navigate(`/results/${contest.id}`);
         return;
       }
       

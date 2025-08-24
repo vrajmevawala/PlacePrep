@@ -28,9 +28,7 @@ export const sendWelcomeEmail = async (email, fullName) => {
       return;
     }
     
-    const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://placeprep-otc4.onrender.com' 
-      : (process.env.FRONTEND_URL || 'http://localhost:5173');
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -181,9 +179,7 @@ export const sendPasswordResetEmail = async (email, resetToken) => {
     }
 
     // Generate the complete reset link
-    const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://placeprep-otc4.onrender.com' 
-      : (process.env.FRONTEND_URL || 'http://localhost:5173');
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
@@ -413,9 +409,7 @@ export const sendModeratorRoleEmail = async (email, fullName, password) => {
       return;
     }
 
-    const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://placeprep-otc4.onrender.com' 
-      : (process.env.FRONTEND_URL || 'http://localhost:5173');
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
     const mailOptions = {
       from: process.env.EMAIL_USER,

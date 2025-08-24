@@ -10,7 +10,7 @@ const EmailVerification = ({ email, onVerificationSuccess, onBack }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!verificationCode.trim()) {
-      toast.error('Please enter the verification code');
+      alert('Please enter the verification code');
       return;
     }
 
@@ -28,10 +28,10 @@ const EmailVerification = ({ email, onVerificationSuccess, onBack }) => {
         toast.success(data.message);
         onVerificationSuccess();
       } else {
-        toast.error(data.message || 'Verification failed');
+        alert(data.message || 'Verification failed');
       }
     } catch (error) {
-      toast.error('Network error. Please try again.');
+      alert('Network error. Please try again.');
     } finally {
       setIsVerifying(false);
     }
@@ -51,10 +51,10 @@ const EmailVerification = ({ email, onVerificationSuccess, onBack }) => {
       if (res.ok) {
         toast.success(data.message);
       } else {
-        toast.error(data.message || 'Failed to resend code');
+        alert(data.message || 'Failed to resend code');
       }
     } catch (error) {
-      toast.error('Network error. Please try again.');
+      alert('Network error. Please try again.');
     } finally {
       setIsResending(false);
     }
